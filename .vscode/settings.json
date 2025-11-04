@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./Project A&D - DBS Group 34/app"
+    ]
+}
