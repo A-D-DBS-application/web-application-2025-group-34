@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from app.config import Config
+from config import Config
 
 
 db = SQLAlchemy()
@@ -15,5 +15,10 @@ def create_app():
 
     with app.app_context():
         db.create_all()  # Create database tables for our data models
-        print ("Database tables created.")
     return app
+if __name__ == '__main__':
+    # 1. Call the function to create and configure the application
+    app = create_app()
+    
+    # 2. Run the Flask development server
+    app.run(debug=True)
