@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+  <section class="leftcol card">
+    <div class="section-head">
+      <h3>Aankondigingen</h3>
+      <button class="btn small ghost">Bericht toevoegen</button>
+    </div>
+
+    {% for post in announcements %}
+    <article class="announcement">
+      <h4>{{ post.title }}</h4>
+      <p>{{ post.body }}</p>
+      <div class="meta">{{ post.date }} • {{ post.author }}</div>
+    </article>
+    {% endfor %}
+  </section>
+
+  <aside class="rightcol card">
+    <div class="section-head">
+      <h3>Agenda</h3>
+      <button class="btn small">Event toevoegen</button>
+    </div>
+
+    <h4>Toekomstige Events</h4>
+    {% for ev in upcoming %}
+    <div class="event">
+      <strong>{{ ev.title }}</strong>
+      <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+      <div class="muted">{{ ev.location }}</div>
+    </div>
+    {% endfor %}
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="portfolio-header">
+    <div>
+      <div class="muted">Portfolio Value</div>
+      <div class="big">€ {{ portfolio_value }}</div>
+    </div>
+    <div>
+      <div class="muted">P&L</div>
+      <div class="big">€ {{ pnl }}</div>
+    </div>
+    <div>
+      <div class="muted">Position Value</div>
+      <div class="big">€ {{ position_value }}</div>
+    </div>
+    <div><button class="btn">+ Positie Toevoegen</button></div>
+  </div>
+
+  <table class="portfolio-table">
+    <thead>
+      <tr>
+        <th>#</th><th>Asset</th><th>Sector</th><th>Ticker</th><th>Day Change</th><th>Share Price</th><th>Qty</th><th>Market Value</th><th>Weight</th><th>P&L %</th><th>Gain/Loss</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in portfolio %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ p.asset }}</td>
+        <td>{{ p.sector }}</td>
+        <td class="ticker">{{ p.ticker }}</td>
+        <td class="{% if p.day_change.startswith('+') %}positive{% elif p.day_change.startswith('-') %}negative{% endif %}">{{ p.day_change }}</td>
+        <td>€ {{ p.share_price }}</td>
+        <td>{{ p.quantity }}</td>
+        <td>€ {{ p.market_value }}</td>
+        <td>{{ p.weight }}%</td>
+        <td class="{% if p.pnl_percent.startswith('+') %}positive{% elif p.pnl_percent.startswith('-') %}negative{% endif %}">{{ p.pnl_percent }}</td>
+        <td>€ {{ p.pnl_value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

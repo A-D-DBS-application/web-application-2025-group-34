@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title or "VIC" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="left">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="logo" class="logo">
+      <div class="brand">
+        <div class="brand-title">Vek investment club</div>
+        <div class="brand-sub">Ghent • 130 participants</div>
+      </div>
+    </div>
+
+    <div class="right userbox">
+      {% if user %}
+      <div><strong>Naam:</strong> {{ user.name }}</div>
+      <div><strong>ID:</strong> {{ user.id }}</div>
+      <div><strong>Email:</strong> {{ user.email }}</div>
+      {% endif %}
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <a href="{{ url_for('main.dashboard') }}" class="tab">Overview</a>
+    <a href="{{ url_for('main.dashboard') }}" class="tab">Portfolio</a>
+    <a href="#" class="tab">Transactions</a>
+    <a href="#" class="tab">Voting</a>
+    <a href="#" class="tab">Bestanden</a>
+    <a href="#" class="tab">Deelnemers</a>
+  </nav>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

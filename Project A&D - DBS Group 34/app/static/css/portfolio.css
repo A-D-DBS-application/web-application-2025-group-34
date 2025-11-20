@@ -1,0 +1,13 @@
+.portfolio-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid var(--border);background:linear-gradient(90deg,rgba(37,91,72,0.95), rgba(37,91,72,0.95))}
+.portfolio-header .muted{color:rgba(255,255,255,0.9)}
+.portfolio-header .big{font-weight:800;color:white;font-size:20px}
+
+.portfolio-table{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.portfolio-table th, .portfolio-table td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}
+.portfolio-table thead th{background:var(--green);color:white;font-weight:700}
+.portfolio-table tbody tr:nth-child(even){background:#f7faf8}
+.positive{color:#0b7a51;font-weight:700}
+.negative{color:#9b2f2f;font-weight:700}
+@media(max-width:900px){
+  .portfolio-table th:nth-child(6), .portfolio-table td:nth-child(6), .portfolio-table th:nth-child(7), .portfolio-table td:nth-child(7){display:none}
+}
