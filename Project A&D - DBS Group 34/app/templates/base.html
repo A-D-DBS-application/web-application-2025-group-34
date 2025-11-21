@@ -18,24 +18,35 @@
     </div>
 
     <div class="right userbox">
-      {% if user %}
-      <div><strong>Naam:</strong> {{ user.name }}</div>
-      <div><strong>ID:</strong> {{ user.id }}</div>
-      <div><strong>Email:</strong> {{ user.email }}</div>
-      {% endif %}
+      {% if g.user %} <div><strong>Naam:</strong> {{ g.user.name }}</div>
+      <div><strong>ID:</strong> {{ g.user.id }}</div>
+      <div><strong>Email:</strong> {{ g.user.email }}</div>
+      <div><a href="{{ url_for('main.logout') }}" style="color:var(--green); font-weight:700;">Logout</a></div> {% endif %}
     </div>
   </header>
 
   <nav class="tabs">
     <a href="{{ url_for('main.dashboard') }}" class="tab">Overview</a>
-    <a href="{{ url_for('main.dashboard') }}" class="tab">Portfolio</a>
-    <a href="#" class="tab">Transactions</a>
+    <a href="{{ url_for('main.portfolio') }}" class="tab">Portfolio</a> <a href="{{ url_for('main.investments') }}" class="tab">Investments</a> <a href="#" class="tab">Transactions</a>
     <a href="#" class="tab">Voting</a>
     <a href="#" class="tab">Bestanden</a>
     <a href="#" class="tab">Deelnemers</a>
   </nav>
 
   <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" style="margin-bottom: 22px;">
+          {% for category, message in messages %}
+            {% set style_color = '#255b48' if category == 'success' else '#1976f2' if category == 'info' else '#9b2f2f' %}
+            <div class="flash-{{ category }}" style="padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; background: rgba(36,111,89,0.05); border: 1px solid rgba(31,90,71,0.06); font-weight: 600; color: {{ style_color }};">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
     {% block content %}{% endblock %}
   </main>
 

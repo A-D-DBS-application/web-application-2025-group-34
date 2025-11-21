@@ -1,8 +1,6 @@
-from flask_sqlalchemy import SQLAlchemy 
-# ...
-db = SQLAlchemy() # <--- This is the definition you need to import
-# ...
-
+from . import db
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import text # Needed for text() function for DEFAULT values
 
@@ -63,6 +61,27 @@ class Member(db.Model):
     # UUID Column: Requires 'from sqlalchemy.dialects.postgresql import UUID'
     # Note: Use server_default=text('gen_random_uuid()') to execute the function on the database side
     guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True) # E-mail als unieke login
+    password_hash = db.Column(db.String(128))
+    
+    # Vereist door Flask-Login om de gebruiker te identificeren
+    def get_id(self):
+        return str(self.member_id)
+        
+    # Foreign Key to IvClub
+    club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
+    
+    # UUID Column: Requires 'from sqlalchemy.dialects.postgresql import UUID'
+    guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
+    
+    # METHODEN VOOR WACHTWOORD-BEVEILIGING
+    def set_password(self, password):
+        """ Hash het wachtwoord en sla de hash op. """
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """ Controleer het opgegeven wachtwoord tegen de opgeslagen hash. """
+        return check_password_hash(self.password_hash, password)
     
 # --- portfolio Table ---
 class Portfolio(db.Model):
