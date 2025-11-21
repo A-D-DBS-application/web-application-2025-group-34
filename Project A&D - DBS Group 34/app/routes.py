@@ -1,17 +1,60 @@
 from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash
 from functools import wraps
+from sqlalchemy import or_ 
 from . import supabase
+from . import db 
+from .models import Member 
 
 main = Blueprint("main", __name__)
-DUMMY_USER = {"id": "12345", "name": "John Doe", "email": "example@ugent.be", "password": "password"}
 
-# --- NIEUW: Middleware om Gebruiker in Context te Laden ---
+# --- MOCK DATA UIT FIGMA (App.tsx) ---
+MOCK_CASH_AMOUNT = 16411.22
+
+MOCK_POSITIONS = [
+  {"asset": "Adyen NV", "sector": "Tech", "ticker": "ADYEN", "day_change": "+0.66%", "share_price": 1504.0, "quantity": 1, "market_value": 1504.0, "unrealizedGain": 187.4, "unrealizedPL": 14.23},
+  {"asset": "ALPHABET INC.", "sector": "Tech", "ticker": "GOOGL", "day_change": "+0.55%", "share_price": 217.85, "quantity": 7, "market_value": 1524.95, "unrealizedGain": -92.8, "unrealizedPL": -6.02},
+  {"asset": "BERKSHIRE HATHAWAY", "sector": "RE, F. & Hold.", "ticker": "BRK. B", "day_change": "-0.34%", "share_price": 421.93, "quantity": 8, "market_value": 3375.44, "unrealizedGain": 393.38, "unrealizedPL": 11.15},
+  {"asset": "MICROSOFT CORP.", "sector": "Tech", "ticker": "MSFT", "day_change": "+0.02%", "share_price": 448.1, "quantity": 3, "market_value": 1344.3, "unrealizedGain": 833.28, "unrealizedPL": 114.4},
+]
+
+MOCK_ANNOUNCEMENTS = [
+    {"title": "Stemresultaten Banca Sistema", "body": "De stemming over Banca Sistema verliep als volgt: 75,00% akkoord. De aankoop is goedgekeurd.", "date": "04/11/2025", "author": "Milan Van Nuffel"},
+    {"title": "Reminder: AV 3 vanavond", "body": "Een korte reminder dat deze avond AV 3 op de planning staat.", "date": "05/11/2025", "author": "Casper Bekaert"},
+]
+
+MOCK_UPCOMING_EVENTS = [
+    {"title": "Algemene vergadering 6", "date": "12/12/2025", "time": "19:30", "location": "Gent, Belgium"},
+    {"title": "Algemene vergadering 5", "date": "28/11/2025", "time": "19:30", "location": "Gent, Belgium"},
+]
+
+MOCK_TRANSACTIONS = [
+    {"number": 1, "date": "1-9-2022", "type": "BUY", "asset": "Volkswagen AG", "ticker": "VOW3", "units": 4, "price": 129.72, "total": 518.88, "currency": "EUR"},
+    {"number": 2, "date": "1-9-2022", "type": "SELL", "asset": "ADVANCED MICRO DEVICES", "ticker": "AMD", "units": 10, "price": 66.64, "total": -666.4, "currency": "USD", "profitLoss": 80.5},
+]
+
+MOCK_VOTES = [
+    {"title": "Algemene Vergadering 2", "stockName": "Stock XYZ", "deadline": "November 20th", "totalVotes": 0, "forVotes": 0, "againstVotes": 0, "abstainVotes": 0, "isPending": True},
+    {"title": "Algemene Vergadering 1", "stockName": "Stock XYZ", "deadline": "October 15th", "totalVotes": 17, "forVotes": 12, "againstVotes": 5, "abstainVotes": 0, "isPending": False},
+]
+
+
+# --- HELPER FUNCTIES ---
+
+def format_currency(value):
+    """Formats a float to a European currency string (e.g., 1.234,56)"""
+    return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
+
+# --- BEVEILIGING & CONTEXT ---
+
 @main.before_app_request
 def load_logged_in_user():
-    """Plaatst de ingelogde user in het 'g'-object voor toegang in templates en routes."""
-    g.user = session.get('user')
+    member_id = session.get('user_id')
+    
+    if member_id is None:
+        g.user = None
+    else:
+        g.user = db.session.get(Member, member_id)
 
-# --- NIEUW: Decorator voor Beveiliging ---
 def login_required(view):
     """Decorator: vereist dat een gebruiker is ingelogd om de route te bezoeken."""
     @wraps(view)
@@ -22,79 +65,80 @@ def login_required(view):
         return view(*args, **kwargs)
     return wrapped_view
 
-# --- Bestaande routes met beveiliging ---
-
-@main.route("/investments")
-@login_required # Beveiligd!
-def investments():
-    if supabase is None:
-        # Foutafhandeling als Supabase niet is geconfigureerd
-        return render_template("investments.html", investments=[], error="Supabase is niet geconfigureerd.") 
-    try:
-        # De .execute() roep is correct
-        data = supabase.table("investments").select("*").execute()
-        return render_template("investments.html", investments=data.data) 
-    except Exception as e:
-        print(f"Error fetching investments: {e}")
-        return render_template("investments.html", investments=[], error="Fout bij het ophalen van investeringsgegevens.")
+# --- ROUTES ---
 
 # Dashboard pagina
 @main.route("/dashboard")
-@login_required # Beveiligd!
+@login_required 
 def dashboard():
-    # TEMP: fake data (later vervangen door Supabase)
-    announcements = [
-        {"title": "Welkom bij de VIC!", "body": "Dit is onze nieuwe dashboardpagina.", "date": "20/11/2025", "author": "Admin"},
-        {"title": "Vergadering", "body": "Teammeeting om 19u.", "date": "18/11/2025", "author": "Jens"},
-    ]
-
-    upcoming_events = [
-        {"title": "Pitch Night", "date": "25/11/2025", "time": "19:00", "location": "UGent"},
-        {"title": "Beursgame Finale", "date": "30/11/2025", "time": "20:30", "location": "Campus Kortrijk"},
-    ]
-
     return render_template(
         "dashboard.html",
-        announcements=announcements,
-        upcoming=upcoming_events
+        announcements=MOCK_ANNOUNCEMENTS,
+        upcoming=MOCK_UPCOMING_EVENTS
     )
 
-# --- NIEUW: Portfolio Route ---
+# Portfolio pagina
 @main.route("/portfolio")
-@login_required # Beveiligd!
+@login_required 
 def portfolio():
-    # Helper functie voor EUR-notatie
-    def format_currency(value):
-        return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
-        
-    # TEMP: Mock data voor de portfolio-pagina
-    portfolio_value = 150000.55
-    pnl = 12500.25
-    position_value = 137500.30
-
-    portfolio_data = [
-        {"asset": "Tesla Inc", "sector": "Technology", "ticker": "TSLA", "day_change": "+1.5%", "share_price": 200.00, "quantity": 100, "market_value": 20000.00, "weight": 14.5, "pnl_percent": "+12.5%", "pnl_value": 2500.00},
-        {"asset": "ASML", "sector": "Tech", "ticker": "ASML", "day_change": "-0.5%", "share_price": 850.20, "quantity": 50, "market_value": 42510.00, "weight": 30.1, "pnl_percent": "+5.0%", "pnl_value": 2000.00},
-        {"asset": "Coca Cola", "sector": "Consumer", "ticker": "KO", "day_change": "+0.1%", "share_price": 60.15, "quantity": 500, "market_value": 30075.00, "weight": 21.3, "pnl_percent": "-2.0%", "pnl_value": -601.50},
-    ]
+    # 1. Bereken de totale waarden
+    total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
+    total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
+    portfolio_value = total_market_value + MOCK_CASH_AMOUNT
     
-    # Formatteer de data
-    p_data_formatted = []
-    for p in portfolio_data:
-        p_formatted = p.copy()
-        p_formatted['share_price'] = format_currency(p['share_price'])
-        p_formatted['market_value'] = format_currency(p['market_value'])
-        p_formatted['pnl_value'] = format_currency(p['pnl_value'])
-        p_data_formatted.append(p_formatted)
+    # 2. Formatteer de portfolio data voor de template
+    portfolio_data_formatted = []
+    for p in MOCK_POSITIONS:
+        weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
         
+        day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
+        pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
+        
+        portfolio_data_formatted.append({
+            'asset': p['asset'],
+            'sector': p['sector'],
+            'ticker': p['ticker'],
+            'day_change': day_change_str,
+            'share_price': format_currency(p['share_price']),
+            'quantity': p['quantity'],
+            'market_value': format_currency(p['market_value']),
+            'weight': format_currency(weight),
+            'pnl_percent': pnl_percent_str,
+            'pnl_value': format_currency(p['unrealizedGain']),
+        })
+
     return render_template(
         "portfolio.html",
         portfolio_value=format_currency(portfolio_value),
-        pnl=format_currency(pnl),
-        position_value=format_currency(position_value),
-        portfolio=p_data_formatted,
+        pnl=format_currency(total_unrealized_gain),
+        position_value=format_currency(total_market_value),
+        portfolio=portfolio_data_formatted
     )
 
+# Transactions pagina (Nu de centrale bron voor transactiegegevens)
+@main.route("/transactions")
+@login_required
+def transactions():
+    transactions_data = MOCK_TRANSACTIONS  # Standaard fallback is mock data
+    
+    if supabase is not None:
+        try:
+            # FIX: Gebruik de correcte tabelnaam 'transactions'
+            data = supabase.table("transactions").select("*").execute()
+            transactions_data = data.data # Gebruik DB data indien succesvol
+        except Exception as e:
+            print(f"WARNING: Supabase transactie fetch failed: {e}. Falling back to mock data.")
+            flash("Kon transactiedata niet ophalen van Supabase. Toon mock data.", "warning")
+
+    return render_template("transactions.html", transactions=transactions_data)
+    
+# Voting pagina
+@main.route("/voting")
+@login_required
+def voting():
+    return render_template("voting.html", votes=MOCK_VOTES)
+
+# Investments pagina: VERWIJDERD OMDAT DEZE REDUNDANT EN KAPOT IS
 
 # Home redirect → login of dashboard
 @main.route("/")
@@ -106,22 +150,29 @@ def home():
 # Login POST
 @main.route("/login", methods=["POST"])
 def login_post():
-    user_id = request.form.get("id")
+    login_id = request.form.get("id")
     password = request.form.get("password")
 
-    if user_id == DUMMY_USER["id"] and password == DUMMY_USER["password"]:
-        session["user"] = DUMMY_USER
-        flash(f"Welkom terug, {DUMMY_USER['name']}!", "success") 
+    member = db.session.execute(
+        db.select(Member).where(
+            or_(
+                Member.member_id == login_id,
+                Member.email == login_id
+            )
+        )
+    ).scalar_one_or_none()
+
+    if member and member.check_password(password):
+        session["user_id"] = member.member_id 
+        flash(f"Welkom terug, {member.member_name}!", "success")
         return redirect(url_for("main.dashboard"))
     else:
-        # Gebruik flash i.p.v. een 'error' variabele
         flash("Ongeldige ID of wachtwoord", "error")
         return redirect(url_for('main.home'))
 
-# --- NIEUW: Logout route ---
+# Logout route
 @main.route('/logout')
 def logout():
-    session.pop('user', None)
+    session.pop('user_id', None) 
     flash("Je bent succesvol uitgelogd.", "info")
     return redirect(url_for('main.home'))
-

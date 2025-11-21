@@ -8,30 +8,6 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body>
-  <header class="topbar">
-    <div class="left">
-      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="logo" class="logo">
-      <div class="brand">
-        <div class="brand-title">Vek investment club</div>
-        <div class="brand-sub">Ghent • 130 participants</div>
-      </div>
-    </div>
-
-    <div class="right userbox">
-      {% if g.user %} <div><strong>Naam:</strong> {{ g.user.name }}</div>
-      <div><strong>ID:</strong> {{ g.user.id }}</div>
-      <div><strong>Email:</strong> {{ g.user.email }}</div>
-      <div><a href="{{ url_for('main.logout') }}" style="color:var(--green); font-weight:700;">Logout</a></div> {% endif %}
-    </div>
-  </header>
-
-  <nav class="tabs">
-    <a href="{{ url_for('main.dashboard') }}" class="tab">Overview</a>
-    <a href="{{ url_for('main.portfolio') }}" class="tab">Portfolio</a> <a href="{{ url_for('main.investments') }}" class="tab">Investments</a> <a href="#" class="tab">Transactions</a>
-    <a href="#" class="tab">Voting</a>
-    <a href="#" class="tab">Bestanden</a>
-    <a href="#" class="tab">Deelnemers</a>
-  </nav>
 
   <main class="content">
     {% with messages = get_flashed_messages(with_categories=true) %}

@@ -1,0 +1,48 @@
+{% extends "logged_in_base.html" %}
+
+{% block sub_content %}
+<div class="card">
+    <div class="section-head">
+      <h3>Transacties Overzicht</h3>
+      <button class="btn small">+ Transactie Toevoegen</button>
+    </div>
+
+    <table class="portfolio-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Datum</th>
+                <th>Type</th>
+                <th>Asset</th>
+                <th>Ticker</th>
+                <th>Units</th>
+                <th>Prijs</th>
+                <th>Totaal (€)</th>
+                <th>P&L (€)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ t.number }}</td>
+                <td>{{ t.date }}</td>
+                <td class="{% if t.type == 'BUY' %}positive{% else %}negative{% endif %}">{{ t.type }}</td>
+                <td>{{ t.asset }}</td>
+                <td class="ticker">{{ t.ticker }}</td>
+                <td>{{ t.units }}</td>
+                <td>€ {{ t.price }}</td>
+                <td>€ {{ t.total }}</td>
+                <td class="{% if t.profitLoss is not none and t.profitLoss >= 0 %}positive{% elif t.profitLoss is not none and t.profitLoss < 0 %}negative{% endif %}">
+                    {% if t.profitLoss is not none %}
+                        € {{ t.profitLoss | round(2) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+</div>
+{% endblock %}

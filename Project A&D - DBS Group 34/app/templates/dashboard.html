@@ -1,6 +1,10 @@
-{% extends "base.html" %}
+{% extends "logged_in_base.html" %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block sub_content %} <div class="dashboard-grid">
+    </div>
 {% endblock %}
 
 {% block content %}

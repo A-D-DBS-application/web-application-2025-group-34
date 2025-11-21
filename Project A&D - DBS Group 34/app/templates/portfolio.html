@@ -1,8 +1,11 @@
-{% extends "base.html" %}
+{% extends "logged_in_base.html" %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio.css') }}">
 {% endblock %}
 
+{% block sub_content %} <div class="card">
+    </div>
+{% endblock %}
 {% block content %}
 <div class="card">
   <div class="portfolio-header">

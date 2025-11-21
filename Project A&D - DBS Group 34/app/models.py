@@ -49,11 +49,34 @@ class File(db.Model):
 # --- members Table (Includes Foreign Key) ---
 class Member(db.Model):
     __tablename__ = 'members'
-    member_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    
+    # FIX: Gaat ervan uit dat de DB Primary Key 'id' heet. 
+    # De Python-code blijft 'member_id' gebruiken als attribuutnaam.
+    member_id = db.Column('id', db.BigInteger, primary_key=True, autoincrement=True) 
+    
     join_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
     sector = db.Column(db.Text)
     voting_right = db.Column(db.Text)
     member_name = db.Column(db.Text)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True) 
+    password_hash = db.Column(db.String(128))
+    
+    # Foreign Key to IvClub (NU GECORRIGEERD)
+    club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
+    
+    # UUID Column (NU GECORRIGEERD)
+    guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
+    
+    # Vereist door Flask-Login
+    def get_id(self):
+        return str(self.member_id)
+        
+    # METHODEN VOOR WACHTWOORD-BEVEILIGING (blijven hetzelfde)
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
     
     # Foreign Key to IvClub
     club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
