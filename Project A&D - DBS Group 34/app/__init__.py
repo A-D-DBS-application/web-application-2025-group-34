@@ -36,6 +36,18 @@ def create_app():
     from .routes import main
     app.register_blueprint(main)
 
+    # Context processor voor globale template variabelen
+    @app.context_processor
+    def inject_member_count():
+        """Maakt het aantal deelnemers beschikbaar in alle templates."""
+        try:
+            from .models import Member
+            member_count = db.session.query(Member).count()
+        except Exception:
+            # Fallback als database niet beschikbaar is
+            member_count = 0
+        return dict(member_count=member_count)
+
     @app.cli.command("create-member")
     @click.option("--name", prompt=True, help="Full name for the member.")
     @click.option("--email", prompt=True, help="Unique email used for login.")
