@@ -3,7 +3,7 @@ from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime
 from . import supabase, db
-from .models import Member
+from .models import Member, Announcement
 
 main = Blueprint("main", __name__)
 
@@ -118,8 +118,23 @@ def _format_supabase_date(ts):
         return ts
 
 def _persist_announcement_supabase(title, body, author):
+    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    try:
+        announcement = Announcement(
+            title=title,
+            body=body,
+            author=author
+        )
+        db.session.add(announcement)
+        db.session.commit()
+        return True
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy announcement insert failed: {exc}")
+        db.session.rollback()
+    
+    # Fallback naar Supabase REST API
     if supabase is None:
-        return None
+        return False
     try:
         supabase.table("announcements").insert({
             "title": title,
@@ -132,6 +147,23 @@ def _persist_announcement_supabase(title, body, author):
         return False
 
 def _fetch_announcements():
+    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    try:
+        announcements = db.session.query(Announcement).order_by(Announcement.created_at.desc()).all()
+        if announcements:
+            normalized = []
+            for ann in announcements:
+                normalized.append({
+                    "title": ann.title,
+                    "body": ann.body,
+                    "author": ann.author or "Onbekend",
+                    "date": _format_supabase_date(ann.created_at.isoformat() if ann.created_at else None)
+                })
+            return normalized
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy announcement fetch failed: {exc}")
+    
+    # Fallback naar Supabase REST API
     if supabase is None:
         return MOCK_ANNOUNCEMENTS
     try:

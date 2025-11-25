@@ -61,7 +61,7 @@ class Member(UserMixin, db.Model):
     voting_right = db.Column(db.Text)
     member_name = db.Column(db.Text)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True) 
-    password_hash = db.Column(db.String(128))
+    password_hash = db.Column(db.String(255))  # Increased from 128 to 255 for scrypt hashes
     
     club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
     
