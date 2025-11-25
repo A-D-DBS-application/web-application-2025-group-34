@@ -36,7 +36,11 @@ class BoardMember(db.Model):
 # --- events Table ---
 class Event(db.Model):
     __tablename__ = 'events'
-    event_number = db.Column(db.BigInteger, primary_key=True)
+    event_number = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    event_name = db.Column(db.String(255), nullable=False)
+    event_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
+    location = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
     
 # --- files Table ---
 class File(db.Model):
@@ -47,11 +51,9 @@ class File(db.Model):
     post_analyses = db.Column(db.Text)
     
 # --- members Table (Includes Foreign Key) ---
-class Member(db.Model):
+class Member(UserMixin, db.Model):
     __tablename__ = 'members'
     
-    # FIX: Gaat ervan uit dat de DB Primary Key 'id' heet. 
-    # De Python-code blijft 'member_id' gebruiken als attribuutnaam.
     member_id = db.Column('id', db.BigInteger, primary_key=True, autoincrement=True) 
     
     join_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
@@ -61,49 +63,17 @@ class Member(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True) 
     password_hash = db.Column(db.String(128))
     
-    # Foreign Key to IvClub (NU GECORRIGEERD)
     club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
     
-    # UUID Column (NU GECORRIGEERD)
     guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
     
-    # Vereist door Flask-Login
     def get_id(self):
         return str(self.member_id)
         
-    # METHODEN VOOR WACHTWOORD-BEVEILIGING (blijven hetzelfde)
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-    
-    # Foreign Key to IvClub
-    club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
-    
-    # UUID Column: Requires 'from sqlalchemy.dialects.postgresql import UUID'
-    # Note: Use server_default=text('gen_random_uuid()') to execute the function on the database side
-    guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True) # E-mail als unieke login
-    password_hash = db.Column(db.String(128))
-    
-    # Vereist door Flask-Login om de gebruiker te identificeren
-    def get_id(self):
-        return str(self.member_id)
-        
-    # Foreign Key to IvClub
-    club_id = db.Column(db.BigInteger, db.ForeignKey('Iv_club.club_id'))
-    
-    # UUID Column: Requires 'from sqlalchemy.dialects.postgresql import UUID'
-    guided_by = db.Column(UUID(as_uuid=True), default=text('gen_random_uuid()'))
-    
-    # METHODEN VOOR WACHTWOORD-BEVEILIGING
-    def set_password(self, password):
-        """ Hash het wachtwoord en sla de hash op. """
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        """ Controleer het opgegeven wachtwoord tegen de opgeslagen hash. """
         return check_password_hash(self.password_hash, password)
     
 # --- portfolio Table ---
@@ -139,3 +109,12 @@ class VotingProposal(db.Model):
     proposal_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
     proposal_type = db.Column(db.Text)
     minimum_requirements = db.Column(db.Text)
+
+
+class Announcement(db.Model):
+    __tablename__ = 'announcements'
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    author = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())

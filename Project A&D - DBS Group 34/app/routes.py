@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash
 from functools import wraps
-from sqlalchemy import or_ 
-from . import supabase
-from . import db 
-from .models import Member 
+from sqlalchemy import or_
+from datetime import datetime
+from . import supabase, db
+from .models import Member
 
 main = Blueprint("main", __name__)
 
@@ -28,7 +28,7 @@ MOCK_UPCOMING_EVENTS = [
 ]
 
 MOCK_TRANSACTIONS = [
-    {"number": 1, "date": "1-9-2022", "type": "BUY", "asset": "Volkswagen AG", "ticker": "VOW3", "units": 4, "price": 129.72, "total": 518.88, "currency": "EUR"},
+    {"number": 1, "date": "1-9-2022", "type": "BUY", "asset": "Volkswagen AG", "ticker": "VOW3", "units": 4, "price": 129.72, "total": 518.88, "currency": "EUR", "profitLoss": None},
     {"number": 2, "date": "1-9-2022", "type": "SELL", "asset": "ADVANCED MICRO DEVICES", "ticker": "AMD", "units": 10, "price": 66.64, "total": -666.4, "currency": "USD", "profitLoss": 80.5},
 ]
 
@@ -43,6 +43,113 @@ MOCK_VOTES = [
 def format_currency(value):
     """Formats a float to a European currency string (e.g., 1.234,56)"""
     return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
+
+def _normalize_transactions(records):
+    normalized = []
+    for record in records:
+        if isinstance(record, dict):
+            normalized.append({
+                "number": record.get("number") or record.get("transaction_id"),
+                "date": record.get("date") or record.get("transaction_date"),
+                "type": record.get("type") or record.get("transaction_type"),
+                "asset": record.get("asset") or record.get("name"),
+                "ticker": record.get("ticker") or record.get("symbol"),
+                "units": record.get("units") or record.get("quantity") or record.get("transaction_quantity"),
+                "price": record.get("price") or record.get("unit_price") or record.get("transaction_price"),
+                "total": record.get("total") or record.get("transaction_amount"),
+                "profitLoss": record.get("profitLoss") or record.get("profit_loss"),
+            })
+        else:
+            normalized.append(record)
+    return normalized
+
+def _get_next_event_number():
+    fallback = len(MOCK_UPCOMING_EVENTS) + 1
+    if supabase is None:
+        return fallback
+    try:
+        response = supabase.table("events").select("event_number").order("event_number", desc=True).limit(1).execute()
+        latest = response.data[0]["event_number"] if response.data else 0
+        return (latest or 0) + 1
+    except Exception as exc:
+        print(f"WARNING: Supabase event number fetch failed: {exc}")
+        return fallback
+
+def _format_event_date(date_str, time_str):
+    if not date_str:
+        return datetime.now().isoformat()
+    parsed_date = None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            parsed_date = datetime.strptime(date_str, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed_date is None:
+        return f"{date_str} {time_str}".strip()
+    if time_str:
+        try:
+            parsed_time = datetime.strptime(time_str, "%H:%M")
+            parsed_date = parsed_date.replace(hour=parsed_time.hour, minute=parsed_time.minute)
+        except ValueError:
+            pass
+    return parsed_date.isoformat()
+
+def _persist_event_supabase(event_number, title, event_date_iso):
+    if supabase is None:
+        return None
+    try:
+        supabase.table("events").insert({
+            "event_number": event_number,
+            "event_name": title,
+            "event_date": event_date_iso,
+        }).execute()
+        return True
+    except Exception as exc:
+        print(f"WARNING: Supabase event insert failed: {exc}")
+        return False
+
+def _format_supabase_date(ts):
+    if not ts:
+        return datetime.now().strftime("%d/%m/%Y")
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+    except ValueError:
+        return ts
+
+def _persist_announcement_supabase(title, body, author):
+    if supabase is None:
+        return None
+    try:
+        supabase.table("announcements").insert({
+            "title": title,
+            "body": body,
+            "author": author
+        }).execute()
+        return True
+    except Exception as exc:
+        print(f"WARNING: Supabase announcement insert failed: {exc}")
+        return False
+
+def _fetch_announcements():
+    if supabase is None:
+        return MOCK_ANNOUNCEMENTS
+    try:
+        response = supabase.table("announcements").select("*").order("created_at", desc=True).execute()
+        data = response.data or []
+        normalized = []
+        for row in data:
+            normalized.append({
+                "title": row.get("title"),
+                "body": row.get("body"),
+                "author": row.get("author", "Onbekend"),
+                "date": _format_supabase_date(row.get("created_at"))
+            })
+        if normalized:
+            return normalized
+    except Exception as exc:
+        print(f"WARNING: Supabase announcement fetch failed: {exc}")
+    return MOCK_ANNOUNCEMENTS
 
 # --- BEVEILIGING & CONTEXT ---
 
@@ -73,9 +180,65 @@ def login_required(view):
 def dashboard():
     return render_template(
         "dashboard.html",
-        announcements=MOCK_ANNOUNCEMENTS,
+        announcements=_fetch_announcements(),
         upcoming=MOCK_UPCOMING_EVENTS
     )
+
+@main.route("/dashboard/announcements", methods=["POST"])
+@login_required
+def add_announcement():
+    title = request.form.get("title", "").strip()
+    body = request.form.get("body", "").strip()
+    author = g.user.member_name if g.user else "Onbekend"
+    date_str = datetime.now().strftime("%d/%m/%Y")
+
+    if not title or not body:
+        flash("Titel en bericht zijn verplicht.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    persisted = _persist_announcement_supabase(title, body, author)
+    if not persisted:
+        flash("Bericht lokaal toegevoegd; Supabase opslag mislukt.", "warning")
+        MOCK_ANNOUNCEMENTS.insert(0, {
+            "title": title,
+            "body": body,
+            "date": date_str,
+            "author": author
+        })
+    flash("Bericht toegevoegd.", "success")
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/dashboard/events", methods=["POST"])
+@login_required
+def add_event():
+    title = request.form.get("title", "").strip()
+    date = request.form.get("date", "").strip()
+    time = request.form.get("time", "").strip()
+    location = request.form.get("location", "").strip() or "Onbekende locatie"
+
+    if not title:
+        flash("Titel is verplicht voor een event.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    if not date:
+        date = datetime.now().strftime("%d/%m/%Y")
+    if not time:
+        time = "00:00"
+
+    event_number = _get_next_event_number()
+    iso_date = _format_event_date(date, time)
+
+    if _persist_event_supabase(event_number, title, iso_date) is False:
+        flash("Event lokaal toegevoegd; Supabase opslag mislukt.", "warning")
+
+    MOCK_UPCOMING_EVENTS.insert(0, {
+        "title": title,
+        "date": date,
+        "time": time,
+        "location": location
+    })
+    flash(f"Event '{title}' toegevoegd.", "success")
+    return redirect(url_for("main.dashboard"))
 
 # Portfolio pagina
 @main.route("/portfolio")
@@ -130,6 +293,7 @@ def transactions():
             print(f"WARNING: Supabase transactie fetch failed: {e}. Falling back to mock data.")
             flash("Kon transactiedata niet ophalen van Supabase. Toon mock data.", "warning")
 
+    transactions_data = _normalize_transactions(transactions_data)
     return render_template("transactions.html", transactions=transactions_data)
     
 # Voting pagina
