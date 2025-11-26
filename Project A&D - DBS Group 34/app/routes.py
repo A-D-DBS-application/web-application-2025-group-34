@@ -3,7 +3,7 @@ from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime
 from . import supabase, db
-from .models import Member, Announcement
+from .models import Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio, Analist, BoardMember
 
 main = Blueprint("main", __name__)
 
@@ -65,6 +65,16 @@ def _normalize_transactions(records):
 
 def _get_next_event_number():
     fallback = len(MOCK_UPCOMING_EVENTS) + 1
+    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    try:
+        latest_event = db.session.query(Event).order_by(Event.event_number.desc()).first()
+        if latest_event and latest_event.event_number:
+            return latest_event.event_number + 1
+        return 1
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy event number fetch failed: {exc}")
+    
+    # Fallback naar Supabase REST API
     if supabase is None:
         return fallback
     try:
@@ -95,14 +105,49 @@ def _format_event_date(date_str, time_str):
             pass
     return parsed_date.isoformat()
 
-def _persist_event_supabase(event_number, title, event_date_iso):
-    if supabase is None:
-        return None
+def _persist_event_supabase(title, event_date_iso, location=None):
+    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
     try:
+        from datetime import datetime
+        # Parse de ISO date string naar datetime object
+        try:
+            if isinstance(event_date_iso, str):
+                # Handle verschillende datetime formats
+                if 'T' in event_date_iso:
+                    event_date = datetime.fromisoformat(event_date_iso.replace('Z', '+00:00'))
+                else:
+                    event_date = datetime.fromisoformat(event_date_iso)
+            else:
+                event_date = event_date_iso
+        except (ValueError, AttributeError):
+            event_date = datetime.now()
+        
+        # event_number wordt automatisch gegenereerd door de database (autoincrement)
+        event = Event(
+            event_name=title,
+            event_date=event_date,
+            location=location
+        )
+        db.session.add(event)
+        db.session.commit()
+        return True
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy event insert failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+    
+    # Fallback naar Supabase REST API
+    if supabase is None:
+        return False
+    try:
+        # Voor Supabase REST API moeten we event_number wel handmatig bepalen
+        event_number = _get_next_event_number()
         supabase.table("events").insert({
             "event_number": event_number,
             "event_name": title,
             "event_date": event_date_iso,
+            "location": location
         }).execute()
         return True
     except Exception as exc:
@@ -183,6 +228,64 @@ def _fetch_announcements():
         print(f"WARNING: Supabase announcement fetch failed: {exc}")
     return MOCK_ANNOUNCEMENTS
 
+def _fetch_events():
+    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    try:
+        events = db.session.query(Event).order_by(Event.event_date.asc()).all()
+        if events:
+            normalized = []
+            for evt in events:
+                event_date = evt.event_date
+                if event_date:
+                    date_str = event_date.strftime("%d/%m/%Y")
+                    time_str = event_date.strftime("%H:%M")
+                else:
+                    date_str = datetime.now().strftime("%d/%m/%Y")
+                    time_str = "00:00"
+                
+                normalized.append({
+                    "title": evt.event_name,
+                    "date": date_str,
+                    "time": time_str,
+                    "location": evt.location or "Onbekende locatie"
+                })
+            return normalized
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy event fetch failed: {exc}")
+    
+    # Fallback naar Supabase REST API
+    if supabase is None:
+        return MOCK_UPCOMING_EVENTS
+    try:
+        response = supabase.table("events").select("*").order("event_date", desc=False).execute()
+        data = response.data or []
+        normalized = []
+        for row in data:
+            event_date_str = row.get("event_date")
+            if event_date_str:
+                try:
+                    event_date = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
+                    date_str = event_date.strftime("%d/%m/%Y")
+                    time_str = event_date.strftime("%H:%M")
+                except (ValueError, AttributeError):
+                    date_str = _format_supabase_date(event_date_str)
+                    time_str = "00:00"
+            else:
+                date_str = datetime.now().strftime("%d/%m/%Y")
+                time_str = "00:00"
+            
+            normalized.append({
+                "title": row.get("event_name", ""),
+                "date": date_str,
+                "time": time_str,
+                "location": row.get("location", "Onbekende locatie")
+            })
+        if normalized:
+            return normalized
+    except Exception as exc:
+        print(f"WARNING: Supabase event fetch failed: {exc}")
+    return MOCK_UPCOMING_EVENTS
+
 # --- BEVEILIGING & CONTEXT ---
 
 @main.before_app_request
@@ -213,7 +316,7 @@ def dashboard():
     return render_template(
         "dashboard.html",
         announcements=_fetch_announcements(),
-        upcoming=MOCK_UPCOMING_EVENTS
+        upcoming=_fetch_events()
     )
 
 @main.route("/dashboard/announcements", methods=["POST"])
@@ -257,19 +360,19 @@ def add_event():
     if not time:
         time = "00:00"
 
-    event_number = _get_next_event_number()
     iso_date = _format_event_date(date, time)
 
-    if _persist_event_supabase(event_number, title, iso_date) is False:
-        flash("Event lokaal toegevoegd; Supabase opslag mislukt.", "warning")
-
-    MOCK_UPCOMING_EVENTS.insert(0, {
-        "title": title,
-        "date": date,
-        "time": time,
-        "location": location
-    })
-    flash(f"Event '{title}' toegevoegd.", "success")
+    persisted = _persist_event_supabase(title, iso_date, location)
+    if not persisted:
+        flash("Event lokaal toegevoegd; database opslag mislukt.", "warning")
+        MOCK_UPCOMING_EVENTS.insert(0, {
+            "title": title,
+            "date": date,
+            "time": time,
+            "location": location
+        })
+    else:
+        flash(f"Event '{title}' toegevoegd.", "success")
     return redirect(url_for("main.dashboard"))
 
 # Portfolio pagina
@@ -333,6 +436,145 @@ def transactions():
 @login_required
 def voting():
     return render_template("voting.html", votes=MOCK_VOTES)
+
+# Deelnemers pagina
+@main.route("/deelnemers")
+@login_required
+def deelnemers():
+    # Haal alle members op
+    try:
+        all_members = db.session.query(Member).order_by(Member.member_id.asc()).all()
+        board_members = db.session.query(BoardMember).order_by(BoardMember.boardmember_id.asc()).all()
+        analisten = db.session.query(Analist).order_by(Analist.analist_id.asc()).all()
+    except Exception as exc:
+        print(f"WARNING: Database fetch failed: {exc}")
+        all_members = []
+        board_members = []
+        analisten = []
+    
+    return render_template(
+        "deelnemers.html",
+        members=all_members,
+        board_members=board_members,
+        analisten=analisten
+    )
+
+# Portfolio: Positie toevoegen
+@main.route("/portfolio/add", methods=["POST"])
+@login_required
+def add_position():
+    pos_name = request.form.get("pos_name", "").strip()
+    pos_type = request.form.get("pos_type", "").strip()
+    pos_quantity = request.form.get("pos_quantity", "").strip()
+    pos_amount = request.form.get("pos_amount", "").strip()
+    
+    if not pos_name:
+        flash("Positie naam is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
+    
+    try:
+        # Zoek of maak een portfolio (gebruik de eerste of maak een nieuwe)
+        portfolio = db.session.query(Portfolio).first()
+        if not portfolio:
+            portfolio = Portfolio()
+            db.session.add(portfolio)
+            db.session.flush()  # Om portfolio_id te krijgen
+        
+        # Converteer quantity en amount naar float
+        quantity = float(pos_quantity) if pos_quantity else 0.0
+        amount = float(pos_amount) if pos_amount else 0.0
+        
+        position = Position(
+            pos_name=pos_name,
+            pos_type=pos_type or None,
+            pos_quantity=quantity,
+            pos_amount=amount,
+            portfolio_id=portfolio.portfolio_id
+        )
+        db.session.add(position)
+        db.session.commit()
+        flash(f"Positie '{pos_name}' toegevoegd.", "success")
+    except Exception as exc:
+        print(f"ERROR: Position insert failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij toevoegen van positie.", "error")
+    
+    return redirect(url_for("main.portfolio"))
+
+# Transactions: Transactie toevoegen
+@main.route("/transactions/add", methods=["POST"])
+@login_required
+def add_transaction():
+    transaction_type = request.form.get("transaction_type", "").strip()
+    transaction_quantity = request.form.get("transaction_quantity", "").strip()
+    transaction_amount = request.form.get("transaction_amount", "").strip()
+    transaction_date = request.form.get("transaction_date", "").strip()
+    
+    if not transaction_type:
+        flash("Transactie type is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    
+    try:
+        # Parse datum
+        if transaction_date:
+            try:
+                parsed_date = datetime.strptime(transaction_date, "%d/%m/%Y")
+            except ValueError:
+                parsed_date = datetime.now()
+        else:
+            parsed_date = datetime.now()
+        
+        # Converteer quantity en amount naar float
+        quantity = float(transaction_quantity) if transaction_quantity else 0.0
+        amount = float(transaction_amount) if transaction_amount else 0.0
+        
+        transaction = Transaction(
+            transaction_type=transaction_type,
+            transaction_quantity=quantity,
+            transaction_amount=amount,
+            transaction_date=parsed_date
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        flash(f"Transactie '{transaction_type}' toegevoegd.", "success")
+    except Exception as exc:
+        print(f"ERROR: Transaction insert failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij toevoegen van transactie.", "error")
+    
+    return redirect(url_for("main.transactions"))
+
+# Voting: Stemming toevoegen
+@main.route("/voting/add", methods=["POST"])
+@login_required
+def add_voting_proposal():
+    proposal_type = request.form.get("proposal_type", "").strip()
+    minimum_requirements = request.form.get("minimum_requirements", "").strip()
+    
+    if not proposal_type:
+        flash("Proposal type is verplicht.", "error")
+        return redirect(url_for("main.voting"))
+    
+    try:
+        proposal = VotingProposal(
+            proposal_type=proposal_type,
+            minimum_requirements=minimum_requirements or None
+        )
+        db.session.add(proposal)
+        db.session.commit()
+        flash(f"Stemming '{proposal_type}' toegevoegd.", "success")
+    except Exception as exc:
+        print(f"ERROR: Voting proposal insert failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij toevoegen van stemming.", "error")
+    
+    return redirect(url_for("main.voting"))
 
 # Investments pagina: VERWIJDERD OMDAT DEZE REDUNDANT EN KAPOT IS
 

@@ -49,5 +49,9 @@
   .inline-form{margin-top:18px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
   .inline-form label{display:flex;flex-direction:column;font-size:14px;gap:6px;font-weight:600}
   .inline-form input,
-  .inline-form textarea{padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:var(--font);font-size:14px}
+  .inline-form textarea,
+  .inline-form select{padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:var(--font);font-size:14px}
+  .form-group{display:flex;flex-direction:column;gap:6px}
+  .form-group label{font-size:14px;font-weight:600;color:var(--green)}
+  .form-actions{display:flex;gap:10px;margin-top:10px}
   

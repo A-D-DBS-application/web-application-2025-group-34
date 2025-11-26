@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_apscheduler import APScheduler
 from supabase import create_client, Client
 from .config import Config
 import os
@@ -11,6 +12,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 supabase: Client | None = None
 login_manager = LoginManager()
+scheduler = APScheduler()
 
 def create_app():
     app = Flask(__name__)
@@ -19,6 +21,25 @@ def create_app():
     # Database setup
     db.init_app(app)
     migrate.init_app(app, db)
+    from .jobs import update_portfolio_prices
+    
+    # Configureer de scheduler (optioneel, maar goed voor opstart)
+    app.config['SCHEDULER_API_ENABLED'] = False 
+    
+    scheduler.init_app(app)
+    
+    # Voeg de periodieke taak toe (draait elke 5 minuten)
+    # Zorg ervoor dat dit alleen gebeurt als de scheduler nog niet draait
+    if not scheduler.running:
+        scheduler.add_job(
+            id='update_prices_job', 
+            func=update_portfolio_prices, 
+            trigger='interval', 
+            minutes=5, 
+            max_instances=1, # Zorgt ervoor dat de taak niet dubbel loopt
+            misfire_grace_time=30 # Wachttijd voor mislukte runs
+        )
+        scheduler.start()
 
     from . import models # maakt alle tabellen
 

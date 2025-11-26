@@ -1,0 +1,207 @@
+{% extends "logged_in_base.html" %}
+
+{% block sub_content %}
+<div class="card">
+  <h2 style="margin-bottom: 20px;">Deelnemers</h2>
+
+  <!-- Site-Admin Tabel -->
+  <div style="margin-bottom: 30px;">
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Site-Admin</h3>
+      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+          {% if member.voting_right == 'Admin' or member.member_id == 999999 %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(member.member_id) }}</td>
+            <td>****</td>
+            <td>{{ member.member_name or 'Onbekend' }}</td>
+            <td>{{ member.voting_right or 'Admin' }}</td>
+            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
+            <td>{{ member.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        {% if not members or not members|selectattr('voting_right', 'equalto', 'Admin')|list %}
+          <tr class="odd-row">
+            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Site-Admin gevonden</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bestuur Tabel -->
+  <div style="margin-bottom: 30px;">
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Bestuur</h3>
+      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for board_member in board_members %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(board_member.boardmember_id) }}</td>
+            <td>****</td>
+            <td>{{ board_member.boardmember_name or 'Onbekend' }}</td>
+            <td>{{ board_member.voting_right or 'Bestuurslid' }}</td>
+            <td>{{ board_member.created_at.strftime('%Y') if board_member.created_at else '2025' }}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+        {% endfor %}
+        {% for member in members %}
+          {% if member.voting_right and member.voting_right != 'Admin' and (member.voting_right == 'President' or member.voting_right == 'Vice President' or member.voting_right == 'Portfolio Manager' or member.voting_right == 'Fund Administrator' or member.voting_right == 'Marketing' or member.voting_right == 'Public Relations') %}
+          <tr class="{% if (board_members|length + loop.index) % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(member.member_id) }}</td>
+            <td>****</td>
+            <td>{{ member.member_name or 'Onbekend' }}</td>
+            <td>{{ member.voting_right }}</td>
+            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
+            <td>{{ member.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        {% if not board_members and not members|selectattr('voting_right')|list %}
+          <tr class="odd-row">
+            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Bestuursleden gevonden</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Analisten Tabel -->
+  <div>
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Analisten</h3>
+      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Sector</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for analist in analisten %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(analist.analist_id) }}</td>
+            <td>****</td>
+            <td>{{ analist.analist_name or 'Onbekend' }}</td>
+            <td>Analist</td>
+            <td>{{ analist.sector or '' }}</td>
+            <td>{{ analist.analist_start_date.strftime('%Y') if analist.analist_start_date else '2025' }}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+        {% endfor %}
+        {% for member in members %}
+          {% if member.voting_right == 'Analist' or member.sector %}
+          <tr class="{% if (analisten|length + loop.index) % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(member.member_id) }}</td>
+            <td>****</td>
+            <td>{{ member.member_name or 'Onbekend' }}</td>
+            <td>Analist</td>
+            <td>{{ member.sector or '' }}</td>
+            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
+            <td>{{ member.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        {% if not analisten and not members|selectattr('voting_right', 'equalto', 'Analist')|list %}
+          <tr class="odd-row">
+            <td colspan="9" style="text-align: center; color: var(--muted); padding: 20px;">Geen Analisten gevonden</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.participants-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.participants-table thead {
+  background: #f8f9fa;
+}
+
+.participants-table th {
+  padding: 12px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--green);
+  border-bottom: 2px solid var(--border);
+}
+
+.participants-table td {
+  padding: 10px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.participants-table tbody tr.odd-row {
+  background: #f0f7f4;
+}
+
+.participants-table tbody tr.even-row {
+  background: white;
+}
+
+.participants-table tbody tr:hover {
+  background: #e8f2ed;
+}
+</style>
+{% endblock %}
+
