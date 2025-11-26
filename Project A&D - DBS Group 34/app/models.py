@@ -92,6 +92,7 @@ class Position(db.Model):
     pos_type = db.Column(db.Text)
     pos_quantity = db.Column(db.Float)
     pos_amount = db.Column(db.Float)
+    portfolio_id = db.Column(db.BigInteger, db.ForeignKey('portfolio.portfolio_id'), nullable=False)
     
 # --- transactions Table ---
 class Transaction(db.Model):
@@ -101,6 +102,7 @@ class Transaction(db.Model):
     transaction_amount = db.Column(db.Float)
     transaction_quantity = db.Column(db.Float)
     transaction_type = db.Column(db.Text)
+    
     
 # --- voting_proposal Table ---
 class VotingProposal(db.Model):
