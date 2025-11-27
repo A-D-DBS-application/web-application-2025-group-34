@@ -71,7 +71,7 @@ def create_app():
 
     @app.cli.command("create-member")
     @click.option("--name", prompt=True, help="Full name for the member.")
-    @click.option("--email", prompt=True, help="Unique email used for login.")
+    @click.option("--email", default=None, help="Optional email used for login.")
     @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Password for the member.")
     @click.option("--sector", default="", help="Optional sector label.")
     @click.option("--voting-right", "voting_right", default="", help="Optional voting right description.")
@@ -79,19 +79,25 @@ def create_app():
         """Creates a single member account with a hashed password."""
         from .models import Member
 
-        if db.session.execute(db.select(Member).where(Member.email == email)).scalar_one_or_none():
+        if email and db.session.execute(db.select(Member).where(Member.email == email)).scalar_one_or_none():
             click.echo(f"Member with email {email} already exists.")
             return
 
+        from datetime import datetime
+        
         member = Member(
             member_name=name,
-            email=email,
+            email=email if email else None,
             sector=sector if sector else None,
             voting_right=voting_right if voting_right else None,
+            join_date=datetime.now().year,  # Huidige jaar als default
         )
         member.set_password(password)
         db.session.add(member)
         db.session.commit()
-        click.echo(f"Created member '{name}' with email '{email}'.")
+        if email:
+            click.echo(f"Created member '{name}' with email '{email}'.")
+        else:
+            click.echo(f"Created member '{name}' without email.")
 
     return app

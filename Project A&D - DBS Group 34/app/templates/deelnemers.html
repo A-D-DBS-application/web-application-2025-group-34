@@ -31,7 +31,7 @@
             <td>****</td>
             <td>{{ member.member_name or 'Onbekend' }}</td>
             <td>{{ member.voting_right or 'Admin' }}</td>
-            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
+            <td>{{ member.join_date or member.get_year() or '2025' }}</td>
             <td>{{ member.email or '' }}</td>
             <td></td>
             <td></td>
@@ -69,31 +69,17 @@
       <tbody>
         {% for board_member in board_members %}
           <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
-            <td>{{ "%06d"|format(board_member.boardmember_id) }}</td>
+            <td>{{ "%06d"|format(board_member.member_id) }}</td>
             <td>****</td>
-            <td>{{ board_member.boardmember_name or 'Onbekend' }}</td>
-            <td>{{ board_member.voting_right or 'Bestuurslid' }}</td>
-            <td>{{ board_member.created_at.strftime('%Y') if board_member.created_at else '2025' }}</td>
-            <td></td>
+            <td>{{ board_member.member_name or 'Onbekend' }}</td>
+            <td>{{ board_member.get_board_function_name() or 'Bestuurslid' }}</td>
+            <td>{{ board_member.get_year() or (board_member.created_at.strftime('%Y') if board_member.created_at else '2025') }}</td>
+            <td>{{ board_member.email or '' }}</td>
             <td></td>
             <td></td>
           </tr>
         {% endfor %}
-        {% for member in members %}
-          {% if member.voting_right and member.voting_right != 'Admin' and (member.voting_right == 'President' or member.voting_right == 'Vice President' or member.voting_right == 'Portfolio Manager' or member.voting_right == 'Fund Administrator' or member.voting_right == 'Marketing' or member.voting_right == 'Public Relations') %}
-          <tr class="{% if (board_members|length + loop.index) % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
-            <td>{{ "%06d"|format(member.member_id) }}</td>
-            <td>****</td>
-            <td>{{ member.member_name or 'Onbekend' }}</td>
-            <td>{{ member.voting_right }}</td>
-            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
-            <td>{{ member.email or '' }}</td>
-            <td></td>
-            <td></td>
-          </tr>
-          {% endif %}
-        {% endfor %}
-        {% if not board_members and not members|selectattr('voting_right')|list %}
+        {% if not board_members %}
           <tr class="odd-row">
             <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Bestuursleden gevonden</td>
           </tr>
@@ -103,7 +89,7 @@
   </div>
 
   <!-- Analisten Tabel -->
-  <div>
+  <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Analisten</h3>
       <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
@@ -125,33 +111,18 @@
       <tbody>
         {% for analist in analisten %}
           <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
-            <td>{{ "%06d"|format(analist.analist_id) }}</td>
+            <td>{{ "%06d"|format(analist.member_id) }}</td>
             <td>****</td>
-            <td>{{ analist.analist_name or 'Onbekend' }}</td>
+            <td>{{ analist.member_name or 'Onbekend' }}</td>
             <td>Analist</td>
-            <td>{{ analist.sector or '' }}</td>
-            <td>{{ analist.analist_start_date.strftime('%Y') if analist.analist_start_date else '2025' }}</td>
-            <td></td>
+            <td>Sector {{ analist.get_analist_sector() or analist.sector or '' }}</td>
+            <td>{{ analist.join_date or analist.get_year() or '2025' }}</td>
+            <td>{{ analist.email or '' }}</td>
             <td></td>
             <td></td>
           </tr>
         {% endfor %}
-        {% for member in members %}
-          {% if member.voting_right == 'Analist' or member.sector %}
-          <tr class="{% if (analisten|length + loop.index) % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
-            <td>{{ "%06d"|format(member.member_id) }}</td>
-            <td>****</td>
-            <td>{{ member.member_name or 'Onbekend' }}</td>
-            <td>Analist</td>
-            <td>{{ member.sector or '' }}</td>
-            <td>{{ member.join_date.strftime('%Y') if member.join_date else '2025' }}</td>
-            <td>{{ member.email or '' }}</td>
-            <td></td>
-            <td></td>
-          </tr>
-          {% endif %}
-        {% endfor %}
-        {% if not analisten and not members|selectattr('voting_right', 'equalto', 'Analist')|list %}
+        {% if not analisten %}
           <tr class="odd-row">
             <td colspan="9" style="text-align: center; color: var(--muted); padding: 20px;">Geen Analisten gevonden</td>
           </tr>
@@ -159,6 +130,138 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Leden Tabel -->
+  <div style="margin-bottom: 30px;">
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Leden</h3>
+      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+          {% if member.get_role() == 'lid' %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(member.member_id) }}</td>
+            <td>****</td>
+            <td>{{ member.member_name or 'Onbekend' }}</td>
+            <td>Lid</td>
+            <td>{{ member.join_date or member.get_year() or '2025' }}</td>
+            <td>{{ member.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        {% set has_lid = false %}
+        {% for m in members %}
+          {% if m.get_role() == 'lid' %}
+            {% set has_lid = true %}
+          {% endif %}
+        {% endfor %}
+        {% if not has_lid %}
+          <tr class="odd-row">
+            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Leden gevonden</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Kapitaalverschaffers Tabel -->
+  {% if kapitaalverschaffers %}
+  <div style="margin-bottom: 30px;">
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Kapitaalverschaffers</h3>
+      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for kv in kapitaalverschaffers %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(kv.member_id) }}</td>
+            <td>****</td>
+            <td>{{ kv.member_name or 'Onbekend' }}</td>
+            <td>Kapitaalverschaffer</td>
+            <td>{{ kv.join_date or kv.get_year() or '2025' }}</td>
+            <td>{{ kv.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Oud-Bestuur en Oud-Analisten Tabel -->
+  {% if oud_bestuur_analisten %}
+  <div style="margin-bottom: 30px;">
+    <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+      <h3 style="margin: 0; color: white;">Oud-Bestuur en Oud-Analisten</h3>
+    </div>
+    <table class="participants-table">
+      <thead>
+        <tr>
+          <th>ID nummer</th>
+          <th>Acc-password</th>
+          <th>Naam</th>
+          <th>Functie</th>
+          <th>Startjaar</th>
+          <th>Email</th>
+          <th>Tel</th>
+          <th>Studie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for oud in oud_bestuur_analisten %}
+          <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
+            <td>{{ "%06d"|format(oud.member_id) }}</td>
+            <td>****</td>
+            <td>{{ oud.member_name or 'Onbekend' }}</td>
+            <td>
+              {% if oud.get_board_function_name() %}
+                Oud-{{ oud.get_board_function_name() }}
+              {% elif oud.get_analist_sector() %}
+                Oud-Analist (Sector {{ oud.get_analist_sector() }})
+              {% else %}
+                Oud-Bestuurslid/Analist
+              {% endif %}
+            </td>
+            <td>{{ oud.join_date or oud.get_year() or '2025' }}</td>
+            <td>{{ oud.email or '' }}</td>
+            <td></td>
+            <td></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </div>
 
 <style>

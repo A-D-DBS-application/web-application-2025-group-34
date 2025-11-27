@@ -3,7 +3,11 @@ from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime
 from . import supabase, db
-from .models import Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio, Analist, BoardMember
+from .models import (
+    Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio,
+    generate_board_member_id, generate_analist_id, generate_lid_id, 
+    generate_kapitaalverschaffer_id, convert_to_oud_id, get_next_available_id
+)
 
 main = Blueprint("main", __name__)
 
@@ -307,6 +311,44 @@ def login_required(view):
         return view(*args, **kwargs)
     return wrapped_view
 
+def role_required(*allowed_roles):
+    """Decorator: vereist dat een gebruiker een specifieke rol heeft."""
+    def decorator(view):
+        @wraps(view)
+        def wrapped_view(*args, **kwargs):
+            if g.user is None:
+                flash("Je moet ingelogd zijn om deze pagina te bekijken.", "info")
+                return redirect(url_for('main.home'))
+            
+            user_role = g.user.get_role()
+            if user_role not in allowed_roles:
+                role_names = {
+                    'board': 'bestuurslid',
+                    'analist': 'analist',
+                    'lid': 'lid',
+                    'kapitaalverschaffers': 'kapitaalverschaffer',
+                    'oud_bestuur_analisten': 'oud-bestuurslid/analist'
+                }
+                allowed_names = [role_names.get(r, r) for r in allowed_roles]
+                flash(f"Alleen {', '.join(allowed_names)} kunnen deze actie uitvoeren.", "error")
+                return redirect(url_for('main.dashboard'))
+            
+            return view(*args, **kwargs)
+        return wrapped_view
+    return decorator
+
+def board_required(view):
+    """Decorator: vereist dat gebruiker board member is."""
+    return role_required('board')(view)
+
+def analist_required(view):
+    """Decorator: vereist dat gebruiker analist is."""
+    return role_required('analist')(view)
+
+def board_or_analist_required(view):
+    """Decorator: vereist dat gebruiker board member of analist is."""
+    return role_required('board', 'analist')(view)
+
 # --- ROUTES ---
 
 # Dashboard pagina
@@ -441,22 +483,34 @@ def voting():
 @main.route("/deelnemers")
 @login_required
 def deelnemers():
-    # Haal alle members op
+    # Haal alle members op en filter op basis van rol
     try:
         all_members = db.session.query(Member).order_by(Member.member_id.asc()).all()
-        board_members = db.session.query(BoardMember).order_by(BoardMember.boardmember_id.asc()).all()
-        analisten = db.session.query(Analist).order_by(Analist.analist_id.asc()).all()
+        
+        # Filter members op basis van rol
+        board_members = [m for m in all_members if m.get_role() == 'board']
+        analisten = [m for m in all_members if m.get_role() == 'analist']
+        leden = [m for m in all_members if m.get_role() == 'lid']
+        kapitaalverschaffers = [m for m in all_members if m.get_role() == 'kapitaalverschaffers']
+        oud_bestuur_analisten = [m for m in all_members if m.get_role() == 'oud_bestuur_analisten']
+        
     except Exception as exc:
         print(f"WARNING: Database fetch failed: {exc}")
         all_members = []
         board_members = []
         analisten = []
+        leden = []
+        kapitaalverschaffers = []
+        oud_bestuur_analisten = []
     
     return render_template(
         "deelnemers.html",
-        members=all_members,
+        members=leden,  # Leden worden als 'members' doorgegeven voor backward compatibility
         board_members=board_members,
-        analisten=analisten
+        analisten=analisten,
+        kapitaalverschaffers=kapitaalverschaffers,
+        oud_bestuur_analisten=oud_bestuur_analisten,
+        all_members=all_members  # Voor eventuele andere doeleinden
     )
 
 # Portfolio: Positie toevoegen
