@@ -36,11 +36,19 @@
       </div>
       <div class="form-group">
         <label>Hoeveelheid</label>
-        <input type="number" step="0.01" name="pos_quantity" placeholder="Bijv. 10">
+        <input type="number" name="pos_quantity" placeholder="Bijv. 10">
       </div>
       <div class="form-group">
-        <label>Bedrag (€)</label>
-        <input type="number" step="0.01" name="pos_amount" placeholder="Bijv. 1504.00">
+        <label>Ticker</label>
+        <input type="text" name="pos_ticker" placeholder="Bijv. AAPL, GOOGL">
+      </div>
+      <div class="form-group">
+        <label>Sector</label>
+        <input type="text" name="pos_sector" placeholder="Bijv. Tech, Healthcare">
+      </div>
+      <div class="form-group">
+        <label>Cost Basis - Totaal Bedrag (€)</label>
+        <input type="number" step="0.01" name="pos_value" placeholder="Bijv. 1504.00" required>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn">Toevoegen</button>

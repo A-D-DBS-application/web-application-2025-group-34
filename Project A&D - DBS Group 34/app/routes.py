@@ -516,33 +516,37 @@ def portfolio():
         for p in positions:
             ticker = p.pos_ticker or p.pos_name  # Gebruik pos_ticker als die bestaat, anders pos_name
             quantity = p.pos_quantity or 0
+            # Cost basis = wat ze hebben betaald (pos_value uit database)
+            # Als pos_value None is, gebruik 0.0 (maar dit zou niet moeten voorkomen)
+            cost_basis = float(p.pos_value) if p.pos_value is not None else 0.0
             
             live_price_data = price_data.get(ticker) if ticker else None
-            cost_basis = p.pos_value or 0.0
             
+            # Bereken market value op basis van live prijs
             if live_price_data and live_price_data['price'] and quantity > 0:
                 live_price = live_price_data['price']
                 market_value = live_price * quantity
                 day_change = live_price_data['day_change']
                 share_price = live_price
             elif cost_basis > 0 and quantity > 0:
+                # Als geen live prijs, gebruik cost basis per aandeel als fallback
                 share_price = cost_basis / quantity
-                market_value = cost_basis
+                market_value = cost_basis  # Fallback: gebruik cost basis als market value
                 day_change = '+0.00%'
             else:
                 share_price = 0.0
                 market_value = 0.0
                 day_change = '+0.00%'
             
+            # Bereken altijd P&L op basis van cost basis
+            pnl_value = market_value - cost_basis
+            pnl_percent = (pnl_value / cost_basis * 100) if cost_basis > 0 else 0.0
+            
             total_market_value += market_value
             total_cost += cost_basis
             
-            if live_price_data and live_price_data['price'] and cost_basis > 0:
-                pnl_value = market_value - cost_basis
-                pnl_percent = (pnl_value / cost_basis * 100) if cost_basis > 0 else 0.0
-            else:
-                pnl_value = 0.0
-                pnl_percent = 0.0
+            # Format percentage correct (geen currency formatting voor percentages)
+            pnl_percent_str = f"{'+' if pnl_percent >= 0 else ''}{pnl_percent:.2f}%"
             
             portfolio_data_formatted.append({
                 'asset': p.pos_name or 'Onbekend',
@@ -552,7 +556,7 @@ def portfolio():
                 'share_price': format_currency(share_price),
                 'quantity': quantity,
                 'market_value': market_value,
-                'pnl_percent': f"{'+' if pnl_percent >= 0 else ''}{format_currency(pnl_percent)}%",
+                'pnl_percent': pnl_percent_str,
                 'pnl_value': format_currency(pnl_value),
             })
         
@@ -661,7 +665,9 @@ def add_position():
     pos_name = request.form.get("pos_name", "").strip()
     pos_type = request.form.get("pos_type", "").strip()
     pos_quantity = request.form.get("pos_quantity", "").strip()
-    pos_amount = request.form.get("pos_amount", "").strip()
+    pos_value = request.form.get("pos_value", "").strip()
+    pos_ticker = request.form.get("pos_ticker", "").strip()
+    pos_sector = request.form.get("pos_sector", "").strip()
     
     if not pos_name:
         flash("Positie naam is verplicht.", "error")
@@ -675,15 +681,17 @@ def add_position():
             db.session.add(portfolio)
             db.session.flush()  # Om portfolio_id te krijgen
         
-        # Converteer quantity en amount naar float
-        quantity = float(pos_quantity) if pos_quantity else 0.0
-        amount = float(pos_amount) if pos_amount else 0.0
+        # Converteer quantity naar integer en value naar float
+        quantity = int(float(pos_quantity)) if pos_quantity else 0
+        value = float(pos_value) if pos_value else 0.0
         
         position = Position(
             pos_name=pos_name,
             pos_type=pos_type or None,
             pos_quantity=quantity,
-            pos_amount=amount,
+            pos_value=value,  # Cost basis: wat ze hebben betaald
+            pos_ticker=pos_ticker or None,
+            pos_sector=pos_sector or None,
             portfolio_id=portfolio.portfolio_id
         )
         db.session.add(position)
