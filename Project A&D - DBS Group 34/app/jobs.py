@@ -1,69 +1,85 @@
 # Project A&D - DBS Group 34/app/jobs.py
 
-from flask import current_app
 from .models import db, Position, Portfolio
 import yfinance as yf
 from sqlalchemy import func
 
-def update_portfolio_prices():
+def update_portfolio_prices(app):
     """
     Haalt de live beurskoersen op voor alle unieke assets in het portfolio,
-    en werkt de totale winst/verlies bij in de Portfolio tabel.
+    en werkt de current_price en day_change_pct bij in de Position tabel.
+    Dit wordt elke 5 minuten uitgevoerd door de scheduler.
+    
+    Args:
+        app: Flask application instance
     """
-    with current_app.app_context():
-        # 1. Haal alle unieke tickers op uit de Position tabel
-        tickers = db.session.query(Position.pos_name).distinct().all()
-        # Converteer naar een lijst van strings (tickers)
-        ticker_list = [t[0] for t in tickers if t[0]]
+    with app.app_context():
+        # 1. Haal alle posities op met unieke tickers
+        all_positions = db.session.query(Position).all()
+        
+        if not all_positions:
+            print("Geen posities gevonden om te tracken.")
+            return
+        
+        # Verzamel unieke tickers (gebruik pos_ticker als die bestaat, anders pos_name)
+        ticker_set = set()
+        for pos in all_positions:
+            ticker = pos.pos_ticker or pos.pos_name
+            if ticker:
+                ticker_set.add(ticker)
+        
+        ticker_list = list(ticker_set)
         
         if not ticker_list:
-            print("Geen assets gevonden om te tracken.")
+            print("Geen tickers gevonden om te tracken.")
             return
             
-        print(f"Start koersen ophalen voor: {ticker_list}")
+        print(f"Start koersen ophalen voor {len(ticker_list)} tickers...")
         
         try:
             # 2. Gebruik yfinance om de live prijzen op te halen
-            # Gebruik Tickers om data van meerdere symbolen tegelijk op te vragen
-            ticker_data = yf.Tickers(ticker_list)
+            ticker_objects = yf.Tickers(" ".join(ticker_list))
             
-            # 3. Bereken de totale live-waarde van het portfolio
-            total_live_value = 0.0
-            
-            all_positions = db.session.query(Position).all()
-            
+            # 3. Update elke positie met de nieuwe prijs en dagverandering
+            updated_count = 0
             for pos in all_positions:
-                ticker = pos.pos_name
+                ticker = pos.pos_ticker or pos.pos_name
+                if not ticker:
+                    continue
                 
-                # Haal de meest recente prijs op uit de yfinance data
-                # Gebruik 'currentPrice' als 'regularMarketPrice' niet beschikbaar is
                 try:
-                    price = ticker_data.tickers[ticker].info.get('regularMarketPrice') or \
-                            ticker_data.tickers[ticker].info.get('currentPrice')
+                    ticker_obj = ticker_objects.tickers.get(ticker)
+                    if not ticker_obj:
+                        continue
+                    
+                    info = ticker_obj.info
+                    
+                    # Haal huidige prijs op
+                    current_price = (info.get('regularMarketPrice') or 
+                                    info.get('currentPrice') or 
+                                    info.get('previousClose'))
+                    
+                    # Haal vorige sluitprijs op voor dagverandering
+                    previous_close = info.get('previousClose') or current_price
+                    
+                    if current_price and previous_close:
+                        # Bereken dagverandering percentage
+                        day_change_pct = ((current_price - previous_close) / previous_close) * 100
+                        
+                        # Update positie in database
+                        pos.current_price = current_price
+                        pos.day_change_pct = day_change_pct
+                        updated_count += 1
+                    else:
+                        print(f"WAARSCHUWING: Kan prijs voor {ticker} niet ophalen (geen data beschikbaar)")
+                        
                 except Exception as e:
                     print(f"WAARSCHUWING: Kan prijs voor {ticker} niet ophalen. Fout: {e}")
-                    price = None
-                    
-                if price is not None and pos.pos_quantity is not None:
-                    total_live_value += price * pos.pos_quantity
+                    continue
             
-            # 4. Update de Portfolio tabel
-            # Voor een simpele setup: zoek het meest recente portfolio-item en update de winst/verlies
-            latest_portfolio = db.session.query(Portfolio).order_by(Portfolio.portfolio_date.desc()).first()
-            
-            if latest_portfolio:
-                # Let op: U moet bepalen hoe u 'profit&loss' definieert.
-                # Hieronder wordt een simpele totale waarde gebruikt.
-                # Om echte P&L te berekenen heeft u de initiële investering nodig.
-                
-                # Totaal geïnvesteerd bedrag (dit is een schatting, pas aan naar uw logica)
-                total_cost = db.session.query(func.sum(Position.pos_amount)).scalar() or 0.0
-                
-                # Update P&L in de database
-                latest_portfolio.profit_loss = total_live_value - total_cost
-                db.session.commit()
-                
-                print(f"Portfolio bijgewerkt: Nieuwe P&L: {latest_portfolio.profit_loss:.2f} (gebaseerd op totale live waarde: {total_live_value:.2f})")
+            # Commit alle wijzigingen
+            db.session.commit()
+            print(f"✓ {updated_count} posities bijgewerkt met nieuwe prijzen")
             
         except Exception as e:
             db.session.rollback()

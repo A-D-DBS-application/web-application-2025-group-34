@@ -365,6 +365,8 @@ class Position(db.Model):
     pos_value = db.Column(db.Float)  # Renamed from pos_amount
     pos_ticker = db.Column(db.String(50))  # Added
     pos_sector = db.Column(db.String(100))  # Added
+    current_price = db.Column(db.Float)  # Huidige share price (gecached)
+    day_change_pct = db.Column(db.Float)  # Dagverandering percentage (gecached)
     portfolio_id = db.Column(db.BigInteger, db.ForeignKey('portfolio.portfolio_id'), nullable=False)
     
 # --- transactions Table ---

@@ -33,7 +33,7 @@ def create_app():
     if not scheduler.running:
         scheduler.add_job(
             id='update_prices_job', 
-            func=update_portfolio_prices, 
+            func=lambda: update_portfolio_prices(app), 
             trigger='interval', 
             minutes=5, 
             max_instances=1, # Zorgt ervoor dat de taak niet dubbel loopt
@@ -99,5 +99,16 @@ def create_app():
             click.echo(f"Created member '{name}' with email '{email}'.")
         else:
             click.echo(f"Created member '{name}' without email.")
+
+    @app.cli.command("update-prices")
+    def update_prices_cli():
+        """Manually trigger the portfolio price update job."""
+        click.echo("Updating portfolio prices...")
+        try:
+            update_portfolio_prices(app)
+            click.echo("✓ Portfolio prices updated successfully!")
+        except Exception as e:
+            click.echo(f"✗ Error updating prices: {e}", err=True)
+            raise
 
     return app

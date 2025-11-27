@@ -467,46 +467,8 @@ def portfolio():
                 portfolio=portfolio_data_formatted
             )
         
-        # Haal live prijzen op voor alle positions
-        import yfinance as yf
-        ticker_set = set()
-        for pos in positions:
-            ticker = pos.pos_ticker or pos.pos_name  # Gebruik pos_ticker als die bestaat, anders pos_name
-            if ticker:
-                ticker_set.add(ticker)
-        
-        ticker_list = list(ticker_set)
-        price_data = {}
-        
-        if ticker_list:
-            try:
-                ticker_objects = yf.Tickers(" ".join(ticker_list))
-                for ticker in ticker_list:
-                    try:
-                        ticker_obj = ticker_objects.tickers[ticker]
-                        info = ticker_obj.info
-                        
-                        current_price = (info.get('regularMarketPrice') or 
-                                       info.get('currentPrice') or 
-                                       info.get('previousClose'))
-                        previous_close = info.get('previousClose') or current_price
-                        
-                        if current_price and previous_close:
-                            day_change_pct = ((current_price - previous_close) / previous_close) * 100
-                            day_change_str = f"{'+' if day_change_pct >= 0 else ''}{day_change_pct:.2f}%"
-                        else:
-                            day_change_str = '+0.00%'
-                        
-                        if current_price:
-                            price_data[ticker] = {
-                                'price': current_price,
-                                'previous_close': previous_close,
-                                'day_change': day_change_str
-                            }
-                    except Exception:
-                        price_data[ticker] = None
-            except Exception:
-                pass
+        # Gebruik gecachte prijzen uit de database (geüpdatet door scheduler elke 5 minuten)
+        # Geen live API calls meer nodig - dit maakt de pagina veel sneller!
         
         # Bereken totale waarden met live prijzen
         total_market_value = 0.0
@@ -520,16 +482,15 @@ def portfolio():
             # Als pos_value None is, gebruik 0.0 (maar dit zou niet moeten voorkomen)
             cost_basis = float(p.pos_value) if p.pos_value is not None else 0.0
             
-            live_price_data = price_data.get(ticker) if ticker else None
-            
-            # Bereken market value op basis van live prijs
-            if live_price_data and live_price_data['price'] and quantity > 0:
-                live_price = live_price_data['price']
-                market_value = live_price * quantity
-                day_change = live_price_data['day_change']
-                share_price = live_price
+            # Gebruik gecachte prijzen uit database (geüpdatet door scheduler)
+            if p.current_price is not None and quantity > 0:
+                share_price = p.current_price
+                market_value = share_price * quantity
+                # Format dagverandering
+                day_change_pct = p.day_change_pct if p.day_change_pct is not None else 0.0
+                day_change = f"{'+' if day_change_pct >= 0 else ''}{day_change_pct:.2f}%"
             elif cost_basis > 0 and quantity > 0:
-                # Als geen live prijs, gebruik cost basis per aandeel als fallback
+                # Fallback: gebruik cost basis per aandeel als geen gecachte prijs beschikbaar is
                 share_price = cost_basis / quantity
                 market_value = cost_basis  # Fallback: gebruik cost basis als market value
                 day_change = '+0.00%'
