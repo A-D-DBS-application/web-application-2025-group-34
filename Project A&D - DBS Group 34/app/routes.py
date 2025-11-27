@@ -421,31 +421,172 @@ def add_event():
 @main.route("/portfolio")
 @login_required 
 def portfolio():
-    # 1. Bereken de totale waarden
-    total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
-    total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-    portfolio_value = total_market_value + MOCK_CASH_AMOUNT
-    
-    # 2. Formatteer de portfolio data voor de template
-    portfolio_data_formatted = []
-    for p in MOCK_POSITIONS:
-        weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
+    try:
+        # Haal centrale portfolio op
+        central_portfolio = db.session.query(Portfolio).first()
         
-        day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
-        pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
+        # Haal alle positions op (met of zonder portfolio)
+        if central_portfolio:
+            positions = db.session.query(Position).filter(
+                Position.portfolio_id == central_portfolio.portfolio_id
+            ).all()
+        else:
+            positions = []
         
-        portfolio_data_formatted.append({
-            'asset': p['asset'],
-            'sector': p['sector'],
-            'ticker': p['ticker'],
-            'day_change': day_change_str,
-            'share_price': format_currency(p['share_price']),
-            'quantity': p['quantity'],
-            'market_value': format_currency(p['market_value']),
-            'weight': format_currency(weight),
-            'pnl_percent': pnl_percent_str,
-            'pnl_value': format_currency(p['unrealizedGain']),
-        })
+        # Als er geen positions zijn gekoppeld, probeer alle positions
+        if not positions:
+            positions = db.session.query(Position).all()
+        
+        # Als er nog steeds geen positions zijn, gebruik mock data als fallback
+        if not positions:
+            total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
+            total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
+            portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+            portfolio_data_formatted = []
+            for p in MOCK_POSITIONS:
+                weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
+                day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
+                pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
+                portfolio_data_formatted.append({
+                    'asset': p['asset'],
+                    'sector': p['sector'],
+                    'ticker': p['ticker'],
+                    'day_change': day_change_str,
+                    'share_price': format_currency(p['share_price']),
+                    'quantity': p['quantity'],
+                    'market_value': format_currency(p['market_value']),
+                    'weight': format_currency(weight),
+                    'pnl_percent': pnl_percent_str,
+                    'pnl_value': format_currency(p['unrealizedGain']),
+                })
+            return render_template(
+                "portfolio.html",
+                portfolio_value=format_currency(portfolio_value),
+                pnl=format_currency(total_unrealized_gain),
+                position_value=format_currency(total_market_value),
+                portfolio=portfolio_data_formatted
+            )
+        
+        # Haal live prijzen op voor alle positions
+        import yfinance as yf
+        ticker_set = set()
+        for pos in positions:
+            ticker = pos.pos_ticker or pos.pos_name  # Gebruik pos_ticker als die bestaat, anders pos_name
+            if ticker:
+                ticker_set.add(ticker)
+        
+        ticker_list = list(ticker_set)
+        price_data = {}
+        
+        if ticker_list:
+            try:
+                ticker_objects = yf.Tickers(" ".join(ticker_list))
+                for ticker in ticker_list:
+                    try:
+                        ticker_obj = ticker_objects.tickers[ticker]
+                        info = ticker_obj.info
+                        
+                        current_price = (info.get('regularMarketPrice') or 
+                                       info.get('currentPrice') or 
+                                       info.get('previousClose'))
+                        previous_close = info.get('previousClose') or current_price
+                        
+                        if current_price and previous_close:
+                            day_change_pct = ((current_price - previous_close) / previous_close) * 100
+                            day_change_str = f"{'+' if day_change_pct >= 0 else ''}{day_change_pct:.2f}%"
+                        else:
+                            day_change_str = '+0.00%'
+                        
+                        if current_price:
+                            price_data[ticker] = {
+                                'price': current_price,
+                                'previous_close': previous_close,
+                                'day_change': day_change_str
+                            }
+                    except Exception:
+                        price_data[ticker] = None
+            except Exception:
+                pass
+        
+        # Bereken totale waarden met live prijzen
+        total_market_value = 0.0
+        total_cost = 0.0
+        
+        portfolio_data_formatted = []
+        for p in positions:
+            ticker = p.pos_ticker or p.pos_name  # Gebruik pos_ticker als die bestaat, anders pos_name
+            quantity = p.pos_quantity or 0
+            
+            live_price_data = price_data.get(ticker) if ticker else None
+            cost_basis = p.pos_value or 0.0
+            
+            if live_price_data and live_price_data['price'] and quantity > 0:
+                live_price = live_price_data['price']
+                market_value = live_price * quantity
+                day_change = live_price_data['day_change']
+                share_price = live_price
+            elif cost_basis > 0 and quantity > 0:
+                share_price = cost_basis / quantity
+                market_value = cost_basis
+                day_change = '+0.00%'
+            else:
+                share_price = 0.0
+                market_value = 0.0
+                day_change = '+0.00%'
+            
+            total_market_value += market_value
+            total_cost += cost_basis
+            
+            if live_price_data and live_price_data['price'] and cost_basis > 0:
+                pnl_value = market_value - cost_basis
+                pnl_percent = (pnl_value / cost_basis * 100) if cost_basis > 0 else 0.0
+            else:
+                pnl_value = 0.0
+                pnl_percent = 0.0
+            
+            portfolio_data_formatted.append({
+                'asset': p.pos_name or 'Onbekend',
+                'sector': p.pos_sector or p.pos_type or 'N/A',
+                'ticker': ticker or 'N/A',
+                'day_change': day_change,
+                'share_price': format_currency(share_price),
+                'quantity': quantity,
+                'market_value': market_value,
+                'pnl_percent': f"{'+' if pnl_percent >= 0 else ''}{format_currency(pnl_percent)}%",
+                'pnl_value': format_currency(pnl_value),
+            })
+        
+        total_unrealized_gain = total_market_value - total_cost
+        portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+        
+        # Bereken weight voor elke positie
+        for p_data in portfolio_data_formatted:
+            weight = (p_data['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
+            p_data['weight'] = format_currency(weight)
+            p_data['market_value'] = format_currency(p_data['market_value'])
+        
+    except Exception:
+        # Fallback naar mock data
+        total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
+        total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
+        portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+        portfolio_data_formatted = []
+        for p in MOCK_POSITIONS:
+            weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
+            day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
+            pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
+            portfolio_data_formatted.append({
+                'asset': p['asset'],
+                'sector': p['sector'],
+                'ticker': p['ticker'],
+                'day_change': day_change_str,
+                'share_price': format_currency(p['share_price']),
+                'quantity': p['quantity'],
+                'market_value': format_currency(p['market_value']),
+                'weight': format_currency(weight),
+                'pnl_percent': pnl_percent_str,
+                'pnl_value': format_currency(p['unrealizedGain']),
+            })
 
     return render_template(
         "portfolio.html",

@@ -361,8 +361,10 @@ class Position(db.Model):
     pos_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
     pos_name = db.Column(db.Text, nullable=False)
     pos_type = db.Column(db.Text)
-    pos_quantity = db.Column(db.Float)
-    pos_amount = db.Column(db.Float)
+    pos_quantity = db.Column(db.Integer)  # Changed to Integer
+    pos_value = db.Column(db.Float)  # Renamed from pos_amount
+    pos_ticker = db.Column(db.String(50))  # Added
+    pos_sector = db.Column(db.String(100))  # Added
     portfolio_id = db.Column(db.BigInteger, db.ForeignKey('portfolio.portfolio_id'), nullable=False)
     
 # --- transactions Table ---
