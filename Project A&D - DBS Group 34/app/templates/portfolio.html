@@ -1,0 +1,85 @@
+{% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio.css') }}">
+{% endblock %}
+
+{% block sub_content %}
+<div class="card">
+  <div class="portfolio-header">
+    <div>
+      <div class="muted">Portfolio Value</div>
+      <div class="big">€ {{ portfolio_value }}</div>
+    </div>
+    <div>
+      <div class="muted">P&L</div>
+      <div class="big">€ {{ pnl }}</div>
+    </div>
+    <div>
+      <div class="muted">Position Value</div>
+      <div class="big">€ {{ position_value }}</div>
+    </div>
+    <div>
+      <button class="btn" onclick="document.getElementById('addPositionForm').style.display='block'">+ Positie Toevoegen</button>
+    </div>
+  </div>
+
+  <div id="addPositionForm" style="display:none; margin-top:20px; padding:20px; background:#f5f5f5; border-radius:8px;">
+    <h3 style="margin-bottom:15px;">Nieuwe Positie Toevoegen</h3>
+    <form method="POST" action="{{ url_for('main.add_position') }}" class="inline-form">
+      <div class="form-group">
+        <label>Naam *</label>
+        <input type="text" name="pos_name" placeholder="Bijv. Adyen NV" required>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <input type="text" name="pos_type" placeholder="Bijv. Stock">
+      </div>
+      <div class="form-group">
+        <label>Hoeveelheid *</label>
+        <input type="number" name="pos_quantity" placeholder="Bijv. 10" required>
+      </div>
+      <div class="form-group">
+        <label>Ticker *</label>
+        <input type="text" name="pos_ticker" placeholder="Bijv. AAPL, GOOGL" required>
+      </div>
+      <div class="form-group">
+        <label>Sector *</label>
+        <input type="text" name="pos_sector" placeholder="Bijv. Tech, Healthcare" required>
+      </div>
+      <div class="form-group">
+        <label>Cost Basis - Totaal Bedrag (€)</label>
+        <input type="number" step="0.01" name="pos_value" placeholder="Bijv. 1504.00" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn">Toevoegen</button>
+        <button type="button" class="btn ghost" onclick="document.getElementById('addPositionForm').style.display='none'">Annuleren</button>
+      </div>
+    </form>
+  </div>
+
+  <table class="portfolio-table">
+    <thead>
+      <tr>
+        <th>#</th><th>Asset</th><th>Sector</th><th>Ticker</th><th>Day Change</th><th>Share Price</th><th>Qty</th><th>Market Value</th><th>Weight</th><th>P&L %</th><th>Gain/Loss</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in portfolio %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ p.asset }}</td>
+        <td>{{ p.sector }}</td>
+        <td class="ticker">{{ p.ticker }}</td>
+        <td class="{% if p.day_change.startswith('+') %}positive{% elif p.day_change.startswith('-') %}negative{% endif %}">{{ p.day_change }}</td>
+        <td>€ {{ p.share_price }}</td>
+        <td>{{ p.quantity }}</td>
+        <td>€ {{ p.market_value }}</td>
+        <td>{{ p.weight }}%</td>
+        <td class="{% if p.pnl_percent.startswith('+') %}positive{% elif p.pnl_percent.startswith('-') %}negative{% endif %}">{{ p.pnl_percent }}</td>
+        <td>€ {{ p.pnl_value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

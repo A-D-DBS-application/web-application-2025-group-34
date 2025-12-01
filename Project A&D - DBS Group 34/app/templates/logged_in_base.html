@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="topbar">
+    <div class="left">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="logo" class="logo">
+      <div class="brand">
+        <div class="brand-title">Vek Investment Club</div>
+        <div class="brand-sub">Gent • {{ member_count }} deelnemers</div>
+      </div>
+    </div>
+
+    <div class="right userbox">
+      {% if g.user %} 
+      <div><strong>Naam:</strong> {{ g.user.member_name }}</div>
+      <div><strong>ID:</strong> {{ g.user.member_id }}</div>
+      <div><strong>Email:</strong> {{ g.user.email }}</div>
+      <div><a href="{{ url_for('main.logout') }}" style="color:var(--green); font-weight:700;">Uitloggen</a></div> 
+      {% endif %}
+    </div>
+  </header>
+
+  {% set active_endpoint = request.endpoint %}
+  <nav class="tabs">
+    <a href="{{ url_for('main.dashboard') }}" class="tab {% if active_endpoint == 'main.dashboard' %}active{% endif %}">Overview</a>
+    <a href="{{ url_for('main.portfolio') }}" class="tab {% if active_endpoint == 'main.portfolio' %}active{% endif %}">Portfolio</a>
+    <a href="{{ url_for('main.transactions') }}" class="tab {% if active_endpoint == 'main.transactions' %}active{% endif %}">Transactions</a>
+    <a href="{{ url_for('main.voting') }}" class="tab {% if active_endpoint == 'main.voting' %}active{% endif %}">Voting</a>
+    <a href="#" class="tab">Bestanden</a>
+    <a href="{{ url_for('main.deelnemers') }}" class="tab {% if active_endpoint == 'main.deelnemers' %}active{% endif %}">Deelnemers</a>
+  </nav>
+
+  <div class="content"> 
+    {% block sub_content %}{% endblock %} 
+  </div>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "logged_in_base.html" %}
+
+{% block sub_content %}
+<div class="card">
+    <div class="section-head">
+      <h3>Stemmingen</h3>
+      <button class="btn small" onclick="document.getElementById('addVotingForm').style.display='block'">+ Stemming Toevoegen</button>
+    </div>
+
+    <div id="addVotingForm" style="display:none; margin-top:20px; padding:20px; background:#f5f5f5; border-radius:8px;">
+      <h3 style="margin-bottom:15px;">Nieuwe Stemming Toevoegen</h3>
+      <form method="POST" action="{{ url_for('main.add_voting_proposal') }}" class="inline-form">
+        <div class="form-group">
+          <label>Type *</label>
+          <input type="text" name="proposal_type" placeholder="Bijv. Algemene Vergadering 3" required>
+        </div>
+        <div class="form-group">
+          <label>Minimum Vereisten</label>
+          <textarea name="minimum_requirements" placeholder="Beschrijving van minimum vereisten"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Toevoegen</button>
+          <button type="button" class="btn ghost" onclick="document.getElementById('addVotingForm').style.display='none'">Annuleren</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="voting-list space-y-4">
+        {% for vote in votes %}
+        <article class="announcement" style="background:rgba(36,111,89,0.05); border-radius:10px; padding:14px;">
+            <div class="section-head">
+                <h4>{{ vote.title }} ({{ vote.stockName }})</h4>
+                {% if vote.isPending %}
+                    <span style="background:#ffdd00; color:#4a4a4a; padding:4px 8px; border-radius:4px; font-weight:700;">OPEN</span>
+                {% else %}
+                    <span style="background:#e8f2ed; color:#246F59; padding:4px 8px; border-radius:4px; font-weight:700;">GESLOTEN</span>
+                {% endif %}
+            </div>
+            
+            <p>Deadline: {{ vote.deadline }}</p>
+            
+            {% if vote.isPending and not vote.userVoted %}
+                <div style="margin-top:10px;">
+                    <button class="btn small" style="margin-right:8px;">Stem Voor</button>
+                    <button class="btn small ghost" style="margin-right:8px;">Stem Tegen</button>
+                    <button class="btn small ghost">Onthouding</button>
+                </div>
+            {% elif vote.isPending and vote.userVoted %}
+                <p style="color:#246F59; margin-top:10px; font-weight:600;">✅ Je hebt gestemd.</p>
+            {% else %}
+                <div style="margin-top:10px;">
+                    <p class="muted">Resultaten: Voor: {{ vote.forVotes }} | Tegen: {{ vote.againstVotes }} | Onthouding: {{ vote.abstainVotes }} (Totaal: {{ vote.totalVotes }})</p>
+                </div>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

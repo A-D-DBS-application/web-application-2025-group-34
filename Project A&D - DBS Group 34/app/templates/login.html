@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="{{ url_for('static', filename='img/logo.png') }}" class="login-logo" alt="logo">
+    <h2>Investment Club Login</h2>
+    <p class="muted">Voer je inloggegevens in om toegang te krijgen</p>
+
+    <form method="POST" action="{{ url_for('main.login_post') }}">
+      <label for="id">ID Nummer</label>
+      <input id="id" name="id" type="text" placeholder="Voer je ID nummer in" required>
+
+      <label for="password">Wachtwoord</label>
+      <input id="password" name="password" type="password" placeholder="Voer je wachtwoord in" required>
+
+      <button class="btn primary" type="submit">Login</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title or "VIC" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" style="margin-bottom: 22px;">
+          {% for category, message in messages %}
+            {% set style_color = '#255b48' if category == 'success' else '#1976f2' if category == 'info' else '#9b2f2f' %}
+            <div class="flash-{{ category }}" style="padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; background: rgba(36,111,89,0.05); border: 1px solid rgba(31,90,71,0.06); font-weight: 600; color: {{ style_color }};">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

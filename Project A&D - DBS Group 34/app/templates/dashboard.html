@@ -1,0 +1,65 @@
+{% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block sub_content %}
+<div class="dashboard-grid">
+  <section class="leftcol card">
+    <div class="section-head">
+      <h3>Aankondigingen</h3>
+    </div>
+
+    {% for post in announcements %}
+    <article class="announcement">
+      <h4>{{ post.title }}</h4>
+      <p>{{ post.body }}</p>
+      <div class="meta">{{ post.date }} • {{ post.author }}</div>
+    </article>
+    {% endfor %}
+
+    <form method="post" action="{{ url_for('main.add_announcement') }}" class="inline-form">
+      <h4>Nieuw bericht</h4>
+      <label>Titel
+        <input type="text" name="title" placeholder="Titel aankondiging" required>
+      </label>
+      <label>Bericht
+        <textarea name="body" rows="3" placeholder="Wat wil je delen?" required></textarea>
+      </label>
+      <button class="btn small" type="submit">Opslaan</button>
+    </form>
+  </section>
+
+  <aside class="rightcol card">
+    <div class="section-head">
+      <h3>Agenda</h3>
+    </div>
+
+    <h4>Toekomstige Events</h4>
+    {% for ev in upcoming %}
+    <div class="event">
+      <strong>{{ ev.title }}</strong>
+      <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+      <div class="muted">{{ ev.location }}</div>
+    </div>
+    {% endfor %}
+
+    <form method="post" action="{{ url_for('main.add_event') }}" class="inline-form">
+      <h4>Nieuw event</h4>
+      <label>Titel
+        <input type="text" name="title" placeholder="Naam event" required>
+      </label>
+      <label>Datum
+        <input type="text" name="date" placeholder="bv. 12/12/2025">
+      </label>
+      <label>Tijd
+        <input type="text" name="time" placeholder="bv. 19:30">
+      </label>
+      <label>Locatie
+        <input type="text" name="location" placeholder="Gent, Belgium">
+      </label>
+      <button class="btn small" type="submit">Opslaan</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}
