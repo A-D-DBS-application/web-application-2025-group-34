@@ -441,7 +441,7 @@ def portfolio():
         if not positions:
             total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
             total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-            portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+            portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
             portfolio_data_formatted = []
             for p in MOCK_POSITIONS:
                 weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
@@ -522,7 +522,7 @@ def portfolio():
             })
         
         total_unrealized_gain = total_market_value - total_cost
-        portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+        portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
         
         # Bereken weight voor elke positie
         for p_data in portfolio_data_formatted:
@@ -534,7 +534,7 @@ def portfolio():
         # Fallback naar mock data
         total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
         total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-        portfolio_value = total_market_value + MOCK_CASH_AMOUNT
+        portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
         portfolio_data_formatted = []
         for p in MOCK_POSITIONS:
             weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
@@ -630,21 +630,49 @@ def add_position():
     pos_ticker = request.form.get("pos_ticker", "").strip()
     pos_sector = request.form.get("pos_sector", "").strip()
     
+    # Valideer alle verplichte velden
     if not pos_name:
         flash("Positie naam is verplicht.", "error")
         return redirect(url_for("main.portfolio"))
+    if not pos_ticker:
+        flash("Ticker is verplicht voor prijs updates.", "error")
+        return redirect(url_for("main.portfolio"))
+    if not pos_quantity:
+        flash("Hoeveelheid is verplicht voor berekeningen.", "error")
+        return redirect(url_for("main.portfolio"))
+    if not pos_value:
+        flash("Cost Basis is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
+    if not pos_sector:
+        flash("Sector is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
     
     try:
+        # Valideer en converteer numerieke waarden
+        try:
+            quantity = int(float(pos_quantity))
+            if quantity <= 0:
+                flash("Hoeveelheid moet een positief getal zijn.", "error")
+                return redirect(url_for("main.portfolio"))
+        except (ValueError, TypeError):
+            flash("Hoeveelheid moet een geldig getal zijn.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        try:
+            value = float(pos_value)
+            if value <= 0:
+                flash("Cost Basis moet een positief bedrag zijn.", "error")
+                return redirect(url_for("main.portfolio"))
+        except (ValueError, TypeError):
+            flash("Cost Basis moet een geldig bedrag zijn.", "error")
+            return redirect(url_for("main.portfolio"))
+        
         # Zoek of maak een portfolio (gebruik de eerste of maak een nieuwe)
         portfolio = db.session.query(Portfolio).first()
         if not portfolio:
             portfolio = Portfolio()
             db.session.add(portfolio)
             db.session.flush()  # Om portfolio_id te krijgen
-        
-        # Converteer quantity naar integer en value naar float
-        quantity = int(float(pos_quantity)) if pos_quantity else 0
-        value = float(pos_value) if pos_value else 0.0
         
         position = Position(
             pos_name=pos_name,
