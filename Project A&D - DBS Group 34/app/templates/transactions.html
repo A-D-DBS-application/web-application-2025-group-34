@@ -1,77 +1,171 @@
 {% extends "logged_in_base.html" %}
 
 {% block sub_content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/transactions.css') }}">
+
 <div class="card">
-    <div class="section-head">
-      <h3>Transacties Overzicht</h3>
-      <button class="btn small" onclick="document.getElementById('addTransactionForm').style.display='block'">+ Transactie Toevoegen</button>
+    <!-- Header Section -->
+    <div class="transactions-header">
+        <h2 class="transactions-title">Huidige transacties</h2>
+        <div class="transactions-header-right">
+            <div class="realized-summary {% if realized_total < 0 %}negative{% endif %}">
+                <span class="realized-summary-label">Realized Loss/Gain:</span>
+                <span class="realized-summary-value">
+                    {% if realized_total >= 0 %}+{% endif %}{{ "%.2f"|format(realized_total) }} EUR
+                </span>
+            </div>
+            <button class="add-transaction-btn" onclick="document.getElementById('addTransactionForm').style.display='block'">
+                <span>+</span>
+                <span>Transactie toevoegen</span>
+            </button>
+        </div>
     </div>
 
+    <!-- Add Transaction Form -->
     <div id="addTransactionForm" style="display:none; margin-top:20px; padding:20px; background:#f5f5f5; border-radius:8px;">
-      <h3 style="margin-bottom:15px;">Nieuwe Transactie Toevoegen</h3>
-      <form method="POST" action="{{ url_for('main.add_transaction') }}" class="inline-form">
-        <div class="form-group">
-          <label>Type *</label>
-          <select name="transaction_type" required>
-            <option value="BUY">BUY</option>
-            <option value="SELL">SELL</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Datum</label>
-          <input type="text" name="transaction_date" placeholder="dd/mm/yyyy (bijv. 01/09/2022)">
-        </div>
-        <div class="form-group">
-          <label>Hoeveelheid</label>
-          <input type="number" step="0.01" name="transaction_quantity" placeholder="Bijv. 10">
-        </div>
-        <div class="form-group">
-          <label>Bedrag (€)</label>
-          <input type="number" step="0.01" name="transaction_amount" placeholder="Bijv. 518.88">
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn">Toevoegen</button>
-          <button type="button" class="btn ghost" onclick="document.getElementById('addTransactionForm').style.display='none'">Annuleren</button>
-        </div>
-      </form>
+        <h3 style="margin-bottom:15px;">Nieuwe Transactie Toevoegen</h3>
+        <form method="POST" action="{{ url_for('main.add_transaction') }}" class="inline-form">
+            <div class="form-group">
+                <label>Type *</label>
+                <select name="transaction_type" required>
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Datum</label>
+                <input type="text" name="transaction_date" placeholder="dd/mm/yyyy (bijv. 01/09/2022)">
+            </div>
+            <div class="form-group">
+                <label>Hoeveelheid</label>
+                <input type="number" step="0.01" name="transaction_quantity" placeholder="Bijv. 10">
+            </div>
+            <div class="form-group">
+                <label>Bedrag (€)</label>
+                <input type="number" step="0.01" name="transaction_amount" placeholder="Bijv. 518.88">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Toevoegen</button>
+                <button type="button" class="btn ghost" onclick="document.getElementById('addTransactionForm').style.display='none'">Annuleren</button>
+            </div>
+        </form>
     </div>
 
-    <table class="portfolio-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Datum</th>
-                <th>Type</th>
-                <th>Asset</th>
-                <th>Ticker</th>
-                <th>Units</th>
-                <th>Prijs</th>
-                <th>Totaal (€)</th>
-                <th>P&L (€)</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in transactions %}
-            <tr>
-                <td>{{ t.number }}</td>
-                <td>{{ t.date }}</td>
-                <td class="{% if t.type == 'BUY' %}positive{% else %}negative{% endif %}">{{ t.type }}</td>
-                <td>{{ t.asset }}</td>
-                <td class="ticker">{{ t.ticker }}</td>
-                <td>{{ t.units }}</td>
-                <td>€ {{ t.price }}</td>
-                <td>€ {{ t.total }}</td>
-                <td class="{% if t.profitLoss is not none and t.profitLoss >= 0 %}positive{% elif t.profitLoss is not none and t.profitLoss < 0 %}negative{% endif %}">
-                    {% if t.profitLoss is not none %}
-                        € {{ t.profitLoss | round(2) }}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    
+    <!-- Filter/Sort Section -->
+    <div class="filter-section">
+        <span class="filter-label">Sorteren/Filteren:</span>
+        <div class="filter-buttons">
+            <button class="filter-btn" onclick="filterTransactions('recent')">Recent</button>
+            <button class="filter-btn" onclick="filterTransactions('past')">Past</button>
+            <button class="filter-btn" onclick="filterTransactions('buy')">Buy</button>
+            <button class="filter-btn" onclick="filterTransactions('sell')">Sell</button>
+            <button class="filter-btn" onclick="filterTransactions('sector')">Sector</button>
+            <button class="filter-btn" onclick="filterTransactions('size')">Transactie grootte</button>
+            <button class="filter-btn" onclick="filterTransactions('shares')">Aantal aandelen</button>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="transactions-table-wrapper">
+        <table class="transactions-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>DATE</th>
+                    <th>ASSET</th>
+                    <th>TICKER</th>
+                    <th>TRANSACTION TYPE</th>
+                    <th>QUANTITY</th>
+                    <th>PRICE</th>
+                    <th>TOTAL TRANSACTION AMOUNT</th>
+                    <th>CURRENCY</th>
+                    <th>ASSET CLASS</th>
+                    <th>REALIZED PROFIT OR LOSS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if transactions %}
+                    {% for t in transactions %}
+                    <tr>
+                        <td>{{ t.number }}</td>
+                        <td>{{ t.date }}</td>
+                        <td>
+                            {% if t.exchange and t.ticker %}
+                                {{ t.asset_name }} ({{ t.exchange }}:{{ t.ticker }})
+                            {% else %}
+                                {{ t.asset_name or t.asset or 'Onbekend' }}
+                            {% endif %}
+                        </td>
+                        <td class="ticker">{{ t.ticker or '' }}</td>
+                        <td class="{% if t.type == 'BUY' %}type-buy{% else %}type-sell{% endif %}">{{ t.type or '' }}</td>
+                        <td>{{ "%.0f"|format(t.units) if t.units % 1 == 0 else "%.2f"|format(t.units) if t.units else '0' }}</td>
+                        <td>{{ t.price or '0,00' }} {{ t.currency or 'EUR' }}</td>
+                        <td>{{ t.total or '0,00' }} {{ t.currency or 'EUR' }}</td>
+                        <td>{{ t.currency or 'EUR' }}</td>
+                        <td>{{ t.asset_class or 'Stock' }}</td>
+                        <td class="{% if t.profitLoss is not none and t.profitLoss >= 0 %}positive{% elif t.profitLoss is not none and t.profitLoss < 0 %}negative{% endif %}">
+                            {% if t.profitLoss is not none %}
+                                {% if t.profitLoss >= 0 %}+{% endif %}{{ "%.2f"|format(t.profitLoss) }} {{ t.currency or 'EUR' }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 20px; color: var(--muted);">
+                            Geen transacties gevonden. Controleer de console voor debug informatie.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<script>
+function filterTransactions(filterType) {
+    // Toggle active state
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Simple client-side filtering (can be enhanced later)
+    const rows = document.querySelectorAll('.transactions-table tbody tr');
+    rows.forEach(row => {
+        const typeCell = row.querySelector('td:nth-child(5)');
+        const type = typeCell ? typeCell.textContent.trim() : '';
+        
+        let show = true;
+        switch(filterType) {
+            case 'buy':
+                show = type === 'BUY';
+                break;
+            case 'sell':
+                show = type === 'SELL';
+                break;
+            case 'recent':
+                // Show all (recent first already sorted)
+                show = true;
+                break;
+            case 'past':
+                // Show all (past first - would need server-side sorting)
+                show = true;
+                break;
+            default:
+                show = true;
+        }
+        
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+// Sort by date on page load (most recent first)
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = Array.from(document.querySelectorAll('.transactions-table tbody tr'));
+    // Already sorted by server, just ensure display
+});
+</script>
 {% endblock %}

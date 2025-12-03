@@ -48,23 +48,195 @@ def format_currency(value):
     """Formats a float to a European currency string (e.g., 1.234,56)"""
     return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
 
+def format_transaction_date(date_obj):
+    """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022')"""
+    if date_obj is None:
+        return datetime.now().strftime("%d-%m-%Y").lstrip('0').replace('-0', '-')
+    if hasattr(date_obj, 'strftime'):
+        date_str = date_obj.strftime("%d-%m-%Y")
+        # Remove leading zeros from day and month
+        parts = date_str.split('-')
+        day = str(int(parts[0]))
+        month = str(int(parts[1]))
+        year = parts[2]
+        return f"{day}-{month}-{year}"
+    if isinstance(date_obj, str):
+        # Probeer ISO format te parsen
+        try:
+            if 'T' in date_obj or '-' in date_obj:
+                dt = datetime.fromisoformat(date_obj.replace("Z", "+00:00"))
+                date_str = dt.strftime("%d-%m-%Y")
+                parts = date_str.split('-')
+                day = str(int(parts[0]))
+                month = str(int(parts[1]))
+                year = parts[2]
+                return f"{day}-{month}-{year}"
+        except:
+            pass
+    return str(date_obj)
+
+# Mapping van tickers naar asset namen en exchanges (uit de Supabase data)
+TICKER_TO_ASSET = {
+    "VOW3": {"name": "Volkswagen AG", "exchange": "XFRA"},
+    "WDP": {"name": "Warehouses de Pauw NV", "exchange": "XBRU"},
+    "GIMB": {"name": "GIMV NV", "exchange": "XBRU"},
+    "PRX": {"name": "Proximus NV", "exchange": "XBRU"},
+    "AMD": {"name": "ADVANCED MICRO DEVICES, INC.", "exchange": "XNAS"},
+    "MSFT": {"name": "MICROSOFT CORPORATION", "exchange": "XNAS"},
+    "DIS": {"name": "Walt Disney Company", "exchange": "XNYS"},
+    "PKK": {"name": "Tenet Fintech Group Inc.", "exchange": "XCNQ"},
+    "XFAB": {"name": "X-FAB Silicon Foundries SE", "exchange": "XBRU"},
+    "BABA": {"name": "Alibaba Group Holding Limited", "exchange": "XNYS"},
+    "WM": {"name": "Waste Management, Inc.", "exchange": "XNYS"},
+    "ADBE": {"name": "ADOBE INC.", "exchange": "XNAS"},
+    "ADYEN": {"name": "Adyen NV", "exchange": "XAMS"},
+    "SU": {"name": "Suncor Energy Inc.", "exchange": "XTSE"},
+    "XIOR": {"name": "Xior Student Housing NV", "exchange": "XBRU"},
+    "AEHR": {"name": "Aehr Test Systems", "exchange": "XNAS"},
+    "ABI": {"name": "Anheuser-Busch InBev SA/NV", "exchange": "XBRU"},
+    "NVDA": {"name": "NVIDIA Corporation", "exchange": "XNAS"},
+    "GOOGL": {"name": "ALPHABET INC.", "exchange": "XNAS"},
+}
+
+def _get_asset_info(ticker):
+    """Haal asset naam en exchange op op basis van ticker"""
+    if ticker and ticker in TICKER_TO_ASSET:
+        return TICKER_TO_ASSET[ticker]
+    return {"name": ticker or "Onbekend", "exchange": ""}
+
 def _normalize_transactions(records):
+    """Normalize transaction records from Supabase to a consistent format"""
     normalized = []
-    for record in records:
-        if isinstance(record, dict):
-            normalized.append({
-                "number": record.get("number") or record.get("transaction_id"),
-                "date": record.get("date") or record.get("transaction_date"),
-                "type": record.get("type") or record.get("transaction_type"),
-                "asset": record.get("asset") or record.get("name"),
-                "ticker": record.get("ticker") or record.get("symbol"),
-                "units": record.get("units") or record.get("quantity") or record.get("transaction_quantity"),
-                "price": record.get("price") or record.get("unit_price") or record.get("transaction_price"),
-                "total": record.get("total") or record.get("transaction_amount"),
-                "profitLoss": record.get("profitLoss") or record.get("profit_loss"),
-            })
-        else:
-            normalized.append(record)
+    if not records:
+        print("DEBUG: _normalize_transactions received empty records list")
+        return normalized
+    
+    print(f"DEBUG: Normalizing {len(records)} transaction records")
+    
+    # Debug: print eerste record om te zien welke velden beschikbaar zijn
+    if records and isinstance(records[0], dict):
+        print(f"DEBUG: First record keys: {list(records[0].keys())}")
+        print(f"DEBUG: First record sample: {str(records[0])[:200]}")
+    
+    for idx, record in enumerate(records):
+        try:
+            if isinstance(record, dict):
+                # Supabase kolommen: transaction_date, transaction_quantity, transaction_type, 
+                # transaction_ticker, transaction_currency, asset_type, transaction_share_price
+                
+                # Transaction ID (gebruik index als fallback)
+                transaction_id = (record.get("transaction_id") or record.get("id") or 
+                                 record.get("number") or idx + 1)
+                
+                # Parse transaction_date
+                transaction_date = record.get("transaction_date")
+                if transaction_date:
+                    try:
+                        if isinstance(transaction_date, str):
+                            dt = datetime.fromisoformat(transaction_date.replace("Z", "+00:00"))
+                        else:
+                            dt = transaction_date
+                        date_str = format_transaction_date(dt)
+                    except:
+                        date_str = format_transaction_date(datetime.now())
+                else:
+                    date_str = format_transaction_date(datetime.now())
+                
+                # Transaction type
+                transaction_type = (record.get("transaction_type") or "").upper()
+                
+                # Quantity
+                quantity = record.get("transaction_quantity") or 0
+                try:
+                    quantity = float(quantity) if quantity else 0.0
+                except (ValueError, TypeError):
+                    quantity = 0.0
+                
+                # Price per share
+                price = record.get("transaction_share_price") or None
+                try:
+                    price = float(price) if price else 0.0
+                except (ValueError, TypeError):
+                    price = 0.0
+                
+                # Bereken Total Transaction Amount (quantity * price)
+                total_amount = quantity * price if price else 0.0
+                
+                # Format prijs en totaal
+                price_str = format_currency(price) if price else "0,00"
+                total_str = format_currency(abs(total_amount)) if total_amount else "0,00"
+                
+                # Ticker
+                ticker = record.get("transaction_ticker") or ""
+                
+                # Currency
+                currency = record.get("transaction_currency") or "EUR"
+                
+                # Asset class/type
+                asset_class = record.get("asset_type") or "Stock"
+                
+                # Asset naam en exchange - gebruik mapping op basis van ticker
+                asset_info = _get_asset_info(ticker)
+                asset_name = asset_info["name"]
+                exchange = asset_info["exchange"]
+                
+                # Realized profit/loss - niet beschikbaar in huidige Supabase schema
+                realized_pl = None
+                
+                # Format asset display (gebruik naam met exchange:ticker indien beschikbaar)
+                if exchange and ticker:
+                    asset_display = f"{asset_name} ({exchange}:{ticker})"
+                else:
+                    asset_display = asset_name
+                
+                normalized.append({
+                    "number": transaction_id,
+                    "date": date_str,
+                    "type": transaction_type,
+                    "asset": asset_display,
+                    "asset_name": asset_name,
+                    "ticker": ticker,
+                    "exchange": exchange,
+                    "currency": currency,
+                    "asset_class": asset_class,
+                    "units": quantity,
+                    "price": price_str,
+                    "price_value": price,
+                    "total": f"{'-' if total_amount < 0 else ''}{total_str}",
+                    "total_value": float(total_amount),
+                    "profitLoss": float(realized_pl) if realized_pl is not None else None,
+                })
+            else:
+                # Voor SQLAlchemy objecten (fallback)
+                normalized.append({
+                    "number": getattr(record, 'transaction_id', None) or idx + 1,
+                    "date": format_transaction_date(getattr(record, 'transaction_date', None)),
+                    "type": (getattr(record, 'transaction_type', '') or '').upper(),
+                    "asset": getattr(record, 'asset_name', '') or getattr(record, 'ticker', '') or 'Onbekend',
+                    "asset_name": getattr(record, 'asset_name', '') or getattr(record, 'ticker', '') or 'Onbekend',
+                    "ticker": getattr(record, 'ticker', '') or '',
+                    "exchange": getattr(record, 'exchange', '') or '',
+                    "currency": getattr(record, 'currency', 'EUR') or 'EUR',
+                    "asset_class": getattr(record, 'asset_class', 'Stock') or 'Stock',
+                    "units": float(getattr(record, 'transaction_quantity', 0)) or 0.0,
+                    "price": format_currency(float(getattr(record, 'transaction_amount', 0)) / float(getattr(record, 'transaction_quantity', 1)) if getattr(record, 'transaction_quantity', 0) else 0),
+                    "price_value": float(getattr(record, 'transaction_amount', 0)) / float(getattr(record, 'transaction_quantity', 1)) if getattr(record, 'transaction_quantity', 0) else 0.0,
+                    "total": format_currency(abs(float(getattr(record, 'transaction_amount', 0)))),
+                    "total_value": float(getattr(record, 'transaction_amount', 0)) or 0.0,
+                    "profitLoss": float(getattr(record, 'realized_profit_loss', 0)) if getattr(record, 'realized_profit_loss', None) is not None else None,
+                })
+        except Exception as e:
+            print(f"ERROR: Failed to normalize transaction record {idx}: {e}")
+            print(f"ERROR: Record type: {type(record)}")
+            if isinstance(record, dict):
+                print(f"ERROR: Record keys: {list(record.keys())}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    print(f"DEBUG: Successfully normalized {len(normalized)} out of {len(records)} transaction records")
+    if normalized:
+        print(f"DEBUG: Sample normalized record: {normalized[0]}")
     return normalized
 
 def _get_next_event_number():
@@ -561,23 +733,110 @@ def portfolio():
         portfolio=portfolio_data_formatted
     )
 
+def _fetch_transactions():
+    """Fetch transactions from database - try direct SQL query first, then Supabase REST API, then mock data"""
+    
+    # Probeer eerst direct SQL query via SQLAlchemy (snelste methode)
+    try:
+        print("DEBUG: Attempting to fetch transactions via direct SQL query...")
+        # Query direct uit de transactions tabel met raw SQL om alle velden te krijgen
+        from sqlalchemy import text
+        query = text("""
+            SELECT 
+                transaction_id,
+                transaction_date,
+                transaction_quantity,
+                transaction_type,
+                transaction_ticker,
+                transaction_currency,
+                asset_type,
+                transaction_share_price
+            FROM transactions
+            ORDER BY transaction_date DESC
+            LIMIT 1000
+        """)
+        result = db.session.execute(query)
+        rows = result.fetchall()
+        
+        if rows:
+            print(f"DEBUG: Fetched {len(rows)} transactions via direct SQL query")
+            # Converteer rows naar dicts
+            columns = ['transaction_id', 'transaction_date', 'transaction_quantity', 
+                      'transaction_type', 'transaction_ticker', 'transaction_currency', 
+                      'asset_type', 'transaction_share_price']
+            data = []
+            for row in rows:
+                row_dict = {}
+                for i, col in enumerate(columns):
+                    row_dict[col] = row[i] if i < len(row) else None
+                data.append(row_dict)
+            
+            if data and len(data) > 0:
+                print(f"DEBUG: First record from SQL: {data[0]}")
+                normalized = _normalize_transactions(data)
+                if normalized:
+                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from SQL")
+                    return normalized
+    except Exception as exc:
+        print(f"WARNING: Direct SQL query failed: {exc}")
+        import traceback
+        traceback.print_exc()
+    
+    # Probeer via Supabase REST API
+    if supabase is not None:
+        try:
+            print("DEBUG: Attempting to fetch transactions from Supabase REST API...")
+            response = supabase.table("transactions").select("*").order("transaction_date", desc=True).limit(1000).execute()
+            data = response.data if hasattr(response, 'data') else []
+            
+            if data:
+                print(f"DEBUG: Fetched {len(data)} transactions from Supabase REST API")
+                if len(data) > 0:
+                    print(f"DEBUG: First record from Supabase: {data[0]}")
+                
+                normalized = _normalize_transactions(data)
+                if normalized:
+                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from Supabase")
+                    return normalized
+                else:
+                    print(f"WARNING: Supabase returned {len(data)} records but normalization resulted in 0 records")
+        except Exception as exc:
+            print(f"WARNING: Supabase REST API fetch failed: {exc}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print("DEBUG: Supabase client is None, skipping Supabase REST API fetch")
+    
+    # Fallback naar SQLAlchemy ORM
+    try:
+        print("DEBUG: Attempting to fetch transactions via SQLAlchemy ORM...")
+        transactions = db.session.query(Transaction).order_by(Transaction.transaction_date.desc()).all()
+        if transactions:
+            normalized = _normalize_transactions(transactions)
+            print(f"DEBUG: Fetched {len(normalized)} transactions from SQLAlchemy ORM")
+            return normalized
+    except Exception as exc:
+        print(f"WARNING: SQLAlchemy ORM fetch failed: {exc}")
+        import traceback
+        traceback.print_exc()
+    
+    # Laatste fallback: mock data
+    print("DEBUG: Using mock data as final fallback")
+    return _normalize_transactions(MOCK_TRANSACTIONS)
+
 # Transactions pagina (Nu de centrale bron voor transactiegegevens)
 @main.route("/transactions")
 @login_required
 def transactions():
-    transactions_data = MOCK_TRANSACTIONS  # Standaard fallback is mock data
+    transactions_data = _fetch_transactions()
     
-    if supabase is not None:
-        try:
-            # FIX: Gebruik de correcte tabelnaam 'transactions'
-            data = supabase.table("transactions").select("*").execute()
-            transactions_data = data.data # Gebruik DB data indien succesvol
-        except Exception as e:
-            print(f"WARNING: Supabase transactie fetch failed: {e}. Falling back to mock data.")
-            flash("Kon transactiedata niet ophalen van Supabase. Toon mock data.", "warning")
-
-    transactions_data = _normalize_transactions(transactions_data)
-    return render_template("transactions.html", transactions=transactions_data)
+    # Bereken totaal realized profit/loss
+    realized_total = 0.0
+    for t in transactions_data:
+        if t.get("profitLoss") is not None:
+            realized_total += float(t["profitLoss"])
+    
+    return render_template("transactions.html", transactions=transactions_data, realized_total=realized_total)
     
 # Voting pagina
 @main.route("/voting")
