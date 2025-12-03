@@ -8,6 +8,214 @@
 .portfolio-table tbody tr:nth-child(even){background:#f7faf8}
 .positive{color:#0b7a51;font-weight:700}
 .negative{color:#9b2f2f;font-weight:700}
+
+/* ============================================================================ */
+/* COMPANY INFO MODAL FEATURE - START */
+/* Om terug te draaien: verwijder alles vanaf hier tot "COMPANY INFO MODAL FEATURE - END" */
+/* ============================================================================ */
+
+/* Asset link styling */
+.asset-link {
+  color: var(--green);
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.asset-link:hover {
+  text-decoration: underline;
+  color: #2d6a4f;
+}
+
+/* Modal styling */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 2% auto;
+  padding: 0;
+  border: 1px solid #888;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  background-color: var(--green);
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 8px 8px 0 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.modal-close {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close:hover,
+.modal-close:focus {
+  opacity: 0.7;
+}
+
+.modal-body {
+  padding: 30px;
+}
+
+.modal-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.modal-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 20px;
+}
+
+.modal-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.modal-section h3 {
+  color: var(--green);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 20px 0;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px 30px;
+  margin-bottom: 15px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.info-value {
+  color: #333;
+  font-size: 16px;
+}
+
+.info-value a {
+  color: var(--green);
+  text-decoration: none;
+}
+
+.info-value a:hover {
+  text-decoration: underline;
+}
+
+.description {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f7faf8;
+  border-radius: 4px;
+}
+
+.description p {
+  margin: 0;
+  color: #555;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.ratios-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px 30px;
+}
+
+.ratio-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ratio-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.ratio-value {
+  color: #333;
+  font-size: 16px;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 16px;
+}
+
+.error-message {
+  text-align: center;
+  padding: 40px;
+  color: #9b2f2f;
+  font-size: 16px;
+}
+
 @media(max-width:900px){
   .portfolio-table th:nth-child(6), .portfolio-table td:nth-child(6), .portfolio-table th:nth-child(7), .portfolio-table td:nth-child(7){display:none}
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ratios-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .modal-content {
+    width: 95%;
+    margin: 5% auto;
+  }
 }
+
+@media(max-width:600px){
+  .ratios-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================ */
+/* COMPANY INFO MODAL FEATURE - END */
+/* ============================================================================ */

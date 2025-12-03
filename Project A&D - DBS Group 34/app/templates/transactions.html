@@ -8,12 +8,6 @@
     <div class="transactions-header">
         <h2 class="transactions-title">Huidige transacties</h2>
         <div class="transactions-header-right">
-            <div class="realized-summary {% if realized_total < 0 %}negative{% endif %}">
-                <span class="realized-summary-label">Realized Loss/Gain:</span>
-                <span class="realized-summary-value">
-                    {% if realized_total >= 0 %}+{% endif %}{{ "%.2f"|format(realized_total) }} EUR
-                </span>
-            </div>
             <button class="add-transaction-btn" onclick="document.getElementById('addTransactionForm').style.display='block'">
                 <span>+</span>
                 <span>Transactie toevoegen</span>
@@ -25,45 +19,140 @@
     <div id="addTransactionForm" style="display:none; margin-top:20px; padding:20px; background:#f5f5f5; border-radius:8px;">
         <h3 style="margin-bottom:15px;">Nieuwe Transactie Toevoegen</h3>
         <form method="POST" action="{{ url_for('main.add_transaction') }}" class="inline-form">
-            <div class="form-group">
-                <label>Type *</label>
-                <select name="transaction_type" required>
-                    <option value="BUY">BUY</option>
-                    <option value="SELL">SELL</option>
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>Datum *</label>
+                    <input type="text" name="transaction_date" placeholder="dd/mm/yyyy (bijv. 01/09/2022)" required>
+                </div>
+                <div class="form-group">
+                    <label>Transactie Type *</label>
+                    <select name="transaction_type" required>
+                        <option value="">Selecteer...</option>
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Asset Naam *</label>
+                    <input type="text" name="asset_name" placeholder="Bijv. Microsoft Corporation" required>
+                </div>
+                <div class="form-group">
+                    <label>Ticker *</label>
+                    <input type="text" name="transaction_ticker" placeholder="Bijv. MSFT" required>
+                </div>
+                <div class="form-group">
+                    <label>Hoeveelheid (Quantity) *</label>
+                    <input type="number" step="0.01" name="transaction_quantity" placeholder="Bijv. 10" required>
+                </div>
+                <div class="form-group">
+                    <label>Prijs per Aandeel (Price) *</label>
+                    <input type="number" step="0.01" name="transaction_share_price" placeholder="Bijv. 242.80" required>
+                </div>
+                <div class="form-group">
+                    <label>Currency *</label>
+                    <select name="transaction_currency" required>
+                        <option value="EUR">EUR</option>
+                        <option value="USD">USD</option>
+                        <option value="CAD">CAD</option>
+                        <option value="DKK">DKK</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Asset Class *</label>
+                    <select name="asset_class" required>
+                        <option value="Stock">Stock</option>
+                        <option value="Bond">Bond</option>
+                        <option value="ETF">ETF</option>
+                        <option value="Crypto">Crypto</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Sector</label>
+                    <input type="text" name="sector" placeholder="Bijv. Tech, Energy, etc.">
+                </div>
+                <div class="form-group">
+                    <label>Total Transaction Amount</label>
+                    <input type="number" step="0.01" name="transaction_amount" placeholder="Wordt automatisch berekend (quantity * price)" readonly id="total_amount_calc">
+                    <small style="color: #666; font-size: 0.85em;">Wordt automatisch berekend</small>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Datum</label>
-                <input type="text" name="transaction_date" placeholder="dd/mm/yyyy (bijv. 01/09/2022)">
-            </div>
-            <div class="form-group">
-                <label>Hoeveelheid</label>
-                <input type="number" step="0.01" name="transaction_quantity" placeholder="Bijv. 10">
-            </div>
-            <div class="form-group">
-                <label>Bedrag (€)</label>
-                <input type="number" step="0.01" name="transaction_amount" placeholder="Bijv. 518.88">
-            </div>
-            <div class="form-actions">
-                <button type="submit" class="btn">Toevoegen</button>
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="submit" class="btn">Transactie Toevoegen</button>
                 <button type="button" class="btn ghost" onclick="document.getElementById('addTransactionForm').style.display='none'">Annuleren</button>
             </div>
         </form>
     </div>
+    
+    <script>
+    // Auto-calculate total transaction amount
+    function setupTotalCalculation() {
+        const form = document.getElementById('addTransactionForm');
+        if (!form) return;
+        
+        const quantityInput = form.querySelector('input[name="transaction_quantity"]');
+        const priceInput = form.querySelector('input[name="transaction_share_price"]');
+        const totalInput = document.getElementById('total_amount_calc');
+        
+        function calculateTotal() {
+            if (quantityInput && priceInput && totalInput) {
+                const quantity = parseFloat(quantityInput.value) || 0;
+                const price = parseFloat(priceInput.value) || 0;
+                const total = quantity * price;
+                totalInput.value = total.toFixed(2);
+            }
+        }
+        
+        if (quantityInput) {
+            quantityInput.removeEventListener('input', calculateTotal);
+            quantityInput.addEventListener('input', calculateTotal);
+        }
+        if (priceInput) {
+            priceInput.removeEventListener('input', calculateTotal);
+            priceInput.addEventListener('input', calculateTotal);
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        setupTotalCalculation();
+        
+        // Setup calculation when form is shown
+        const addBtn = document.querySelector('.add-transaction-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                setTimeout(setupTotalCalculation, 100);
+            });
+        }
+    });
+    </script>
 
     <!-- Filter/Sort Section -->
     <div class="filter-section">
         <span class="filter-label">Sorteren/Filteren:</span>
         <div class="filter-buttons">
-            <button class="filter-btn" onclick="filterTransactions('recent')">Recent</button>
-            <button class="filter-btn" onclick="filterTransactions('past')">Past</button>
-            <button class="filter-btn" onclick="filterTransactions('buy')">Buy</button>
-            <button class="filter-btn" onclick="filterTransactions('sell')">Sell</button>
-            <button class="filter-btn" onclick="filterTransactions('sector')">Sector</button>
-            <button class="filter-btn" onclick="filterTransactions('size')">Transactie grootte</button>
-            <button class="filter-btn" onclick="filterTransactions('shares')">Aantal aandelen</button>
+            <button class="filter-btn active" data-filter="recent" onclick="toggleFilter('recent')">Recent</button>
+            <button class="filter-btn" data-filter="past" onclick="toggleFilter('past')">Past</button>
+            <button class="filter-btn" data-filter="buy" onclick="toggleFilter('buy')">Buy</button>
+            <button class="filter-btn" data-filter="sell" onclick="toggleFilter('sell')">Sell</button>
+            <div class="sector-dropdown-wrapper">
+                <button class="filter-btn" data-filter="sector" id="sectorFilterBtn" onclick="toggleSectorDropdown(event)">Sector</button>
+                <div class="sector-dropdown" id="sectorDropdown" style="display: none;">
+                    <div class="sector-option" onclick="selectSector('')">Alle sectoren</div>
+                    <div class="sector-option" onclick="selectSector('Tech')">Tech</div>
+                    <div class="sector-option" onclick="selectSector('Cons. & Health')">Cons. & Health</div>
+                    <div class="sector-option" onclick="selectSector('Financial Services')">Financial Services</div>
+                    <div class="sector-option" onclick="selectSector('Energy')">Energy</div>
+                </div>
+            </div>
+            <button class="filter-btn" data-filter="size" onclick="toggleFilter('size')">Transactie grootte</button>
+            <button class="filter-btn" data-filter="shares" onclick="toggleFilter('shares')">Aantal aandelen</button>
+            <button class="filter-btn" data-filter="stock" onclick="toggleFilter('stock')">Stock</button>
+            <button class="filter-btn" data-filter="etf" onclick="toggleFilter('etf')">ETF</button>
         </div>
     </div>
+    
+    <!-- Horizontal Scrollbar Spacer -->
+    <div class="scrollbar-spacer"></div>
 
     <!-- Transactions Table -->
     <div class="transactions-table-wrapper">
@@ -79,15 +168,22 @@
                     <th>PRICE</th>
                     <th>TOTAL TRANSACTION AMOUNT</th>
                     <th>CURRENCY</th>
+                    <th>SECTOR</th>
                     <th>ASSET CLASS</th>
-                    <th>REALIZED PROFIT OR LOSS</th>
                 </tr>
             </thead>
             <tbody>
                 {% if transactions %}
                     {% for t in transactions %}
-                    <tr>
-                        <td>{{ t.number }}</td>
+                    <tr data-date="{{ t.date }}" 
+                        data-type="{{ t.type }}"
+                        data-total-amount="{{ t.total_value or 0 }}"
+                        data-total-amount-eur="{{ t.total_value_eur or 0 }}"
+                        data-quantity="{{ t.units or 0 }}"
+                        data-ticker="{{ t.ticker or '' }}"
+                        data-sector="{{ t.sector or 'Unknown' }}"
+                        data-asset-class="{{ t.asset_class or 'Stock' }}">
+                        <td>{{ loop.index }}</td>
                         <td>{{ t.date }}</td>
                         <td>
                             {% if t.exchange and t.ticker %}
@@ -102,14 +198,8 @@
                         <td>{{ t.price or '0,00' }} {{ t.currency or 'EUR' }}</td>
                         <td>{{ t.total or '0,00' }} {{ t.currency or 'EUR' }}</td>
                         <td>{{ t.currency or 'EUR' }}</td>
+                        <td>{{ t.sector or 'Unknown' }}</td>
                         <td>{{ t.asset_class or 'Stock' }}</td>
-                        <td class="{% if t.profitLoss is not none and t.profitLoss >= 0 %}positive{% elif t.profitLoss is not none and t.profitLoss < 0 %}negative{% endif %}">
-                            {% if t.profitLoss is not none %}
-                                {% if t.profitLoss >= 0 %}+{% endif %}{{ "%.2f"|format(t.profitLoss) }} {{ t.currency or 'EUR' }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
@@ -125,47 +215,252 @@
 </div>
 
 <script>
-function filterTransactions(filterType) {
-    // Toggle active state
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
+let allTransactions = [];
+let activeFilters = {
+    sortDate: 'recent',  // 'recent' of 'past'
+    sortMethod: null,    // 'size' of 'shares' of null
+    transactionType: null, // 'buy' of 'sell' of null
+    assetClass: null,    // 'stock' of 'etf' of null
+    sector: null         // null of sector name (e.g. 'Tech', 'Cons. & Health')
+};
+
+// Define exclusive filter groups (filters that cannot be combined within the same group)
+const exclusiveGroups = {
+    sortDate: ['recent', 'past'],
+    sortMethod: ['size', 'shares'],
+    transactionType: ['buy', 'sell'],
+    assetClass: ['stock', 'etf']
+};
+
+// Parse date string (format: "d-m-Y" like "1-9-2022") to comparable date
+function parseDate(dateStr) {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return new Date(0);
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // JavaScript months are 0-indexed
+    const year = parseInt(parts[2], 10);
+    return new Date(year, month, day);
+}
+
+// Store all transactions on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = Array.from(document.querySelectorAll('.transactions-table tbody tr'));
+    allTransactions = rows.map(row => ({
+        element: row,
+        date: row.getAttribute('data-date') || '',
+        type: row.getAttribute('data-type') || '',
+        totalAmount: parseFloat(row.getAttribute('data-total-amount') || 0),
+        totalAmountEUR: parseFloat(row.getAttribute('data-total-amount-eur') || 0),
+        quantity: parseFloat(row.getAttribute('data-quantity') || 0),
+        ticker: row.getAttribute('data-ticker') || '',
+        sector: row.getAttribute('data-sector') || 'Unknown',
+        assetClass: row.getAttribute('data-asset-class') || 'Stock'
+    }));
     
-    // Simple client-side filtering (can be enhanced later)
-    const rows = document.querySelectorAll('.transactions-table tbody tr');
-    rows.forEach(row => {
-        const typeCell = row.querySelector('td:nth-child(5)');
-        const type = typeCell ? typeCell.textContent.trim() : '';
-        
-        let show = true;
-        switch(filterType) {
-            case 'buy':
-                show = type === 'BUY';
-                break;
-            case 'sell':
-                show = type === 'SELL';
-                break;
-            case 'recent':
-                // Show all (recent first already sorted)
-                show = true;
-                break;
-            case 'past':
-                // Show all (past first - would need server-side sorting)
-                show = true;
-                break;
-            default:
-                show = true;
+    // Set default filter to 'recent'
+    if (allTransactions.length > 0) {
+        updateFilterButtons();
+        applyFilters();
+    }
+});
+
+function toggleFilter(filterType) {
+    // Determine which group this filter belongs to
+    let group = null;
+    let currentValue = null;
+    
+    for (const [groupName, filters] of Object.entries(exclusiveGroups)) {
+        if (filters.includes(filterType)) {
+            group = groupName;
+            break;
         }
+    }
+    
+    // Handle exclusive groups (sector is now handled separately via dropdown)
+    if (group) {
+        // Handle exclusive groups
+        if (group === 'sortDate') {
+            if (activeFilters.sortDate === filterType) {
+                // Don't allow unchecking the date sort (always need one)
+                return;
+            }
+            activeFilters.sortDate = filterType;
+        } else if (group === 'sortMethod') {
+            if (activeFilters.sortMethod === filterType) {
+                // Allow unchecking
+                activeFilters.sortMethod = null;
+            } else {
+                activeFilters.sortMethod = filterType;
+            }
+        } else if (group === 'transactionType') {
+            if (activeFilters.transactionType === filterType) {
+                activeFilters.transactionType = null;
+            } else {
+                activeFilters.transactionType = filterType;
+            }
+        } else if (group === 'assetClass') {
+            if (activeFilters.assetClass === filterType) {
+                activeFilters.assetClass = null;
+            } else {
+                activeFilters.assetClass = filterType;
+            }
+        }
+    }
+    
+    // Update button states
+    updateFilterButtons();
+    
+    // Apply filters
+    applyFilters();
+}
+
+function updateFilterButtons() {
+    // Update all filter buttons based on activeFilters
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const filterType = btn.getAttribute('data-filter');
+        if (!filterType) return;
         
-        row.style.display = show ? '' : 'none';
+        btn.classList.remove('active');
+        
+        if (filterType === 'recent' && activeFilters.sortDate === 'recent') {
+            btn.classList.add('active');
+        } else if (filterType === 'past' && activeFilters.sortDate === 'past') {
+            btn.classList.add('active');
+        } else if (filterType === 'buy' && activeFilters.transactionType === 'buy') {
+            btn.classList.add('active');
+        } else if (filterType === 'sell' && activeFilters.transactionType === 'sell') {
+            btn.classList.add('active');
+        } else if (filterType === 'stock' && activeFilters.assetClass === 'stock') {
+            btn.classList.add('active');
+        } else if (filterType === 'etf' && activeFilters.assetClass === 'etf') {
+            btn.classList.add('active');
+        } else if (filterType === 'size' && activeFilters.sortMethod === 'size') {
+            btn.classList.add('active');
+        } else if (filterType === 'shares' && activeFilters.sortMethod === 'shares') {
+            btn.classList.add('active');
+        } else if (filterType === 'sector' && activeFilters.sector !== null) {
+            btn.classList.add('active');
+        }
     });
 }
 
-// Sort by date on page load (most recent first)
-document.addEventListener('DOMContentLoaded', function() {
-    const rows = Array.from(document.querySelectorAll('.transactions-table tbody tr'));
-    // Already sorted by server, just ensure display
+function applyFilters() {
+    const tbody = document.querySelector('.transactions-table tbody');
+    let filtered = [...allTransactions];
+    
+    // Apply transaction type filter (buy/sell)
+    if (activeFilters.transactionType === 'buy') {
+        filtered = filtered.filter(t => t.type === 'BUY');
+    } else if (activeFilters.transactionType === 'sell') {
+        filtered = filtered.filter(t => t.type === 'SELL');
+    }
+    
+    // Apply asset class filter (stock/etf)
+    if (activeFilters.assetClass === 'stock') {
+        filtered = filtered.filter(t => {
+            const assetClass = (t.assetClass || 'Stock').toUpperCase();
+            return assetClass === 'STOCK';
+        });
+    } else if (activeFilters.assetClass === 'etf') {
+        filtered = filtered.filter(t => {
+            const assetClass = (t.assetClass || 'Stock').toUpperCase();
+            return assetClass === 'ETF';
+        });
+    }
+    
+    // Apply sector filter
+    if (activeFilters.sector !== null && activeFilters.sector !== '') {
+        filtered = filtered.filter(t => {
+            const transactionSector = (t.sector || 'Unknown').trim();
+            return transactionSector === activeFilters.sector || 
+                   transactionSector.toUpperCase() === activeFilters.sector.toUpperCase();
+        });
+    }
+    
+    // Apply sorting
+    if (activeFilters.sortMethod === 'size') {
+        // Sort by total transaction amount in EUR (highest first)
+        filtered.sort((a, b) => {
+            const aEUR = Math.abs(a.totalAmountEUR || 0);
+            const bEUR = Math.abs(b.totalAmountEUR || 0);
+            return bEUR - aEUR; // Hoogste eerst
+        });
+    } else if (activeFilters.sortMethod === 'shares') {
+        // Sort by quantity (highest first)
+        filtered.sort((a, b) => b.quantity - a.quantity);
+    } else {
+        // Default: sort by date (recent or past)
+        if (activeFilters.sortDate === 'past') {
+            filtered.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+        } else {
+            // Default: recent (newest first)
+            filtered.sort((a, b) => parseDate(b.date) - parseDate(a.date));
+        }
+    }
+    
+    // Clear tbody and re-add filtered rows
+    tbody.innerHTML = '';
+    filtered.forEach((transaction, index) => {
+        const row = transaction.element.cloneNode(true);
+        const numberCell = row.querySelector('td:first-child');
+        if (numberCell) {
+            numberCell.textContent = index + 1;
+        }
+        tbody.appendChild(row);
+    });
+}
+
+// Legacy function for backwards compatibility
+function filterTransactions(filterType) {
+    toggleFilter(filterType);
+}
+
+// Sector dropdown functions
+function toggleSectorDropdown(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const dropdown = document.getElementById('sectorDropdown');
+    const isVisible = dropdown.style.display !== 'none';
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.sector-dropdown').forEach(dd => {
+        dd.style.display = 'none';
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+function selectSector(sectorName) {
+    activeFilters.sector = sectorName;
+    
+    // Update button text
+    const btn = document.getElementById('sectorFilterBtn');
+    if (sectorName === '') {
+        btn.textContent = 'Sector';
+        btn.classList.remove('active');
+    } else {
+        btn.textContent = `Sector: ${sectorName}`;
+        btn.classList.add('active');
+    }
+    
+    // Close dropdown
+    document.getElementById('sectorDropdown').style.display = 'none';
+    
+    // Update filter buttons and apply filters
+    updateFilterButtons();
+    applyFilters();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdownWrapper = document.querySelector('.sector-dropdown-wrapper');
+    const dropdown = document.getElementById('sectorDropdown');
+    
+    if (dropdownWrapper && !dropdownWrapper.contains(event.target)) {
+        dropdown.style.display = 'none';
+    }
 });
 </script>
 {% endblock %}

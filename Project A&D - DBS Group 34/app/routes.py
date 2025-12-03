@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash
+from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify  # Added: jsonify for API responses
 from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime
+import yfinance as yf  # Added: for company info and financial ratios
 from . import supabase, db
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio,
@@ -48,6 +49,32 @@ def format_currency(value):
     """Formats a float to a European currency string (e.g., 1.234,56)"""
     return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
 
+# Exchange rates voor currency conversie (approximatieve rates)
+# Deze rates worden gebruikt om transacties te sorteren op grootte, rekening houdend met wisselkoersen
+EXCHANGE_RATES = {
+    "USD": 0.92,    # 1 USD = 0.92 EUR (approximate rate)
+    "CAD": 0.68,    # 1 CAD = 0.68 EUR (approximate rate)
+    "DKK": 0.1339,  # 1 DKK = 0.1339 EUR (5.397,86 DKK = 722,78 EUR)
+    "EUR": 1.0,     # 1 EUR = 1 EUR
+}
+
+def convert_to_eur(amount, from_currency):
+    """Converteer een bedrag naar EUR"""
+    if not amount or amount == 0:
+        return 0.0
+    
+    from_currency = (from_currency or "EUR").upper()
+    
+    # Als al EUR, return direct
+    if from_currency == "EUR":
+        return float(amount)
+    
+    # Zoek exchange rate
+    rate = EXCHANGE_RATES.get(from_currency, 1.0)
+    
+    # Converteer naar EUR
+    return float(amount) * rate
+
 def format_transaction_date(date_obj):
     """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022')"""
     if date_obj is None:
@@ -75,34 +102,34 @@ def format_transaction_date(date_obj):
             pass
     return str(date_obj)
 
-# Mapping van tickers naar asset namen en exchanges (uit de Supabase data)
+# Mapping van tickers naar asset namen, exchanges en sectoren (uit de Supabase data)
 TICKER_TO_ASSET = {
-    "VOW3": {"name": "Volkswagen AG", "exchange": "XFRA"},
-    "WDP": {"name": "Warehouses de Pauw NV", "exchange": "XBRU"},
-    "GIMB": {"name": "GIMV NV", "exchange": "XBRU"},
-    "PRX": {"name": "Proximus NV", "exchange": "XBRU"},
-    "AMD": {"name": "ADVANCED MICRO DEVICES, INC.", "exchange": "XNAS"},
-    "MSFT": {"name": "MICROSOFT CORPORATION", "exchange": "XNAS"},
-    "DIS": {"name": "Walt Disney Company", "exchange": "XNYS"},
-    "PKK": {"name": "Tenet Fintech Group Inc.", "exchange": "XCNQ"},
-    "XFAB": {"name": "X-FAB Silicon Foundries SE", "exchange": "XBRU"},
-    "BABA": {"name": "Alibaba Group Holding Limited", "exchange": "XNYS"},
-    "WM": {"name": "Waste Management, Inc.", "exchange": "XNYS"},
-    "ADBE": {"name": "ADOBE INC.", "exchange": "XNAS"},
-    "ADYEN": {"name": "Adyen NV", "exchange": "XAMS"},
-    "SU": {"name": "Suncor Energy Inc.", "exchange": "XTSE"},
-    "XIOR": {"name": "Xior Student Housing NV", "exchange": "XBRU"},
-    "AEHR": {"name": "Aehr Test Systems", "exchange": "XNAS"},
-    "ABI": {"name": "Anheuser-Busch InBev SA/NV", "exchange": "XBRU"},
-    "NVDA": {"name": "NVIDIA Corporation", "exchange": "XNAS"},
-    "GOOGL": {"name": "ALPHABET INC.", "exchange": "XNAS"},
+    "VOW3": {"name": "Volkswagen AG", "exchange": "XFRA", "sector": "Automotive"},
+    "WDP": {"name": "Warehouses de Pauw NV", "exchange": "XBRU", "sector": "Real Estate"},
+    "GIMB": {"name": "GIMV NV", "exchange": "XBRU", "sector": "Financial Services"},
+    "PRX": {"name": "Proximus NV", "exchange": "XBRU", "sector": "Telecommunications"},
+    "AMD": {"name": "ADVANCED MICRO DEVICES, INC.", "exchange": "XNAS", "sector": "Tech"},
+    "MSFT": {"name": "MICROSOFT CORPORATION", "exchange": "XNAS", "sector": "Tech"},
+    "DIS": {"name": "Walt Disney Company", "exchange": "XNYS", "sector": "Entertainment"},
+    "PKK": {"name": "Tenet Fintech Group Inc.", "exchange": "XCNQ", "sector": "Financial Services"},
+    "XFAB": {"name": "X-FAB Silicon Foundries SE", "exchange": "XBRU", "sector": "Tech"},
+    "BABA": {"name": "Alibaba Group Holding Limited", "exchange": "XNYS", "sector": "Tech"},
+    "WM": {"name": "Waste Management, Inc.", "exchange": "XNYS", "sector": "Utilities"},
+    "ADBE": {"name": "ADOBE INC.", "exchange": "XNAS", "sector": "Tech"},
+    "ADYEN": {"name": "Adyen NV", "exchange": "XAMS", "sector": "Tech"},
+    "SU": {"name": "Suncor Energy Inc.", "exchange": "XTSE", "sector": "Energy"},
+    "XIOR": {"name": "Xior Student Housing NV", "exchange": "XBRU", "sector": "Real Estate"},
+    "AEHR": {"name": "Aehr Test Systems", "exchange": "XNAS", "sector": "Tech"},
+    "ABI": {"name": "Anheuser-Busch InBev SA/NV", "exchange": "XBRU", "sector": "Consumer Staples"},
+    "NVDA": {"name": "NVIDIA Corporation", "exchange": "XNAS", "sector": "Tech"},
+    "GOOGL": {"name": "ALPHABET INC.", "exchange": "XNAS", "sector": "Tech"},
 }
 
 def _get_asset_info(ticker):
-    """Haal asset naam en exchange op op basis van ticker"""
+    """Haal asset naam, exchange en sector op op basis van ticker"""
     if ticker and ticker in TICKER_TO_ASSET:
         return TICKER_TO_ASSET[ticker]
-    return {"name": ticker or "Onbekend", "exchange": ""}
+    return {"name": ticker or "Onbekend", "exchange": "", "sector": "Unknown"}
 
 def _normalize_transactions(records):
     """Normalize transaction records from Supabase to a consistent format"""
@@ -121,6 +148,10 @@ def _normalize_transactions(records):
     for idx, record in enumerate(records):
         try:
             if isinstance(record, dict):
+                # Skip lege of ongeldige records
+                if not record:
+                    print(f"DEBUG: Skipping empty record at index {idx}")
+                    continue
                 # Supabase kolommen: transaction_date, transaction_quantity, transaction_type, 
                 # transaction_ticker, transaction_currency, asset_type, transaction_share_price
                 
@@ -159,6 +190,12 @@ def _normalize_transactions(records):
                 except (ValueError, TypeError):
                     price = 0.0
                 
+                # Ticker
+                ticker = record.get("transaction_ticker") or ""
+                
+                # Currency (zorg dat het uppercase is)
+                currency = (record.get("transaction_currency") or "EUR").upper()
+                
                 # Bereken Total Transaction Amount (quantity * price)
                 total_amount = quantity * price if price else 0.0
                 
@@ -166,19 +203,25 @@ def _normalize_transactions(records):
                 price_str = format_currency(price) if price else "0,00"
                 total_str = format_currency(abs(total_amount)) if total_amount else "0,00"
                 
-                # Ticker
-                ticker = record.get("transaction_ticker") or ""
+                # Converteer naar EUR voor sortering (maar behoud originele currency)
+                # Gebruik absolute waarde voor sortering om grootte te vergelijken
+                total_amount_eur_for_sorting = convert_to_eur(abs(total_amount), currency)
                 
-                # Currency
-                currency = record.get("transaction_currency") or "EUR"
+                # Debug output voor eerste paar transacties
+                if idx < 3:
+                    print(f"DEBUG: Transaction {idx + 1}: {currency} {total_amount} -> EUR {total_amount_eur_for_sorting:.2f}")
                 
-                # Asset class/type
-                asset_class = record.get("asset_type") or "Stock"
+                # Asset class/type - probeer eerst asset_class, dan asset_type, anders default
+                asset_class = record.get("asset_class") or record.get("asset_type") or "Stock"
                 
-                # Asset naam en exchange - gebruik mapping op basis van ticker
+                # Asset naam, exchange en sector - gebruik mapping op basis van ticker
                 asset_info = _get_asset_info(ticker)
                 asset_name = asset_info["name"]
                 exchange = asset_info["exchange"]
+                sector = asset_info.get("sector", "Unknown")  # Haal sector uit mapping of uit Supabase
+                
+                # Probeer sector ook uit Supabase record te halen (als die bestaat)
+                sector = record.get("sector") or asset_info.get("sector") or "Unknown"
                 
                 # Realized profit/loss - niet beschikbaar in huidige Supabase schema
                 realized_pl = None
@@ -197,32 +240,52 @@ def _normalize_transactions(records):
                     "asset_name": asset_name,
                     "ticker": ticker,
                     "exchange": exchange,
-                    "currency": currency,
+                    "currency": currency,  # Originele currency
                     "asset_class": asset_class,
+                    "sector": sector,
                     "units": quantity,
                     "price": price_str,
-                    "price_value": price,
+                    "price_value": price,  # Originele prijs
                     "total": f"{'-' if total_amount < 0 else ''}{total_str}",
-                    "total_value": float(total_amount),
+                    "total_value": float(total_amount),  # Originele total amount
+                    "total_value_eur": float(total_amount_eur_for_sorting),  # In EUR voor sortering
                     "profitLoss": float(realized_pl) if realized_pl is not None else None,
                 })
             else:
                 # Voor SQLAlchemy objecten (fallback)
+                quantity_sql = float(getattr(record, 'transaction_quantity', 0)) or 0.0
+                amount_sql = float(getattr(record, 'transaction_amount', 0)) or 0.0
+                currency_sql = (getattr(record, 'currency', 'EUR') or 'EUR').upper()
+                
+                # Bereken prijs per share
+                price_sql = amount_sql / quantity_sql if quantity_sql > 0 else 0.0
+                
+                # Converteer naar EUR voor sortering (maar behoud originele currency)
+                # Gebruik absolute waarde voor sortering om grootte te vergelijken
+                total_eur_sql = convert_to_eur(abs(amount_sql), currency_sql)
+                
+                # Haal sector op - eerst uit database, anders uit ticker mapping
+                ticker_sql = getattr(record, 'ticker', '') or ''
+                asset_info_sql = _get_asset_info(ticker_sql)
+                sector_sql = getattr(record, 'sector', None) or asset_info_sql.get("sector", "Unknown")
+                
                 normalized.append({
                     "number": getattr(record, 'transaction_id', None) or idx + 1,
                     "date": format_transaction_date(getattr(record, 'transaction_date', None)),
                     "type": (getattr(record, 'transaction_type', '') or '').upper(),
                     "asset": getattr(record, 'asset_name', '') or getattr(record, 'ticker', '') or 'Onbekend',
                     "asset_name": getattr(record, 'asset_name', '') or getattr(record, 'ticker', '') or 'Onbekend',
-                    "ticker": getattr(record, 'ticker', '') or '',
-                    "exchange": getattr(record, 'exchange', '') or '',
-                    "currency": getattr(record, 'currency', 'EUR') or 'EUR',
+                    "ticker": ticker_sql,
+                    "exchange": getattr(record, 'exchange', '') or asset_info_sql.get("exchange", ""),
+                    "currency": currency_sql,  # Originele currency
                     "asset_class": getattr(record, 'asset_class', 'Stock') or 'Stock',
-                    "units": float(getattr(record, 'transaction_quantity', 0)) or 0.0,
-                    "price": format_currency(float(getattr(record, 'transaction_amount', 0)) / float(getattr(record, 'transaction_quantity', 1)) if getattr(record, 'transaction_quantity', 0) else 0),
-                    "price_value": float(getattr(record, 'transaction_amount', 0)) / float(getattr(record, 'transaction_quantity', 1)) if getattr(record, 'transaction_quantity', 0) else 0.0,
-                    "total": format_currency(abs(float(getattr(record, 'transaction_amount', 0)))),
-                    "total_value": float(getattr(record, 'transaction_amount', 0)) or 0.0,
+                    "sector": sector_sql,
+                    "units": quantity_sql,
+                    "price": format_currency(price_sql),
+                    "price_value": price_sql,  # Originele prijs
+                    "total": format_currency(abs(amount_sql)),
+                    "total_value": float(amount_sql),  # Originele total amount
+                    "total_value_eur": float(total_eur_sql),  # In EUR voor sortering
                     "profitLoss": float(getattr(record, 'realized_profit_loss', 0)) if getattr(record, 'realized_profit_loss', None) is not None else None,
                 })
         except Exception as e:
@@ -733,6 +796,119 @@ def portfolio():
         portfolio=portfolio_data_formatted
     )
 
+# ============================================================================
+# COMPANY INFO MODAL FEATURE - START
+# Deze route wordt gebruikt wanneer je op een asset naam klikt in portfolio
+# Om terug te draaien: verwijder deze volledige functie (tot # COMPANY INFO MODAL FEATURE - END)
+# ============================================================================
+@main.route("/portfolio/company/<ticker>")
+@login_required
+def get_company_info(ticker):
+    """Haal company info en financial ratios op via yfinance"""
+    try:
+        ticker_obj = yf.Ticker(ticker)
+        info = ticker_obj.info
+        
+        # Check if info is available (yfinance returns empty dict if ticker not found)
+        if not info or len(info) == 0:
+            return jsonify({
+                'success': False,
+                'error': f'Ticker "{ticker}" not found or no data available'
+            }), 404
+        
+        # Haal portfolio positie op voor "Your Position" data
+        position_data = {}
+        try:
+            position = db.session.query(Position).filter(
+                or_(Position.pos_ticker == ticker, Position.pos_name == ticker)
+            ).first()
+            
+            if position:
+                quantity = position.pos_quantity or 0
+                cost_basis = float(position.pos_value) if position.pos_value else 0.0
+                current_price = position.current_price or 0.0
+                market_value = current_price * quantity if current_price and quantity else 0.0
+                pnl_value = market_value - cost_basis
+                pnl_percent = (pnl_value / cost_basis * 100) if cost_basis > 0 else 0.0
+                
+                position_data = {
+                    'quantity': quantity,
+                    'average_cost': format_currency(cost_basis / quantity) if quantity > 0 else format_currency(0),
+                    'total_cost': format_currency(cost_basis),
+                    'current_price': format_currency(current_price),
+                    'market_value': format_currency(market_value),
+                    'pnl_value': format_currency(pnl_value),
+                    'pnl_percent': f"{'+' if pnl_percent >= 0 else ''}{pnl_percent:.2f}%"
+                }
+        except Exception as e:
+            print(f"Error fetching position data: {e}")
+        
+        # Format financial data
+        def safe_get(key, default='N/A', format_func=None):
+            value = info.get(key)
+            if value is None or value == '':
+                return default
+            if format_func:
+                try:
+                    return format_func(value)
+                except:
+                    return default
+            return value
+        
+        # Company info
+        company_data = {
+            'name': safe_get('longName', safe_get('shortName', ticker)),
+            'sector': safe_get('sector', 'N/A'),
+            'industry': safe_get('industry', 'N/A'),
+            'country': safe_get('country', 'N/A'),
+            'description': (lambda desc: (desc[:500] + '...' if len(desc) > 500 else desc) if desc and desc != 'No description available.' else 'No description available.')(safe_get('longBusinessSummary', 'No description available.')),
+            'website': safe_get('website', 'N/A'),
+            'employees': safe_get('fullTimeEmployees', 'N/A', lambda x: f"{int(x):,}" if isinstance(x, (int, float)) else x),
+            'market_cap': safe_get('marketCap', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
+            'currency': safe_get('currency', 'EUR'),
+        }
+        
+        # Financial Ratios
+        ratios = {
+            'pe_ratio': safe_get('trailingPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'forward_pe': safe_get('forwardPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'peg_ratio': safe_get('pegRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'price_to_book': safe_get('priceToBook', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'price_to_sales': safe_get('priceToSalesTrailing12Months', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'dividend_yield': safe_get('dividendYield', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'dividend_rate': safe_get('dividendRate', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'payout_ratio': safe_get('payoutRatio', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'eps': safe_get('trailingEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
+            'eps_forward': safe_get('forwardEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
+            'return_on_equity': safe_get('returnOnEquity', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'return_on_assets': safe_get('returnOnAssets', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'profit_margin': safe_get('profitMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'operating_margin': safe_get('operatingMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'debt_to_equity': safe_get('debtToEquity', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'current_ratio': safe_get('currentRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            '52_week_high': safe_get('fiftyTwoWeekHigh', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
+            '52_week_low': safe_get('fiftyTwoWeekLow', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
+            'beta': safe_get('beta', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+        }
+        
+        return jsonify({
+            'success': True,
+            'ticker': ticker,
+            'company': company_data,
+            'ratios': ratios,
+            'position': position_data
+        })
+        
+    except Exception as e:
+        print(f"Error fetching company info for {ticker}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+# ============================================================================
+# COMPANY INFO MODAL FEATURE - END
+# ============================================================================
+
 def _fetch_transactions():
     """Fetch transactions from database - try direct SQL query first, then Supabase REST API, then mock data"""
     
@@ -750,9 +926,11 @@ def _fetch_transactions():
                 transaction_ticker,
                 transaction_currency,
                 asset_type,
-                transaction_share_price
+                transaction_share_price,
+                sector,
+                asset_class
             FROM transactions
-            ORDER BY transaction_date DESC
+            ORDER BY transaction_date ASC
             LIMIT 1000
         """)
         result = db.session.execute(query)
@@ -763,7 +941,7 @@ def _fetch_transactions():
             # Converteer rows naar dicts
             columns = ['transaction_id', 'transaction_date', 'transaction_quantity', 
                       'transaction_type', 'transaction_ticker', 'transaction_currency', 
-                      'asset_type', 'transaction_share_price']
+                      'asset_type', 'transaction_share_price', 'sector', 'asset_class']
             data = []
             for row in rows:
                 row_dict = {}
@@ -786,20 +964,23 @@ def _fetch_transactions():
     if supabase is not None:
         try:
             print("DEBUG: Attempting to fetch transactions from Supabase REST API...")
-            response = supabase.table("transactions").select("*").order("transaction_date", desc=True).limit(1000).execute()
+            # Haal alle transacties op (geen limit, gebruik range queries als nodig)
+            response = supabase.table("transactions").select("*").order("transaction_date", desc=False).limit(1000).execute()
             data = response.data if hasattr(response, 'data') else []
             
             if data:
                 print(f"DEBUG: Fetched {len(data)} transactions from Supabase REST API")
                 if len(data) > 0:
-                    print(f"DEBUG: First record from Supabase: {data[0]}")
+                    print(f"DEBUG: First record from Supabase: {list(data[0].keys()) if isinstance(data[0], dict) else 'not a dict'}")
+                    print(f"DEBUG: Sample data: {str(data[0])[:300] if data else 'no data'}")
                 
                 normalized = _normalize_transactions(data)
                 if normalized:
-                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from Supabase")
+                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from Supabase (expected ~75)")
                     return normalized
                 else:
                     print(f"WARNING: Supabase returned {len(data)} records but normalization resulted in 0 records")
+                    print(f"DEBUG: This suggests a problem in the normalization function")
         except Exception as exc:
             print(f"WARNING: Supabase REST API fetch failed: {exc}")
             import traceback
@@ -810,7 +991,7 @@ def _fetch_transactions():
     # Fallback naar SQLAlchemy ORM
     try:
         print("DEBUG: Attempting to fetch transactions via SQLAlchemy ORM...")
-        transactions = db.session.query(Transaction).order_by(Transaction.transaction_date.desc()).all()
+        transactions = db.session.query(Transaction).order_by(Transaction.transaction_date.asc()).all()
         if transactions:
             normalized = _normalize_transactions(transactions)
             print(f"DEBUG: Fetched {len(normalized)} transactions from SQLAlchemy ORM")
@@ -830,13 +1011,7 @@ def _fetch_transactions():
 def transactions():
     transactions_data = _fetch_transactions()
     
-    # Bereken totaal realized profit/loss
-    realized_total = 0.0
-    for t in transactions_data:
-        if t.get("profitLoss") is not None:
-            realized_total += float(t["profitLoss"])
-    
-    return render_template("transactions.html", transactions=transactions_data, realized_total=realized_total)
+    return render_template("transactions.html", transactions=transactions_data)
     
 # Voting pagina
 @main.route("/voting")
@@ -958,38 +1133,146 @@ def add_position():
 @main.route("/transactions/add", methods=["POST"])
 @login_required
 def add_transaction():
-    transaction_type = request.form.get("transaction_type", "").strip()
-    transaction_quantity = request.form.get("transaction_quantity", "").strip()
-    transaction_amount = request.form.get("transaction_amount", "").strip()
+    # Haal alle form velden op
     transaction_date = request.form.get("transaction_date", "").strip()
+    transaction_type = request.form.get("transaction_type", "").strip()
+    asset_name = request.form.get("asset_name", "").strip()
+    transaction_ticker = request.form.get("transaction_ticker", "").strip()
+    transaction_quantity = request.form.get("transaction_quantity", "").strip()
+    transaction_share_price = request.form.get("transaction_share_price", "").strip()
+    transaction_currency = request.form.get("transaction_currency", "EUR").strip()
+    asset_class = request.form.get("asset_class", "Stock").strip()
+    sector = request.form.get("sector", "").strip()
+    transaction_amount = request.form.get("transaction_amount", "").strip()
     
+    # Validatie van verplichte velden
     if not transaction_type:
         flash("Transactie type is verplicht.", "error")
         return redirect(url_for("main.transactions"))
+    if not transaction_date:
+        flash("Datum is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    if not asset_name:
+        flash("Asset naam is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    if not transaction_ticker:
+        flash("Ticker is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    if not transaction_quantity:
+        flash("Hoeveelheid is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    if not transaction_share_price:
+        flash("Prijs per aandeel is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
+    if not asset_class:
+        flash("Asset class is verplicht.", "error")
+        return redirect(url_for("main.transactions"))
     
     try:
-        # Parse datum
+        # Parse datum (ondersteun zowel dd/mm/yyyy als dd-mm-yyyy)
+        parsed_date = None
         if transaction_date:
-            try:
-                parsed_date = datetime.strptime(transaction_date, "%d/%m/%Y")
-            except ValueError:
+            for date_format in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
+                try:
+                    parsed_date = datetime.strptime(transaction_date, date_format)
+                    break
+                except ValueError:
+                    continue
+            if not parsed_date:
                 parsed_date = datetime.now()
         else:
             parsed_date = datetime.now()
         
-        # Converteer quantity en amount naar float
-        quantity = float(transaction_quantity) if transaction_quantity else 0.0
-        amount = float(transaction_amount) if transaction_amount else 0.0
+        # Converteer numerieke waarden
+        try:
+            quantity = float(transaction_quantity) if transaction_quantity else 0.0
+            if quantity <= 0:
+                flash("Hoeveelheid moet een positief getal zijn.", "error")
+                return redirect(url_for("main.transactions"))
+        except (ValueError, TypeError):
+            flash("Hoeveelheid moet een geldig getal zijn.", "error")
+            return redirect(url_for("main.transactions"))
         
-        transaction = Transaction(
-            transaction_type=transaction_type,
-            transaction_quantity=quantity,
-            transaction_amount=amount,
-            transaction_date=parsed_date
-        )
-        db.session.add(transaction)
-        db.session.commit()
-        flash(f"Transactie '{transaction_type}' toegevoegd.", "success")
+        try:
+            share_price = float(transaction_share_price) if transaction_share_price else 0.0
+            if share_price <= 0:
+                flash("Prijs per aandeel moet een positief getal zijn.", "error")
+                return redirect(url_for("main.transactions"))
+        except (ValueError, TypeError):
+            flash("Prijs per aandeel moet een geldig getal zijn.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Bereken total amount (quantity * price)
+        total_amount = quantity * share_price
+        
+        # Gebruik opgegeven amount als die bestaat, anders bereken
+        if transaction_amount:
+            try:
+                calculated_amount = float(transaction_amount)
+                # Gebruik de opgegeven waarde (voor geval van afronding verschillen)
+                final_amount = calculated_amount
+            except (ValueError, TypeError):
+                final_amount = total_amount
+        else:
+            final_amount = total_amount
+        
+        # Probeer eerst via direct SQL insert (voor alle velden)
+        try:
+            from sqlalchemy import text
+            sql_query = text("""
+                INSERT INTO transactions (
+                    transaction_type, transaction_quantity, transaction_amount,
+                    transaction_date, transaction_ticker, transaction_currency,
+                    transaction_share_price, asset_type, asset_class, sector
+                ) VALUES (
+                    :transaction_type, :transaction_quantity, :transaction_amount,
+                    :transaction_date, :transaction_ticker, :transaction_currency,
+                    :transaction_share_price, :asset_type, :asset_class, :sector
+                )
+            """)
+            db.session.execute(sql_query, {
+                "transaction_type": transaction_type.upper(),
+                "transaction_quantity": quantity,
+                "transaction_amount": final_amount,
+                "transaction_date": parsed_date,
+                "transaction_ticker": transaction_ticker,
+                "transaction_currency": transaction_currency.upper(),
+                "transaction_share_price": share_price,
+                "asset_type": asset_class,
+                "asset_class": asset_class,
+                "sector": sector if sector else None
+            })
+            db.session.commit()
+            print(f"DEBUG: Transaction saved to database via direct SQL")
+        except Exception as sql_exc:
+            print(f"WARNING: Direct SQL insert failed: {sql_exc}")
+            import traceback
+            traceback.print_exc()
+            db.session.rollback()
+        
+        # Probeer ook via Supabase REST API (als backup)
+        if supabase is not None:
+            try:
+                supabase_data = {
+                    "transaction_type": transaction_type.upper(),
+                    "transaction_quantity": quantity,
+                    "transaction_amount": final_amount,
+                    "transaction_date": parsed_date.isoformat() + "+00:00",
+                    "transaction_ticker": transaction_ticker,
+                    "transaction_currency": transaction_currency.upper(),
+                    "transaction_share_price": share_price,
+                    "asset_type": asset_class,  # Voor backward compatibility
+                    "asset_class": asset_class,
+                    "sector": sector if sector else None
+                }
+                response = supabase.table("transactions").insert(supabase_data).execute()
+                print(f"DEBUG: Transaction saved to Supabase: {response.data if hasattr(response, 'data') else 'success'}")
+            except Exception as supabase_exc:
+                print(f"WARNING: Supabase insert failed: {supabase_exc}")
+                import traceback
+                traceback.print_exc()
+        
+        flash(f"Transactie '{transaction_type}' voor {asset_name} ({transaction_ticker}) toegevoegd.", "success")
     except Exception as exc:
         print(f"ERROR: Transaction insert failed: {exc}")
         import traceback

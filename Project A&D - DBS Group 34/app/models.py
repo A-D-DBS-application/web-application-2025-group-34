@@ -377,6 +377,8 @@ class Transaction(db.Model):
     transaction_amount = db.Column(db.Float)
     transaction_quantity = db.Column(db.Float)
     transaction_type = db.Column(db.Text)
+    sector = db.Column(db.String(100))  # Sector van het asset
+    asset_class = db.Column(db.String(100))  # Asset class (bijv. Stock, Bond, etc.)
     
     
 # --- voting_proposal Table ---

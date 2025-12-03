@@ -105,9 +105,80 @@
 }
 
 .filter-btn.active {
+    background: var(--green) !important;
+    color: white !important;
+    border-color: var(--green) !important;
+    font-weight: 600;
+}
+
+/* Sector Dropdown */
+.sector-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.sector-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 5px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 180px;
+    overflow: hidden;
+}
+
+.sector-option {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--green);
+    transition: background 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.sector-option:last-child {
+    border-bottom: none;
+}
+
+.sector-option:hover {
+    background: #f8fffc;
+    color: var(--green);
+}
+
+.sector-option:active {
     background: var(--green);
     color: white;
-    border-color: var(--green);
+}
+
+/* Horizontal Scrollbar Spacer */
+.scrollbar-spacer {
+    height: 17px;
+    margin-bottom: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: transparent;
+}
+
+.scrollbar-spacer::-webkit-scrollbar {
+    height: 17px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
 
 .transactions-table-wrapper {

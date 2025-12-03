@@ -67,7 +67,10 @@
       {% for p in portfolio %}
       <tr>
         <td>{{ loop.index }}</td>
-        <td>{{ p.asset }}</td>
+        <!-- COMPANY MODAL FEATURE START: Asset naam is nu klikbaar -->
+        <!-- REVERT: Verander terug naar: <td>{{ p.asset }}</td> -->
+        <td><a href="#" class="asset-link" data-ticker="{{ p.ticker }}" onclick="event.preventDefault(); openCompanyModal('{{ p.ticker }}', '{{ p.asset }}'); return false;">{{ p.asset }}</a></td>
+        <!-- COMPANY MODAL FEATURE END -->
         <td>{{ p.sector }}</td>
         <td class="ticker">{{ p.ticker }}</td>
         <td class="{% if p.day_change.startswith('+') %}positive{% elif p.day_change.startswith('-') %}negative{% endif %}">{{ p.day_change }}</td>
@@ -82,4 +85,228 @@
     </tbody>
   </table>
 </div>
+
+<!-- ============================================================================ -->
+<!-- COMPANY INFO MODAL FEATURE - START -->
+<!-- Om terug te draaien: verwijder alles vanaf hier tot "COMPANY INFO MODAL FEATURE - END" -->
+<!-- ============================================================================ -->
+<!-- Company Info Modal -->
+<div id="companyModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalCompanyName">Company Information</h2>
+      <span class="modal-close" onclick="closeCompanyModal()">&times;</span>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="loading-spinner">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openCompanyModal(ticker, assetName) {
+  const modal = document.getElementById('companyModal');
+  const modalBody = document.getElementById('modalBody');
+  const modalCompanyName = document.getElementById('modalCompanyName');
+  
+  modal.style.display = 'block';
+  modalCompanyName.textContent = assetName || ticker;
+  modalBody.innerHTML = '<div class="loading-spinner">Loading...</div>';
+  
+  // Fetch company info
+  fetch(`/portfolio/company/${ticker}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        modalBody.innerHTML = buildModalContent(data);
+      } else {
+        modalBody.innerHTML = `<div class="error-message">Error loading company information: ${data.error || 'Unknown error'}</div>`;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      modalBody.innerHTML = `<div class="error-message">Error loading company information. Please try again later.</div>`;
+    });
+}
+
+function closeCompanyModal() {
+  document.getElementById('companyModal').style.display = 'none';
+}
+
+function buildModalContent(data) {
+  const company = data.company || {};
+  const ratios = data.ratios || {};
+  const position = data.position || {};
+  
+  let html = '<div class="modal-sections">';
+  
+  // Basic Information Section
+  html += `
+    <div class="modal-section">
+      <h3>Basic Information</h3>
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Sector:</span>
+          <span class="info-value">${company.sector || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Industry:</span>
+          <span class="info-value">${company.industry || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Country:</span>
+          <span class="info-value">${company.country || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Market Cap:</span>
+          <span class="info-value">${company.market_cap || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Employees:</span>
+          <span class="info-value">${company.employees || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Website:</span>
+          <span class="info-value"><a href="${company.website}" target="_blank" rel="noopener noreferrer">${company.website || 'N/A'}</a></span>
+        </div>
+      </div>
+      ${company.description ? `<div class="description"><p>${company.description}</p></div>` : ''}
+    </div>
+  `;
+  
+  // Your Position Section (if available)
+  if (position.quantity) {
+    html += `
+      <div class="modal-section">
+        <h3>Your Position</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Quantity:</span>
+            <span class="info-value">${position.quantity || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Average Cost:</span>
+            <span class="info-value">${position.average_cost || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Total Cost:</span>
+            <span class="info-value">${position.total_cost || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Current Price:</span>
+            <span class="info-value">${position.current_price || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Market Value:</span>
+            <span class="info-value">${position.market_value || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Unrealized P&L:</span>
+            <span class="info-value ${position.pnl_percent && position.pnl_percent.startsWith('+') ? 'positive' : 'negative'}">${position.pnl_value || 'N/A'} (${position.pnl_percent || 'N/A'})</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Financial Ratios Section
+  html += `
+    <div class="modal-section">
+      <h3>Financial Ratios</h3>
+      <div class="ratios-grid">
+        <div class="ratio-item">
+          <span class="ratio-label">P/E Ratio:</span>
+          <span class="ratio-value">${ratios.pe_ratio || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Forward P/E:</span>
+          <span class="ratio-value">${ratios.forward_pe || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">PEG Ratio:</span>
+          <span class="ratio-value">${ratios.peg_ratio || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Price-to-Book:</span>
+          <span class="ratio-value">${ratios.price_to_book || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Price-to-Sales:</span>
+          <span class="ratio-value">${ratios.price_to_sales || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Dividend Yield:</span>
+          <span class="ratio-value">${ratios.dividend_yield || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Dividend Rate:</span>
+          <span class="ratio-value">${ratios.dividend_rate || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Payout Ratio:</span>
+          <span class="ratio-value">${ratios.payout_ratio || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">EPS (TTM):</span>
+          <span class="ratio-value">${ratios.eps || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">EPS (Forward):</span>
+          <span class="ratio-value">${ratios.eps_forward || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Return on Equity:</span>
+          <span class="ratio-value">${ratios.return_on_equity || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Return on Assets:</span>
+          <span class="ratio-value">${ratios.return_on_assets || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Profit Margin:</span>
+          <span class="ratio-value">${ratios.profit_margin || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Operating Margin:</span>
+          <span class="ratio-value">${ratios.operating_margin || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Debt-to-Equity:</span>
+          <span class="ratio-value">${ratios.debt_to_equity || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Current Ratio:</span>
+          <span class="ratio-value">${ratios.current_ratio || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">52 Week High:</span>
+          <span class="ratio-value">${ratios['52_week_high'] || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">52 Week Low:</span>
+          <span class="ratio-value">${ratios['52_week_low'] || 'N/A'}</span>
+        </div>
+        <div class="ratio-item">
+          <span class="ratio-label">Beta:</span>
+          <span class="ratio-value">${ratios.beta || 'N/A'}</span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  html += '</div>';
+  return html;
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('companyModal');
+  if (event.target == modal) {
+    closeCompanyModal();
+  }
+}
+</script>
+<!-- ============================================================================ -->
+<!-- COMPANY INFO MODAL FEATURE - END -->
+<!-- ============================================================================ -->
 {% endblock %}
