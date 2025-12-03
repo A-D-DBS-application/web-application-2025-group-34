@@ -1,10 +1,12 @@
 {% extends "logged_in_base.html" %}
+{% from "macros.html" import action_buttons %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio.css') }}">
 {% endblock %}
 
 {% block sub_content %}
 <div class="card">
+  <!-- PORTFOLIO HEADER (bovenaan) -->
   <div class="portfolio-header">
     <div>
       <div class="muted">Portfolio Value</div>
@@ -18,8 +20,166 @@
       <div class="muted">Position Value</div>
       <div class="big">€ {{ position_value }}</div>
     </div>
-    <div>
-      <button class="btn" onclick="document.getElementById('addPositionForm').style.display='block'">+ Positie Toevoegen</button>
+    {{ action_buttons("Positie", "addPositionForm", "openEditPositionModal", "openDeletePositionModal", "+ Positie Toevoegen") }}
+  </div>
+
+  <!-- CASH BAR (direct onder portfolio header) -->
+  <div class="cash-bar">
+    <div class="cash-label">CASH</div>
+    <div class="cash-amount-wrapper">
+      <span class="cash-amount" id="cashAmountDisplay">€ {{ cash_amount }}</span>
+      <button class="cash-edit-btn" onclick="openCashEditModal()" title="Cash bedrag aanpassen">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Cash Edit Modal -->
+  <div id="cashEditModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h2>Cash Bedrag Aanpassen</h2>
+        <span class="modal-close" onclick="closeCashEditModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="cashEditForm" method="POST" action="{{ url_for('main.update_cash') }}">
+          <div class="form-group">
+            <label>Cash Bedrag (€) *</label>
+            <input type="number" step="0.01" name="cash_amount" id="cashAmountInput" value="{{ cash_amount_raw }}" required placeholder="Bijv. 16411.22">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn">Opslaan</button>
+            <button type="button" class="btn ghost" onclick="closeCashEditModal()">Annuleren</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Position Modal (stap 1: nummer invoeren) -->
+  <div id="deletePositionModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h2>Positie Verwijderen</h2>
+        <span class="modal-close" onclick="closeDeletePositionModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="deletePositionForm" onsubmit="fetchPositionForDeletion(event)">
+          <div class="form-group">
+            <label>Positie Nummer *</label>
+            <input type="number" min="1" name="position_number" id="positionNumberInput" required placeholder="Bijv. 1, 2, 3...">
+            <small style="color: #666; font-size: 12px;">Voer het nummer in van de positie die je wilt verwijderen (zie de eerste kolom in de tabel)</small>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn">Volgende</button>
+            <button type="button" class="btn ghost" onclick="closeDeletePositionModal()">Annuleren</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Position Confirmation Modal (stap 2: bevestiging) -->
+  <div id="deleteConfirmModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:450px;">
+      <div class="modal-header">
+        <h2>Positie Verwijderen</h2>
+        <span class="modal-close" onclick="closeDeleteConfirmModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p id="deleteConfirmMessage" style="margin-bottom: 20px; font-size: 15px; line-height: 1.5;">
+          Weet je zeker dat je deze positie wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.
+        </p>
+        <form id="deleteConfirmForm" method="POST" action="{{ url_for('main.delete_position') }}">
+          <input type="hidden" name="position_id" id="deletePositionId">
+          <div class="form-actions">
+            <button type="button" class="btn ghost" onclick="closeDeleteConfirmModal()">Annuleren</button>
+            <button type="submit" class="btn" style="background: #d32f2f; color: white;">Bevestigen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Position Modal (stap 1: nummer invoeren) -->
+  <div id="editPositionModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header">
+        <h2>Positie Bewerken</h2>
+        <span class="modal-close" onclick="closeEditPositionModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="editPositionForm" onsubmit="fetchPositionForEditing(event)">
+          <div class="form-group">
+            <label>Positie Nummer *</label>
+            <input type="number" min="1" name="position_number" id="editPositionNumberInput" required placeholder="Bijv. 1, 2, 3...">
+            <small style="color: #666; font-size: 12px;">Voer het nummer in van de positie die je wilt bewerken (zie de eerste kolom in de tabel)</small>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn">Volgende</button>
+            <button type="button" class="btn ghost" onclick="closeEditPositionModal()">Annuleren</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Position Form Modal (stap 2: formulier) -->
+  <div id="editPositionFormModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:700px;">
+      <div class="modal-header">
+        <h2>Positie Bewerken</h2>
+        <span class="modal-close" onclick="closeEditPositionFormModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas de positie aan.</p>
+        <form id="editPositionFormSubmit" method="POST" action="{{ url_for('main.update_position') }}">
+          <input type="hidden" name="position_id" id="editPositionId">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div class="form-group">
+              <label>Asset Naam *</label>
+              <input type="text" name="pos_name" id="editPosName" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            </div>
+            <div class="form-group">
+              <label>Ticker *</label>
+              <input type="text" name="pos_ticker" id="editPosTicker" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            </div>
+            <div class="form-group">
+              <label>Sector *</label>
+              <select name="pos_sector" id="editPosSector" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                <option value="">Selecteer sector...</option>
+                <option value="Tech">Tech</option>
+                <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
+                <option value="Cons. & Health">Cons. & Health</option>
+                <option value="RE, F. & Hold.">RE, F. & Hold.</option>
+                <option value="ETF">ETF</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Asset Class *</label>
+              <input type="text" name="pos_type" id="editPosType" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            </div>
+            <div class="form-group">
+              <label>Quantity *</label>
+              <input type="number" name="pos_quantity" id="editPosQuantity" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            </div>
+            <div class="form-group">
+              <label>Avg Buy Price (EUR) *</label>
+              <input type="number" step="0.01" name="pos_value" id="editPosValue" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            </div>
+          </div>
+          <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #1976d2; line-height: 1.5;">
+            <strong>Note:</strong> Share price, day change, en andere waarden worden automatisch opgehaald en berekend.
+          </div>
+          <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" class="btn ghost" onclick="closeEditPositionFormModal()">Annuleren</button>
+            <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -44,7 +204,14 @@
       </div>
       <div class="form-group">
         <label>Sector *</label>
-        <input type="text" name="pos_sector" placeholder="Bijv. Tech, Healthcare" required>
+        <select name="pos_sector" required>
+          <option value="">Selecteer sector...</option>
+          <option value="Tech">Tech</option>
+          <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
+          <option value="Cons. & Health">Cons. & Health</option>
+          <option value="RE, F. & Hold.">RE, F. & Hold.</option>
+          <option value="ETF">ETF</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Cost Basis - Totaal Bedrag (€)</label>
@@ -57,7 +224,34 @@
     </form>
   </div>
 
-  <table class="portfolio-table">
+  <!-- Filter/Sort Section -->
+  <div class="filter-section">
+    <span class="filter-label">Sorteren:</span>
+    <div class="filter-buttons">
+      <div class="sector-dropdown-wrapper">
+        <button class="filter-btn" data-filter="sector" id="sectorFilterBtn" onclick="toggleSectorDropdown(event)">Sector</button>
+        <div class="sector-dropdown" id="sectorDropdown" style="display: none;">
+          <div class="sector-option" onclick="selectSector('')">Alle sectoren</div>
+          <div class="sector-option" onclick="selectSector('Tech')">Tech</div>
+          <div class="sector-option" onclick="selectSector('Ind., E. & R.M.')">Ind., E. & R.M.</div>
+          <div class="sector-option" onclick="selectSector('Cons. & Health')">Cons. & Health</div>
+          <div class="sector-option" onclick="selectSector('RE, F. & Hold.')">RE, F. & Hold.</div>
+          <div class="sector-option" onclick="selectSector('ETF')">ETF</div>
+        </div>
+      </div>
+      <button class="filter-btn" data-filter="day-change" onclick="toggleFilter('day-change')">Day Change</button>
+      <button class="filter-btn" data-filter="quantity" onclick="toggleFilter('quantity')">Quantity</button>
+      <button class="filter-btn" data-filter="weight" onclick="toggleFilter('weight')">Weight</button>
+      <button class="filter-btn" data-filter="pnl-percent" onclick="toggleFilter('pnl-percent')">Unrealized P&L%</button>
+      <button class="filter-btn" data-filter="gain-loss" onclick="toggleFilter('gain-loss')">Unrealized Gain (Loss)</button>
+    </div>
+  </div>
+
+  <!-- Horizontal Scrollbar Spacer -->
+  <div class="scrollbar-spacer"></div>
+
+  <div class="portfolio-table-wrapper">
+    <table class="portfolio-table">
     <thead>
       <tr>
         <th>#</th><th>Asset</th><th>Sector</th><th>Ticker</th><th>Day Change</th><th>Share Price</th><th>Qty</th><th>Market Value</th><th>Weight</th><th>P&L %</th><th>Gain/Loss</th>
@@ -65,7 +259,12 @@
     </thead>
     <tbody>
       {% for p in portfolio %}
-      <tr>
+      <tr data-sector="{{ p.sector }}"
+          data-day-change="{{ p.day_change }}"
+          data-quantity="{{ p.quantity }}"
+          data-weight="{{ p.weight|replace('%', '')|replace(',', '.') }}"
+          data-pnl-percent="{{ p.pnl_percent|replace('%', '')|replace('+', '')|replace(',', '.') }}"
+          data-gain-loss="{{ p.pnl_value|replace('€', '')|replace(' ', '')|replace(',', '.') }}">
         <td>{{ loop.index }}</td>
         <!-- COMPANY MODAL FEATURE START: Asset naam is nu klikbaar -->
         <!-- REVERT: Verander terug naar: <td>{{ p.asset }}</td> -->
@@ -83,7 +282,69 @@
       </tr>
       {% endfor %}
     </tbody>
-  </table>
+    </table>
+  </div>
+
+  <!-- Portfolio Breakdown Section -->
+  <div class="portfolio-breakdown-section" style="margin-top: 40px;">
+    <div class="breakdown-header">
+      <h2 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Portfolio Breakdown</h2>
+      <div class="sector-tabs" id="sectorTabs">
+        <button class="sector-tab active" data-sector="all" onclick="showSectorBreakdown('all')">All Sectors</button>
+        <button class="sector-tab" data-sector="ETF" onclick="showSectorBreakdown('ETF')">ETFs</button>
+        <button class="sector-tab" data-sector="Cons. & Health" onclick="showSectorBreakdown('Cons. & Health')">C&H</button>
+        <button class="sector-tab" data-sector="Ind., E. & R.M." onclick="showSectorBreakdown('Ind., E. & R.M.')">Ind.</button>
+        <button class="sector-tab" data-sector="RE, F. & Hold." onclick="showSectorBreakdown('RE, F. & Hold.')">RE&F</button>
+        <button class="sector-tab" data-sector="Tech" onclick="showSectorBreakdown('Tech')">Tech</button>
+      </div>
+    </div>
+
+    <!-- All Sectors View -->
+    <div id="breakdownAllSectors" class="breakdown-content">
+      <div class="breakdown-grid">
+        <div class="breakdown-table-wrapper">
+          <table class="breakdown-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Weight</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="breakdownTableBody">
+              <!-- Will be populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+        <div class="breakdown-chart-wrapper">
+          <canvas id="breakdownChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sector Detail Views -->
+    <div id="breakdownSectorDetail" class="breakdown-content" style="display: none;">
+      <div class="breakdown-grid">
+        <div class="breakdown-table-wrapper">
+          <table class="breakdown-table">
+            <thead>
+              <tr>
+                <th>Position</th>
+                <th>Weight</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="sectorDetailTableBody">
+              <!-- Will be populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+        <div class="breakdown-chart-wrapper">
+          <canvas id="sectorDetailChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ============================================================================ -->
@@ -102,6 +363,9 @@
     </div>
   </div>
 </div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
 function openCompanyModal(ticker, assetName) {
@@ -298,13 +562,652 @@ function buildModalContent(data) {
   return html;
 }
 
+// ============================================================================
+// FILTER/SORT FUNCTIONALITY
+// ============================================================================
+let allPortfolioPositions = [];
+let activeFilters = {
+    sector: null,
+    sortMethod: null
+};
+
+const exclusiveGroups = {
+    sortMethod: ['day-change', 'quantity', 'weight', 'pnl-percent', 'gain-loss']
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = Array.from(document.querySelectorAll('.portfolio-table tbody tr'));
+    allPortfolioPositions = rows.map(row => {
+        const sector = row.getAttribute('data-sector') || '';
+        const dayChange = parseFloat(row.getAttribute('data-day-change')?.replace('%', '').replace('+', '') || '0');
+        const quantity = parseFloat(row.getAttribute('data-quantity') || '0');
+        const weight = parseFloat(row.getAttribute('data-weight')?.replace(',', '.') || '0');
+        const pnlPercent = parseFloat(row.getAttribute('data-pnl-percent')?.replace(',', '.') || '0');
+        const gainLoss = parseFloat(row.getAttribute('data-gain-loss')?.replace(',', '.') || '0');
+        
+        return {
+            element: row.cloneNode(true),
+            sector: sector,
+            dayChange: dayChange,
+            quantity: quantity,
+            weight: weight,
+            pnlPercent: pnlPercent,
+            gainLoss: gainLoss
+        };
+    });
+});
+
+function toggleFilter(filterType) {
+    // Check if this filter is in an exclusive group
+    const group = Object.keys(exclusiveGroups).find(g => exclusiveGroups[g].includes(filterType));
+    
+    if (group) {
+        // Toggle within exclusive group
+        if (activeFilters[group] === filterType) {
+            activeFilters[group] = null;
+        } else {
+            activeFilters[group] = filterType;
+        }
+    } else if (filterType === 'sector') {
+        // Sector is handled separately via dropdown
+        return;
+    }
+    
+    // Update button states
+    updateFilterButtons();
+    
+    // Apply filters
+    applyFilters();
+}
+
+function updateFilterButtons() {
+    // Update all filter buttons based on activeFilters
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const filterType = btn.getAttribute('data-filter');
+        if (!filterType) return;
+        
+        btn.classList.remove('active');
+        
+        if (filterType === activeFilters.sortMethod) {
+            btn.classList.add('active');
+        } else if (filterType === 'sector' && activeFilters.sector !== null) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+function applyFilters() {
+    const tbody = document.querySelector('.portfolio-table tbody');
+    let filtered = [...allPortfolioPositions];
+    
+    // Apply sector filter
+    if (activeFilters.sector !== null && activeFilters.sector !== '') {
+        filtered = filtered.filter(p => {
+            const positionSector = (p.sector || '').trim();
+            return positionSector === activeFilters.sector || 
+                   positionSector.toUpperCase() === activeFilters.sector.toUpperCase();
+        });
+    }
+    
+    // Apply sorting
+    if (activeFilters.sortMethod === 'day-change') {
+        // Sort by day change percentage (highest first)
+        filtered.sort((a, b) => b.dayChange - a.dayChange);
+    } else if (activeFilters.sortMethod === 'quantity') {
+        // Sort by quantity (highest first)
+        filtered.sort((a, b) => b.quantity - a.quantity);
+    } else if (activeFilters.sortMethod === 'weight') {
+        // Sort by weight percentage (highest first)
+        filtered.sort((a, b) => b.weight - a.weight);
+    } else if (activeFilters.sortMethod === 'pnl-percent') {
+        // Sort by P&L percentage (highest first)
+        filtered.sort((a, b) => b.pnlPercent - a.pnlPercent);
+    } else if (activeFilters.sortMethod === 'gain-loss') {
+        // Sort by absolute gain/loss value (highest first)
+        filtered.sort((a, b) => b.gainLoss - a.gainLoss);
+    }
+    
+    // Clear tbody and re-add filtered rows
+    tbody.innerHTML = '';
+    filtered.forEach((position, index) => {
+        const row = position.element.cloneNode(true);
+        const numberCell = row.querySelector('td:first-child');
+        if (numberCell) {
+            numberCell.textContent = index + 1;
+        }
+        tbody.appendChild(row);
+    });
+}
+
+// Sector dropdown functions
+function toggleSectorDropdown(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const dropdown = document.getElementById('sectorDropdown');
+    const isVisible = dropdown.style.display !== 'none';
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.sector-dropdown').forEach(dd => {
+        dd.style.display = 'none';
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+function selectSector(sectorName) {
+    activeFilters.sector = sectorName;
+    
+    // Update button text
+    const btn = document.getElementById('sectorFilterBtn');
+    if (sectorName === '') {
+        btn.textContent = 'Sector';
+        btn.classList.remove('active');
+    } else {
+        btn.textContent = `Sector: ${sectorName}`;
+        btn.classList.add('active');
+    }
+    
+    // Close dropdown
+    document.getElementById('sectorDropdown').style.display = 'none';
+    
+    // Update filter buttons and apply filters
+    updateFilterButtons();
+    applyFilters();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdownWrapper = document.querySelector('.sector-dropdown-wrapper');
+    const dropdown = document.getElementById('sectorDropdown');
+    
+    if (dropdownWrapper && !dropdownWrapper.contains(event.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// ============================================================================
+// CASH EDIT MODAL FUNCTIONALITY
+// ============================================================================
+function openCashEditModal() {
+    const modal = document.getElementById('cashEditModal');
+    modal.style.display = 'block';
+}
+
+function closeCashEditModal() {
+    document.getElementById('cashEditModal').style.display = 'none';
+}
+
+// Delete Position Modal Functions
+function openDeletePositionModal() {
+    const modal = document.getElementById('deletePositionModal');
+    modal.style.display = 'block';
+    document.getElementById('positionNumberInput').value = '';
+    document.getElementById('positionNumberInput').focus();
+}
+
+function closeDeletePositionModal() {
+    document.getElementById('deletePositionModal').style.display = 'none';
+    document.getElementById('positionNumberInput').value = '';
+}
+
+function closeDeleteConfirmModal() {
+    document.getElementById('deleteConfirmModal').style.display = 'none';
+    closeDeletePositionModal(); // Also close the first modal
+}
+
+async function fetchPositionForDeletion(event) {
+    event.preventDefault();
+    const positionNumber = parseInt(document.getElementById('positionNumberInput').value);
+    
+    if (!positionNumber || positionNumber < 1) {
+        alert('Voer een geldig positie nummer in.');
+        return;
+    }
+    
+    try {
+        // Fetch position info from server
+        const response = await fetch(`/portfolio/get-position/${positionNumber}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Show confirmation modal with position name
+        document.getElementById('deletePositionId').value = data.position_id;
+        document.getElementById('deleteConfirmMessage').textContent = 
+            `Weet je zeker dat je "${data.position_name}" wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
+        
+        // Close first modal and open confirmation modal
+        closeDeletePositionModal();
+        document.getElementById('deleteConfirmModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error fetching position:', error);
+        alert('Fout bij ophalen van positie informatie.');
+    }
+}
+
+// Edit Position Modal Functions
+function openEditPositionModal() {
+    const modal = document.getElementById('editPositionModal');
+    modal.style.display = 'block';
+    document.getElementById('editPositionNumberInput').value = '';
+    document.getElementById('editPositionNumberInput').focus();
+}
+
+function closeEditPositionModal() {
+    document.getElementById('editPositionModal').style.display = 'none';
+    document.getElementById('editPositionNumberInput').value = '';
+}
+
+function closeEditPositionFormModal() {
+    document.getElementById('editPositionFormModal').style.display = 'none';
+    closeEditPositionModal(); // Also close the first modal
+}
+
+async function fetchPositionForEditing(event) {
+    event.preventDefault();
+    const positionNumber = parseInt(document.getElementById('editPositionNumberInput').value);
+    
+    if (!positionNumber || positionNumber < 1) {
+        alert('Voer een geldig positie nummer in.');
+        return;
+    }
+    
+    try {
+        // Fetch position info from server
+        const response = await fetch(`/portfolio/get-position/${positionNumber}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Fetch full position details for editing
+        const detailResponse = await fetch(`/portfolio/get-position-details/${data.position_id}`);
+        const detailData = await detailResponse.json();
+        
+        if (detailData.error) {
+            alert(detailData.error);
+            return;
+        }
+        
+        // Fill form with position data
+        document.getElementById('editPositionId').value = detailData.position_id;
+        document.getElementById('editPosName').value = detailData.pos_name || '';
+        document.getElementById('editPosTicker').value = detailData.pos_ticker || '';
+        document.getElementById('editPosSector').value = detailData.pos_sector || '';
+        document.getElementById('editPosType').value = detailData.pos_type || '';
+        document.getElementById('editPosQuantity').value = detailData.pos_quantity || '';
+        
+        // Calculate avg buy price (pos_value / pos_quantity)
+        const avgBuyPrice = detailData.pos_quantity > 0 && detailData.pos_value 
+            ? (parseFloat(detailData.pos_value) / parseInt(detailData.pos_quantity)).toFixed(2)
+            : detailData.pos_value || '';
+        document.getElementById('editPosValue').value = avgBuyPrice;
+        
+        // Close first modal and open form modal
+        closeEditPositionModal();
+        document.getElementById('editPositionFormModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error fetching position:', error);
+        alert('Fout bij ophalen van positie informatie.');
+    }
+}
+
 // Close modal when clicking outside
 window.onclick = function(event) {
-  const modal = document.getElementById('companyModal');
-  if (event.target == modal) {
-    closeCompanyModal();
-  }
+    const cashModal = document.getElementById('cashEditModal');
+    const deleteModal = document.getElementById('deletePositionModal');
+    const confirmModal = document.getElementById('deleteConfirmModal');
+    const editModal = document.getElementById('editPositionModal');
+    const editFormModal = document.getElementById('editPositionFormModal');
+    const companyModal = document.getElementById('companyModal');
+    
+    if (event.target == cashModal) {
+        closeCashEditModal();
+    }
+    if (event.target == deleteModal) {
+        closeDeletePositionModal();
+    }
+    if (event.target == confirmModal) {
+        closeDeleteConfirmModal();
+    }
+    if (event.target == editModal) {
+        closeEditPositionModal();
+    }
+    if (event.target == editFormModal) {
+        closeEditPositionFormModal();
+    }
+    if (event.target == companyModal) {
+        closeCompanyModal();
+    }
+};
+
+// ============================================================================
+// PORTFOLIO BREAKDOWN FUNCTIONALITY
+// ============================================================================
+let breakdownChart = null;
+let sectorDetailChart = null;
+
+// Calculate sector breakdown
+function calculateSectorBreakdown() {
+    const sectorMap = {};
+    const cashAmount = parseFloat('{{ cash_amount_raw }}') || 0;
+    
+    // Get portfolio value from header or calculate
+    const portfolioValueText = document.querySelector('.portfolio-header .big')?.textContent || '€ 0';
+    const portfolioValue = parseFloat(portfolioValueText.replace('€', '').replace(' ', '').replace(/\./g, '').replace(',', '.')) || 0;
+    
+    // Add cash
+    if (cashAmount > 0) {
+        sectorMap['Cash'] = {
+            weight: (cashAmount / portfolioValue) * 100,
+            value: cashAmount,
+            positions: []
+        };
+    }
+    
+    // Process positions from table
+    const rows = document.querySelectorAll('.portfolio-table tbody tr');
+    rows.forEach(row => {
+        const sector = row.getAttribute('data-sector') || 'Other';
+        const marketValueText = row.querySelector('td:nth-child(8)')?.textContent || '€ 0';
+        // Parse European format: "€ 1.234,56" -> 1234.56
+        const marketValue = parseFloat(marketValueText.replace('€', '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+        const asset = row.querySelector('td:nth-child(2)')?.textContent?.trim() || '';
+        const ticker = row.querySelector('td:nth-child(4)')?.textContent?.trim() || '';
+        const weightText = row.querySelector('td:nth-child(9)')?.textContent || '0%';
+        // Parse weight: "12,34%" -> 12.34
+        const weight = parseFloat(weightText.replace('%', '').replace(',', '.')) || 0;
+        
+        if (!sectorMap[sector]) {
+            sectorMap[sector] = {
+                weight: 0,
+                value: 0,
+                positions: []
+            };
+        }
+        
+        sectorMap[sector].value += marketValue;
+        sectorMap[sector].positions.push({
+            asset: asset,
+            ticker: ticker,
+            weight: weight,
+            value: marketValue
+        });
+    });
+    
+    // Recalculate weights based on total portfolio value
+    Object.keys(sectorMap).forEach(sector => {
+        if (portfolioValue > 0) {
+            sectorMap[sector].weight = (sectorMap[sector].value / portfolioValue) * 100;
+        }
+    });
+    
+    return sectorMap;
 }
+
+// Render all sectors breakdown
+function renderAllSectorsBreakdown() {
+    const sectorMap = calculateSectorBreakdown();
+    const tbody = document.getElementById('breakdownTableBody');
+    tbody.innerHTML = '';
+    
+    // Sort sectors by value (descending)
+    const sortedSectors = Object.entries(sectorMap).sort((a, b) => b[1].value - a[1].value);
+    
+    let totalWeight = 0;
+    let totalValue = 0;
+    
+    sortedSectors.forEach(([sector, data]) => {
+        if (data.value > 0 || sector === 'Cash') {
+            const row = document.createElement('tr');
+            const weight = data.weight.toFixed(1);
+            const value = formatBreakdownCurrency(data.value);
+            
+            row.innerHTML = `
+                <td>${sector}</td>
+                <td>${weight}%</td>
+                <td>€ ${value}</td>
+            `;
+            tbody.appendChild(row);
+            
+            totalWeight += data.weight;
+            totalValue += data.value;
+        }
+    });
+    
+    // Add total row
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'breakdown-total-row';
+    totalRow.innerHTML = `
+        <td><strong>Total Portfolio Value</strong></td>
+        <td><strong>${totalWeight.toFixed(1)}%</strong></td>
+        <td><strong>€ ${formatBreakdownCurrency(totalValue)}</strong></td>
+    `;
+    tbody.appendChild(totalRow);
+    
+    // Render pie chart
+    renderBreakdownChart(sortedSectors.filter(([sector, data]) => data.value > 0 || sector === 'Cash'));
+}
+
+// Render sector detail breakdown
+function renderSectorDetail(sectorName) {
+    const sectorMap = calculateSectorBreakdown();
+    const sectorData = sectorMap[sectorName];
+    
+    if (!sectorData || sectorData.positions.length === 0) {
+        document.getElementById('sectorDetailTableBody').innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Geen posities in deze sector</td></tr>';
+        if (sectorDetailChart) {
+            sectorDetailChart.destroy();
+            sectorDetailChart = null;
+        }
+        return;
+    }
+    
+    const tbody = document.getElementById('sectorDetailTableBody');
+    tbody.innerHTML = '';
+    
+    // Calculate total value for this sector
+    const sectorTotalValue = sectorData.value;
+    
+    // Sort positions by value (descending)
+    const sortedPositions = [...sectorData.positions].sort((a, b) => b.value - a.value);
+    
+    let totalWeight = 0;
+    let totalValue = 0;
+    
+    sortedPositions.forEach(pos => {
+        // Calculate weight within sector
+        const weightInSector = sectorTotalValue > 0 ? (pos.value / sectorTotalValue) * 100 : 0;
+        const row = document.createElement('tr');
+        const weight = weightInSector.toFixed(1);
+        const value = formatBreakdownCurrency(pos.value);
+        
+        row.innerHTML = `
+            <td>${pos.ticker || pos.asset}</td>
+            <td>${weight}%</td>
+            <td>€ ${value}</td>
+        `;
+        tbody.appendChild(row);
+        
+        totalWeight += weightInSector;
+        totalValue += pos.value;
+    });
+    
+    // Add total row
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'breakdown-total-row';
+    totalRow.innerHTML = `
+        <td><strong>Total ${sectorName}</strong></td>
+        <td><strong>${totalWeight.toFixed(1)}%</strong></td>
+        <td><strong>€ ${formatBreakdownCurrency(totalValue)}</strong></td>
+    `;
+    tbody.appendChild(totalRow);
+    
+    // Render sector detail chart
+    renderSectorDetailChart(sortedPositions, sectorName);
+}
+
+// Render breakdown pie chart
+function renderBreakdownChart(sectors) {
+    const ctx = document.getElementById('breakdownChart');
+    
+    if (breakdownChart) {
+        breakdownChart.destroy();
+    }
+    
+    const labels = sectors.map(([sector]) => sector);
+    const values = sectors.map(([sector, data]) => data.weight);
+    const colors = getSectorColors(labels);
+    
+    breakdownChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels.map((label, i) => `${label}; ${Math.round(values[i])}%`),
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return `${label.split(';')[0]}: ${value.toFixed(1)}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Render sector detail pie chart
+function renderSectorDetailChart(positions, sectorName) {
+    const ctx = document.getElementById('sectorDetailChart');
+    
+    if (sectorDetailChart) {
+        sectorDetailChart.destroy();
+    }
+    
+    const sectorTotalValue = positions.reduce((sum, p) => sum + p.value, 0);
+    const labels = positions.map(p => p.ticker || p.asset);
+    const values = positions.map(p => sectorTotalValue > 0 ? (p.value / sectorTotalValue) * 100 : 0);
+    const colors = getSectorDetailColors(sectorName, positions.length);
+    
+    sectorDetailChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels.map((label, i) => `${label}; ${Math.round(values[i])}%`),
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return `${label.split(';')[0]}: ${value.toFixed(1)}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Get colors for sectors
+function getSectorColors(sectors) {
+    const colorMap = {
+        'Cash': '#9E9E9E', // Grey
+        'Cons. & Health': '#F44336', // Red
+        'Tech': '#4CAF50', // Green
+        'RE, F. & Hold.': '#8BC34A', // Light Green
+        'Ind., E. & R.M.': '#FF9800', // Orange
+        'ETF': '#2196F3', // Blue
+        'Options': '#9C27B0' // Purple
+    };
+    
+    return sectors.map(sector => colorMap[sector] || '#607D8B');
+}
+
+// Get colors for sector detail (shades of sector color)
+function getSectorDetailColors(sectorName, count) {
+    const baseColors = {
+        'Cons. & Health': ['#C62828', '#E53935', '#EF5350', '#E57373', '#EF9A9A', '#FFCDD2'],
+        'Tech': ['#2E7D32', '#388E3C', '#43A047', '#66BB6A', '#81C784', '#A5D6A7'],
+        'RE, F. & Hold.': ['#558B2F', '#689F38', '#7CB342', '#9CCC65', '#AED581', '#C5E1A5'],
+        'Ind., E. & R.M.': ['#E65100', '#EF6C00', '#F57C00', '#FB8C00', '#FFB74D', '#FFCC80'],
+        'ETF': ['#1565C0', '#1976D2', '#1E88E5', '#42A5F5', '#64B5F6', '#90CAF9'],
+        'Cash': ['#616161', '#757575', '#9E9E9E', '#BDBDBD', '#E0E0E0', '#F5F5F5']
+    };
+    
+    const colors = baseColors[sectorName] || ['#607D8B', '#78909C', '#90A4AE', '#B0BEC5', '#CFD8DC', '#ECEFF1'];
+    return colors.slice(0, Math.max(count, colors.length));
+}
+
+// Format currency (helper function)
+function formatBreakdownCurrency(value) {
+    return value.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// Show sector breakdown
+function showSectorBreakdown(sector) {
+    // Update active tab
+    document.querySelectorAll('.sector-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    const activeTab = document.querySelector(`.sector-tab[data-sector="${sector}"]`);
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+    
+    if (sector === 'all') {
+        document.getElementById('breakdownAllSectors').style.display = 'block';
+        document.getElementById('breakdownSectorDetail').style.display = 'none';
+        renderAllSectorsBreakdown();
+    } else {
+        document.getElementById('breakdownAllSectors').style.display = 'none';
+        document.getElementById('breakdownSectorDetail').style.display = 'block';
+        renderSectorDetail(sector);
+    }
+}
+
+// Initialize breakdown on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait a bit for table to be rendered
+    setTimeout(() => {
+        renderAllSectorsBreakdown();
+    }, 100);
+});
 </script>
 <!-- ============================================================================ -->
 <!-- COMPANY INFO MODAL FEATURE - END -->

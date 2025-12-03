@@ -1,14 +1,22 @@
 {% extends "logged_in_base.html" %}
+{% from "macros.html" import action_buttons %}
 
 {% block sub_content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/transactions.css') }}">
+
 <div class="card">
-  <h2 style="margin-bottom: 20px;">Deelnemers</h2>
+  <!-- Header Section -->
+  <div class="transactions-header">
+    <h2 class="transactions-title">Deelnemers</h2>
+    <div class="transactions-header-right">
+      {{ action_buttons("Deelnemer", "addMemberForm", "openEditMemberModal", "openDeleteMemberModal", "+ Deelnemer Toevoegen") }}
+    </div>
+  </div>
 
   <!-- Site-Admin Tabel -->
   <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Site-Admin</h3>
-      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
     </div>
     <table class="participants-table">
       <thead>
@@ -19,28 +27,22 @@
           <th>Functie</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
-        {% for member in members %}
-          {% if member.voting_right == 'Admin' or member.member_id == 999999 %}
+        {% for admin_member in admin_members %}
           <tr class="{% if loop.index % 2 == 0 %}even-row{% else %}odd-row{% endif %}">
-            <td>{{ "%06d"|format(member.member_id) }}</td>
+            <td>{{ "%06d"|format(admin_member.member_id) }}</td>
             <td>****</td>
-            <td>{{ member.member_name or 'Onbekend' }}</td>
-            <td>{{ member.voting_right or 'Admin' }}</td>
-            <td>{{ member.join_date or member.get_year() or '2025' }}</td>
-            <td>{{ member.email or '' }}</td>
-            <td></td>
-            <td></td>
+            <td>{{ admin_member.member_name or 'Onbekend' }}</td>
+            <td>{{ admin_member.voting_right or 'Admin' }}</td>
+            <td>{{ admin_member.join_date or admin_member.get_year() or '2025' }}</td>
+            <td>{{ admin_member.email or '' }}</td>
           </tr>
-          {% endif %}
         {% endfor %}
-        {% if not members or not members|selectattr('voting_right', 'equalto', 'Admin')|list %}
+        {% if not admin_members %}
           <tr class="odd-row">
-            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Site-Admin gevonden</td>
+            <td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">Geen Site-Admin gevonden</td>
           </tr>
         {% endif %}
       </tbody>
@@ -51,7 +53,6 @@
   <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Bestuur</h3>
-      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
     </div>
     <table class="participants-table">
       <thead>
@@ -62,8 +63,6 @@
           <th>Functie</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
@@ -75,13 +74,11 @@
             <td>{{ board_member.get_board_function_name() or 'Bestuurslid' }}</td>
             <td>{{ board_member.get_year() or (board_member.created_at.strftime('%Y') if board_member.created_at else '2025') }}</td>
             <td>{{ board_member.email or '' }}</td>
-            <td></td>
-            <td></td>
           </tr>
         {% endfor %}
         {% if not board_members %}
           <tr class="odd-row">
-            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Bestuursleden gevonden</td>
+            <td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">Geen Bestuursleden gevonden</td>
           </tr>
         {% endif %}
       </tbody>
@@ -92,7 +89,6 @@
   <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Analisten</h3>
-      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
     </div>
     <table class="participants-table">
       <thead>
@@ -104,8 +100,6 @@
           <th>Sector</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
@@ -115,16 +109,27 @@
             <td>****</td>
             <td>{{ analist.member_name or 'Onbekend' }}</td>
             <td>Analist</td>
-            <td>Sector {{ analist.get_analist_sector() or analist.sector or '' }}</td>
+            <td>
+              {% set sector_num = analist.get_analist_sector() or (analist.sector|int if analist.sector and analist.sector.isdigit() else None) %}
+              {% if sector_num == 1 %}
+                Cons. & Health
+              {% elif sector_num == 2 %}
+                Ind., E. & R.M.
+              {% elif sector_num == 3 %}
+                RE, F. & Hold.
+              {% elif sector_num == 4 %}
+                Tech
+              {% else %}
+                Sector {{ sector_num or '' }}
+              {% endif %}
+            </td>
             <td>{{ analist.join_date or analist.get_year() or '2025' }}</td>
             <td>{{ analist.email or '' }}</td>
-            <td></td>
-            <td></td>
           </tr>
         {% endfor %}
         {% if not analisten %}
           <tr class="odd-row">
-            <td colspan="9" style="text-align: center; color: var(--muted); padding: 20px;">Geen Analisten gevonden</td>
+            <td colspan="7" style="text-align: center; color: var(--muted); padding: 20px;">Geen Analisten gevonden</td>
           </tr>
         {% endif %}
       </tbody>
@@ -135,7 +140,6 @@
   <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Leden</h3>
-      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
     </div>
     <table class="participants-table">
       <thead>
@@ -146,8 +150,6 @@
           <th>Functie</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
@@ -160,8 +162,6 @@
             <td>Lid</td>
             <td>{{ member.join_date or member.get_year() or '2025' }}</td>
             <td>{{ member.email or '' }}</td>
-            <td></td>
-            <td></td>
           </tr>
           {% endif %}
         {% endfor %}
@@ -173,7 +173,7 @@
         {% endfor %}
         {% if not has_lid %}
           <tr class="odd-row">
-            <td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">Geen Leden gevonden</td>
+            <td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">Geen Leden gevonden</td>
           </tr>
         {% endif %}
       </tbody>
@@ -185,7 +185,6 @@
   <div style="margin-bottom: 30px;">
     <div class="section-head" style="background: var(--green); color: white; padding: 12px 18px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
       <h3 style="margin: 0; color: white;">Kapitaalverschaffers</h3>
-      <button class="btn" style="background: var(--cta); border: none;">+ toevoegen</button>
     </div>
     <table class="participants-table">
       <thead>
@@ -196,8 +195,6 @@
           <th>Functie</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
@@ -209,8 +206,6 @@
             <td>Kapitaalverschaffer</td>
             <td>{{ kv.join_date or kv.get_year() or '2025' }}</td>
             <td>{{ kv.email or '' }}</td>
-            <td></td>
-            <td></td>
           </tr>
         {% endfor %}
       </tbody>
@@ -233,8 +228,6 @@
           <th>Functie</th>
           <th>Startjaar</th>
           <th>Email</th>
-          <th>Tel</th>
-          <th>Studie</th>
         </tr>
       </thead>
       <tbody>
@@ -247,15 +240,24 @@
               {% if oud.get_board_function_name() %}
                 Oud-{{ oud.get_board_function_name() }}
               {% elif oud.get_analist_sector() %}
-                Oud-Analist (Sector {{ oud.get_analist_sector() }})
+                {% set oud_sector_num = oud.get_analist_sector() %}
+                {% if oud_sector_num == 1 %}
+                  Oud-Analist (Cons. & Health)
+                {% elif oud_sector_num == 2 %}
+                  Oud-Analist (Ind., E. & R.M.)
+                {% elif oud_sector_num == 3 %}
+                  Oud-Analist (RE, F. & Hold.)
+                {% elif oud_sector_num == 4 %}
+                  Oud-Analist (Tech)
+                {% else %}
+                  Oud-Analist (Sector {{ oud_sector_num }})
+                {% endif %}
               {% else %}
                 Oud-Bestuurslid/Analist
               {% endif %}
             </td>
             <td>{{ oud.join_date or oud.get_year() or '2025' }}</td>
             <td>{{ oud.email or '' }}</td>
-            <td></td>
-            <td></td>
           </tr>
         {% endfor %}
       </tbody>
@@ -306,5 +308,320 @@
   background: #e8f2ed;
 }
 </style>
+
+<!-- Add Member Modal -->
+<div id="addMemberForm" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:700px;">
+    <div class="modal-header">
+      <h2>Deelnemer Toevoegen</h2>
+      <span class="modal-close" onclick="closeAddMemberModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Voeg een nieuwe deelnemer toe aan het systeem.</p>
+      <form method="POST" action="{{ url_for('main.add_member') }}" id="addMemberFormSubmit">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="form-group">
+            <label>ID Nummer *</label>
+            <input type="number" name="member_id" id="addMemberId" required placeholder="Bijv. 000001" min="1">
+            <small style="color: #666; font-size: 12px;">Moet uniek zijn (6 cijfers)</small>
+          </div>
+          <div class="form-group">
+            <label>Naam *</label>
+            <input type="text" name="member_name" id="addMemberName" required placeholder="Bijv. John Doe">
+          </div>
+          <div class="form-group">
+            <label>Password *</label>
+            <input type="password" name="password" id="addMemberPassword" required placeholder="Wachtwoord">
+          </div>
+          <div class="form-group">
+            <label>Functie</label>
+            <input type="text" name="voting_right" id="addMemberFunction" placeholder="Bijv. Admin, Lid, etc.">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" id="addMemberEmail" placeholder="Bijv. john@example.com">
+          </div>
+          <div class="form-group">
+            <label>Sector</label>
+            <select name="sector" id="addMemberSector">
+              <option value="">Geen</option>
+              <option value="1">Cons. & Health</option>
+              <option value="2">Ind., E. & R.M.</option>
+              <option value="3">RE, F. & Hold.</option>
+              <option value="4">Tech</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Startjaar *</label>
+            <input type="number" name="join_date" id="addMemberStartYear" required placeholder="Bijv. 2025" min="2000" max="2100">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeAddMemberModal()">Annuleren</button>
+          <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Member Modal (stap 1: ID invoeren) -->
+<div id="editMemberModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Deelnemer Bewerken</h2>
+      <span class="modal-close" onclick="closeEditMemberModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="editMemberForm" onsubmit="fetchMemberForEditing(event)">
+        <div class="form-group">
+          <label>ID Nummer *</label>
+          <input type="number" min="1" name="member_id" id="editMemberIdInput" required placeholder="Bijv. 000001">
+          <small style="color: #666; font-size: 12px;">Voer het ID nummer in van de deelnemer die je wilt bewerken</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeEditMemberModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Member Form Modal (stap 2: formulier) -->
+<div id="editMemberFormModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:700px;">
+    <div class="modal-header">
+      <h2>Deelnemer Bewerken</h2>
+      <span class="modal-close" onclick="closeEditMemberFormModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Bewerk de gegevens van de deelnemer.</p>
+      <form id="editMemberFormSubmit" method="POST" action="{{ url_for('main.update_member') }}">
+        <input type="hidden" name="member_id" id="editMemberIdHidden">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="form-group">
+            <label>ID Nummer</label>
+            <input type="text" id="editMemberIdDisplay" readonly style="background: #f5f5f5;">
+            <small style="color: #666; font-size: 12px;">ID nummer kan niet worden gewijzigd</small>
+          </div>
+          <div class="form-group">
+            <label>Naam *</label>
+            <input type="text" name="member_name" id="editMemberName" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" id="editMemberPassword" placeholder="Laat leeg om niet te wijzigen">
+          </div>
+          <div class="form-group">
+            <label>Functie</label>
+            <input type="text" name="voting_right" id="editMemberFunction" placeholder="Bijv. Admin, Lid, etc.">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" id="editMemberEmail">
+          </div>
+          <div class="form-group">
+            <label>Sector</label>
+            <select name="sector" id="editMemberSector">
+              <option value="">Geen</option>
+              <option value="1">Cons. & Health</option>
+              <option value="2">Ind., E. & R.M.</option>
+              <option value="3">RE, F. & Hold.</option>
+              <option value="4">Tech</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Startjaar *</label>
+            <input type="number" name="join_date" id="editMemberStartYear" required min="2000" max="2100">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeEditMemberFormModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #ff9800; color: white;">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Member Modal (stap 1: ID invoeren) -->
+<div id="deleteMemberModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Deelnemer Verwijderen</h2>
+      <span class="modal-close" onclick="closeDeleteMemberModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="deleteMemberForm" onsubmit="fetchMemberForDeletion(event)">
+        <div class="form-group">
+          <label>ID Nummer *</label>
+          <input type="number" min="1" name="member_id" id="deleteMemberIdInput" required placeholder="Bijv. 000001">
+          <small style="color: #666; font-size: 12px;">Voer het ID nummer in van de deelnemer die je wilt verwijderen</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeDeleteMemberModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Member Confirmation Modal (stap 2: bevestiging) -->
+<div id="deleteMemberConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:450px;">
+    <div class="modal-header">
+      <h2>Deelnemer Verwijderen</h2>
+      <span class="modal-close" onclick="closeDeleteMemberConfirmModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p id="deleteMemberConfirmMessage" style="margin-bottom: 20px; font-size: 15px; line-height: 1.5;">
+        Weet je zeker dat je deze deelnemer wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.
+      </p>
+      <form id="deleteMemberConfirmForm" method="POST" action="{{ url_for('main.delete_member') }}">
+        <input type="hidden" name="member_id" id="deleteMemberIdHidden">
+        <div class="form-actions">
+          <button type="button" class="btn ghost" onclick="closeDeleteMemberConfirmModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #d32f2f; color: white;">Bevestigen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function closeAddMemberModal() {
+    document.getElementById('addMemberForm').style.display = 'none';
+    document.getElementById('addMemberFormSubmit').reset();
+}
+
+function openEditMemberModal() {
+    document.getElementById('editMemberModal').style.display = 'flex';
+}
+
+function closeEditMemberModal() {
+    document.getElementById('editMemberModal').style.display = 'none';
+    document.getElementById('editMemberIdInput').value = '';
+}
+
+function closeEditMemberFormModal() {
+    document.getElementById('editMemberFormModal').style.display = 'none';
+    closeEditMemberModal();
+}
+
+async function fetchMemberForEditing(event) {
+    event.preventDefault();
+    const memberId = parseInt(document.getElementById('editMemberIdInput').value);
+    
+    if (!memberId || memberId < 1) {
+        alert('Voer een geldig ID nummer in.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/deelnemers/get-member/${memberId}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Vul formulier in
+        document.getElementById('editMemberIdHidden').value = data.member_id;
+        document.getElementById('editMemberIdDisplay').value = String(data.member_id).padStart(6, '0');
+        document.getElementById('editMemberName').value = data.member_name || '';
+        document.getElementById('editMemberFunction').value = data.voting_right || '';
+        document.getElementById('editMemberEmail').value = data.email || '';
+        document.getElementById('editMemberSector').value = data.sector || '';
+        document.getElementById('editMemberStartYear').value = data.join_date || '';
+        
+        // Toon edit form modal
+        document.getElementById('editMemberModal').style.display = 'none';
+        document.getElementById('editMemberFormModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Er is een fout opgetreden bij het ophalen van de deelnemer gegevens.');
+    }
+}
+
+function openDeleteMemberModal() {
+    document.getElementById('deleteMemberModal').style.display = 'flex';
+}
+
+function closeDeleteMemberModal() {
+    document.getElementById('deleteMemberModal').style.display = 'none';
+    document.getElementById('deleteMemberIdInput').value = '';
+}
+
+function closeDeleteMemberConfirmModal() {
+    document.getElementById('deleteMemberConfirmModal').style.display = 'none';
+    closeDeleteMemberModal();
+}
+
+async function fetchMemberForDeletion(event) {
+    event.preventDefault();
+    const memberId = parseInt(document.getElementById('deleteMemberIdInput').value);
+    
+    if (!memberId || memberId < 1) {
+        alert('Voer een geldig ID nummer in.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/deelnemers/get-member/${memberId}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Toon bevestigingsbericht met alle gegevens
+        const idStr = String(data.member_id).padStart(6, '0');
+        const message = `Weet je zeker dat je deze deelnemer wilt verwijderen?\n\n` +
+                       `ID Nummer: ${idStr}\n` +
+                       `Naam: ${data.member_name || 'Onbekend'}\n` +
+                       `Email: ${data.email || 'Geen email'}\n\n` +
+                       `Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
+        
+        document.getElementById('deleteMemberConfirmMessage').textContent = message;
+        document.getElementById('deleteMemberIdHidden').value = data.member_id;
+        
+        // Toon bevestigingsmodal
+        document.getElementById('deleteMemberModal').style.display = 'none';
+        document.getElementById('deleteMemberConfirmModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Er is een fout opgetreden bij het ophalen van de deelnemer gegevens.');
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const addModal = document.getElementById('addMemberForm');
+    const editModal = document.getElementById('editMemberModal');
+    const editFormModal = document.getElementById('editMemberFormModal');
+    const deleteModal = document.getElementById('deleteMemberModal');
+    const deleteConfirmModal = document.getElementById('deleteMemberConfirmModal');
+    
+    if (event.target == addModal) {
+        closeAddMemberModal();
+    }
+    if (event.target == editModal) {
+        closeEditMemberModal();
+    }
+    if (event.target == editFormModal) {
+        closeEditMemberFormModal();
+    }
+    if (event.target == deleteModal) {
+        closeDeleteMemberModal();
+    }
+    if (event.target == deleteConfirmModal) {
+        closeDeleteMemberConfirmModal();
+    }
+}
+</script>
 {% endblock %}
 

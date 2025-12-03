@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify  # Added: jsonify for API responses
+from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response  # Added: Response for iCal downloads
 from functools import wraps
 from sqlalchemy import or_
-from datetime import datetime
+from datetime import datetime, timedelta
 import yfinance as yf  # Added: for company info and financial ratios
+import pytz  # Added: for Europe/Brussels timezone handling
 from . import supabase, db
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio,
@@ -30,6 +31,17 @@ MOCK_ANNOUNCEMENTS = [
 MOCK_UPCOMING_EVENTS = [
     {"title": "Algemene vergadering 6", "date": "12/12/2025", "time": "19:30", "location": "Gent, Belgium"},
     {"title": "Algemene vergadering 5", "date": "28/11/2025", "time": "19:30", "location": "Gent, Belgium"},
+]
+
+# Weekdag-namen in het Nederlands voor de "Vandaag:"-sectie van de agenda
+WEEKDAY_NAMES_NL = [
+    "maandag",
+    "dinsdag",
+    "woensdag",
+    "donderdag",
+    "vrijdag",
+    "zaterdag",
+    "zondag",
 ]
 
 MOCK_TRANSACTIONS = [
@@ -234,6 +246,7 @@ def _normalize_transactions(records):
                 
                 normalized.append({
                     "number": transaction_id,
+                    "transaction_id": transaction_id,  # Add transaction_id for edit/delete functionality
                     "date": date_str,
                     "type": transaction_type,
                     "asset": asset_display,
@@ -269,8 +282,10 @@ def _normalize_transactions(records):
                 asset_info_sql = _get_asset_info(ticker_sql)
                 sector_sql = getattr(record, 'sector', None) or asset_info_sql.get("sector", "Unknown")
                 
+                transaction_id_sql = getattr(record, 'transaction_id', None) or idx + 1
                 normalized.append({
-                    "number": getattr(record, 'transaction_id', None) or idx + 1,
+                    "number": transaction_id_sql,
+                    "transaction_id": transaction_id_sql,  # Add transaction_id for edit/delete functionality
                     "date": format_transaction_date(getattr(record, 'transaction_date', None)),
                     "type": (getattr(record, 'transaction_type', '') or '').upper(),
                     "asset": getattr(record, 'asset_name', '') or getattr(record, 'ticker', '') or 'Onbekend',
@@ -468,62 +483,142 @@ def _fetch_announcements():
     return MOCK_ANNOUNCEMENTS
 
 def _fetch_events():
-    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    """
+    Haal alle events op en normaliseer naar een rijk formaat met datetime,
+    zodat we ze kunnen groeperen in toekomstige, vandaag en voorbije events.
+    Dit verandert niets aan het onderliggende Event-model/Supabase-schema.
+    """
+    tz = pytz.timezone("Europe/Brussels")
+
+    def _ensure_datetime(date_str, time_str):
+        """Helper: parse datum + tijd strings naar timezone-aware datetime."""
+        if not date_str:
+            return datetime.now(tz)
+        # Ondersteun dd/mm/YYYY (huidige UI) en ISO formats als fallback
+        parsed = None
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                parsed = datetime.strptime(date_str, fmt)
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            try:
+                parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            except Exception:
+                parsed = datetime.now()
+        if time_str:
+            try:
+                t = datetime.strptime(time_str, "%H:%M")
+                parsed = parsed.replace(hour=t.hour, minute=t.minute)
+            except ValueError:
+                pass
+        # Zorg dat datetime timezone-aware is in Europe/Brussels
+        if parsed.tzinfo is None:
+            parsed = tz.localize(parsed)
+        else:
+            parsed = parsed.astimezone(tz)
+        return parsed
+
+    normalized = []
+
+    # 1) Probeer eerst via SQLAlchemy (PostgreSQL direct)
     try:
         events = db.session.query(Event).order_by(Event.event_date.asc()).all()
         if events:
-            normalized = []
             for evt in events:
-                event_date = evt.event_date
-                if event_date:
-                    date_str = event_date.strftime("%d/%m/%Y")
-                    time_str = event_date.strftime("%H:%M")
+                event_dt = evt.event_date or datetime.now(tz)
+                # Zorg dat event_dt timezone-aware is
+                if event_dt.tzinfo is None:
+                    event_dt = tz.localize(event_dt)
                 else:
-                    date_str = datetime.now().strftime("%d/%m/%Y")
-                    time_str = "00:00"
-                
+                    event_dt = event_dt.astimezone(tz)
+
                 normalized.append({
+                    "id": evt.event_number,
                     "title": evt.event_name,
-                    "date": date_str,
-                    "time": time_str,
-                    "location": evt.location or "Onbekende locatie"
+                    "datetime": event_dt,
+                    "date": event_dt.strftime("%d/%m/%Y"),
+                    "time": event_dt.strftime("%H:%M"),
+                    "location": evt.location or "Onbekende locatie",
                 })
             return normalized
     except Exception as exc:
         print(f"WARNING: SQLAlchemy event fetch failed: {exc}")
-    
-    # Fallback naar Supabase REST API
-    if supabase is None:
-        return MOCK_UPCOMING_EVENTS
-    try:
-        response = supabase.table("events").select("*").order("event_date", desc=False).execute()
-        data = response.data or []
-        normalized = []
-        for row in data:
-            event_date_str = row.get("event_date")
-            if event_date_str:
-                try:
-                    event_date = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
-                    date_str = event_date.strftime("%d/%m/%Y")
-                    time_str = event_date.strftime("%H:%M")
-                except (ValueError, AttributeError):
-                    date_str = _format_supabase_date(event_date_str)
-                    time_str = "00:00"
-            else:
-                date_str = datetime.now().strftime("%d/%m/%Y")
-                time_str = "00:00"
-            
-            normalized.append({
-                "title": row.get("event_name", ""),
-                "date": date_str,
-                "time": time_str,
-                "location": row.get("location", "Onbekende locatie")
-            })
-        if normalized:
-            return normalized
-    except Exception as exc:
-        print(f"WARNING: Supabase event fetch failed: {exc}")
-    return MOCK_UPCOMING_EVENTS
+
+    # 2) Fallback naar Supabase REST API
+    if supabase is not None:
+        try:
+            response = supabase.table("events").select("*").order("event_date", desc=False).execute()
+            data = response.data or []
+            for row in data:
+                event_date_str = row.get("event_date")
+                dt = _ensure_datetime(event_date_str, None) if event_date_str else datetime.now(tz)
+                normalized.append({
+                    "id": row.get("event_number"),
+                    "title": row.get("event_name", ""),
+                    "datetime": dt,
+                    "date": dt.strftime("%d/%m/%Y"),
+                    "time": dt.strftime("%H:%M"),
+                    "location": row.get("location", "Onbekende locatie"),
+                })
+            if normalized:
+                return normalized
+        except Exception as exc:
+            print(f"WARNING: Supabase event fetch failed: {exc}")
+
+    # 3) Laatste fallback naar mock-data (gebruikt dezelfde normalisatie)
+    for row in MOCK_UPCOMING_EVENTS:
+        dt = _ensure_datetime(row.get("date"), row.get("time"))
+        normalized.append({
+            "id": None,
+            "title": row.get("title", ""),
+            "datetime": dt,
+            "date": dt.strftime("%d/%m/%Y"),
+            "time": dt.strftime("%H:%M"),
+            "location": row.get("location", "Onbekende locatie"),
+        })
+    return normalized
+
+
+def _group_events_by_date(events):
+    """
+    Groepeer events in toekomstige, vandaag en voorbije secties.
+    - Toekomstige Events: event_date > vandaag (asc)
+    - Vandaag: zelfde dag als vandaag (asc)
+    - Voorbije Events: event_date < vandaag (desc)
+    """
+    tz = pytz.timezone("Europe/Brussels")
+    today = datetime.now(tz).date()
+
+    upcoming = []
+    today_events = []
+    past = []
+
+    for ev in events or []:
+        dt = ev.get("datetime")
+        if not dt:
+            # reconstructeer uit strings indien nodig
+            dt = datetime.now(tz)
+        ev_date = dt.date()
+
+        if ev_date > today:
+            upcoming.append(ev)
+        elif ev_date == today:
+            today_events.append(ev)
+        else:
+            past.append(ev)
+
+    # Sorteer zoals gevraagd
+    upcoming.sort(key=lambda e: e.get("datetime"))
+    today_events.sort(key=lambda e: e.get("datetime"))
+    past.sort(key=lambda e: e.get("datetime"), reverse=True)
+
+    return {
+        "upcoming": upcoming,
+        "today": today_events,
+        "past": past,
+    }
 
 # --- BEVEILIGING & CONTEXT ---
 
@@ -590,10 +685,23 @@ def board_or_analist_required(view):
 @main.route("/dashboard")
 @login_required 
 def dashboard():
+    """Overzichtspagina met aankondigingen en nieuwe agenda-layout (Toekomstige/Vandaag/Voorbije)."""
+    events = _fetch_events()
+    grouped = _group_events_by_date(events)
+
+    # Bouw label "Vandaag: <weekdag> d/m/jjjj" in het Nederlands
+    tz = pytz.timezone("Europe/Brussels")
+    today_dt = datetime.now(tz)
+    weekday_name = WEEKDAY_NAMES_NL[today_dt.weekday()]
+    today_label = f"Vandaag: {weekday_name} {today_dt.day}/{today_dt.month}/{today_dt.year}"
+
     return render_template(
         "dashboard.html",
         announcements=_fetch_announcements(),
-        upcoming=_fetch_events()
+        upcoming_events=grouped["upcoming"],
+        today_events=grouped["today"],
+        past_events=grouped["past"],
+        today_label=today_label,
     )
 
 @main.route("/dashboard/announcements", methods=["POST"])
@@ -652,6 +760,124 @@ def add_event():
         flash(f"Event '{title}' toegevoegd.", "success")
     return redirect(url_for("main.dashboard"))
 
+
+# --- Agenda / Events: iCal export routes ---
+
+@main.route("/events/<int:event_id>/ical")
+@login_required
+def export_single_event_ical(event_id):
+    """
+    Genereer een RFC5545-compliant .ics-bestand voor één event.
+    SUMMARY, DTSTART, DTEND (+1u), LOCATION en DESCRIPTION worden gevuld.
+    """
+    from icalendar import Calendar, Event as ICalEvent
+
+    tz = pytz.timezone("Europe/Brussels")
+
+    event = db.session.get(Event, event_id)
+    if not event:
+        flash("Event niet gevonden voor iCal-export.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    event_dt = event.event_date or datetime.now(tz)
+    if event_dt.tzinfo is None:
+        event_dt = tz.localize(event_dt)
+    else:
+        event_dt = event_dt.astimezone(tz)
+
+    cal = Calendar()
+    cal.add("prodid", "-//VIC Agenda//NL")
+    cal.add("version", "2.0")
+
+    ical_event = ICalEvent()
+    ical_event.add("uid", f"event-{event.event_number}@vic-app")
+    ical_event.add("summary", event.event_name)
+    ical_event.add("dtstart", event_dt)
+    ical_event.add("dtend", event_dt + timedelta(hours=1))
+    ical_event.add("location", event.location or "Onbekende locatie")
+    ical_event.add("description", "Event gegenereerd via de applicatie")
+
+    cal.add_component(ical_event)
+
+    ics_bytes = cal.to_ical()
+    resp = Response(ics_bytes, mimetype="text/calendar")
+    resp.headers["Content-Disposition"] = f"attachment; filename=event_{event.event_number}.ics"
+    return resp
+
+
+@main.route("/events/export/all")
+@login_required
+def export_all_events_ical():
+    """
+    Genereer één .ics-bestand met alle events in de database (of Supabase fallback).
+    De events worden in een enkele agenda gegroepeerd.
+    """
+    from icalendar import Calendar, Event as ICalEvent
+
+    tz = pytz.timezone("Europe/Brussels")
+
+    cal = Calendar()
+    cal.add("prodid", "-//VIC Agenda Alle Events//NL")
+    cal.add("version", "2.0")
+
+    # Gebruik primair de Event-tabel
+    events = db.session.query(Event).order_by(Event.event_date.asc()).all()
+
+    # Als er geen events zijn, kunnen we optioneel mock/Supabase gebruiken,
+    # maar meestal zal de tabel gevuld zijn via add_event().
+    if not events and supabase is not None:
+        try:
+            response = supabase.table("events").select("*").order("event_date", desc=False).execute()
+            for row in (response.data or []):
+                name = row.get("event_name", "Onbekend event")
+                event_date_str = row.get("event_date")
+                location = row.get("location", "Onbekende locatie")
+
+                if event_date_str:
+                    try:
+                        dt = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
+                    except Exception:
+                        dt = datetime.now()
+                else:
+                    dt = datetime.now()
+
+                if dt.tzinfo is None:
+                    dt = tz.localize(dt)
+                else:
+                    dt = dt.astimezone(tz)
+
+                ical_event = ICalEvent()
+                ical_event.add("uid", f"event-supabase-{name}@vic-app")
+                ical_event.add("summary", name)
+                ical_event.add("dtstart", dt)
+                ical_event.add("dtend", dt + timedelta(hours=1))
+                ical_event.add("location", location)
+                ical_event.add("description", "Event gegenereerd via de applicatie (Supabase fallback)")
+                cal.add_component(ical_event)
+        except Exception as exc:
+            print(f"WARNING: Supabase fetch for iCal all-events failed: {exc}")
+    else:
+        for event in events:
+            event_dt = event.event_date or datetime.now(tz)
+            if event_dt.tzinfo is None:
+                event_dt = tz.localize(event_dt)
+            else:
+                event_dt = event_dt.astimezone(tz)
+
+            ical_event = ICalEvent()
+            ical_event.add("uid", f"event-{event.event_number}@vic-app")
+            ical_event.add("summary", event.event_name)
+            ical_event.add("dtstart", event_dt)
+            ical_event.add("dtend", event_dt + timedelta(hours=1))
+            ical_event.add("location", event.location or "Onbekende locatie")
+            ical_event.add("description", "Event gegenereerd via de applicatie")
+            cal.add_component(ical_event)
+
+    ics_bytes = cal.to_ical()
+    resp = Response(ics_bytes, mimetype="text/calendar")
+    resp.headers["Content-Disposition"] = "attachment; filename=agenda.ics"
+    return resp
+
 # Portfolio pagina
 @main.route("/portfolio")
 @login_required 
@@ -660,23 +886,30 @@ def portfolio():
         # Haal centrale portfolio op
         central_portfolio = db.session.query(Portfolio).first()
         
-        # Haal alle positions op (met of zonder portfolio)
+        # Haal cash op uit positions tabel (pos_id = 0)
+        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+        cash_amount = MOCK_CASH_AMOUNT
+        if cash_position and cash_position.pos_value is not None:
+            cash_amount = float(cash_position.pos_value)
+        
+        # Haal alle positions op (met of zonder portfolio), maar EXCLUDE pos_id = 0 (cash)
         if central_portfolio:
             positions = db.session.query(Position).filter(
-                Position.portfolio_id == central_portfolio.portfolio_id
+                Position.portfolio_id == central_portfolio.portfolio_id,
+                Position.pos_id != 0  # Exclude cash position
             ).all()
         else:
             positions = []
         
-        # Als er geen positions zijn gekoppeld, probeer alle positions
+        # Als er geen positions zijn gekoppeld, probeer alle positions (exclude cash)
         if not positions:
-            positions = db.session.query(Position).all()
+            positions = db.session.query(Position).filter(Position.pos_id != 0).all()
         
         # Als er nog steeds geen positions zijn, gebruik mock data als fallback
         if not positions:
             total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
             total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-            portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
+            portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
             portfolio_data_formatted = []
             for p in MOCK_POSITIONS:
                 weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
@@ -699,6 +932,8 @@ def portfolio():
                 portfolio_value=format_currency(portfolio_value),
                 pnl=format_currency(total_unrealized_gain),
                 position_value=format_currency(total_market_value),
+                cash_amount=format_currency(cash_amount),
+                cash_amount_raw=cash_amount,
                 portfolio=portfolio_data_formatted
             )
         
@@ -745,6 +980,7 @@ def portfolio():
             pnl_percent_str = f"{'+' if pnl_percent >= 0 else ''}{pnl_percent:.2f}%"
             
             portfolio_data_formatted.append({
+                'pos_id': p.pos_id,  # Add pos_id for deletion functionality
                 'asset': p.pos_name or 'Onbekend',
                 'sector': p.pos_sector or p.pos_type or 'N/A',
                 'ticker': ticker or 'N/A',
@@ -757,9 +993,16 @@ def portfolio():
             })
         
         total_unrealized_gain = total_market_value - total_cost
-        portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
         
-        # Bereken weight voor elke positie
+        # Haal cash bedrag op uit positions tabel (pos_id = 0)
+        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+        cash_amount = MOCK_CASH_AMOUNT
+        if cash_position and cash_position.pos_value is not None:
+            cash_amount = float(cash_position.pos_value)
+        
+        portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
+        
+        # Bereken weight voor elke positie (op basis van portfolio_value, niet alleen market_value)
         for p_data in portfolio_data_formatted:
             weight = (p_data['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
             p_data['weight'] = format_currency(weight)
@@ -767,9 +1010,16 @@ def portfolio():
         
     except Exception:
         # Fallback naar mock data
+        # Probeer eerst cash uit database te halen (pos_id = 0)
+        try:
+            cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+            cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else MOCK_CASH_AMOUNT
+        except:
+            cash_amount = MOCK_CASH_AMOUNT
+        
         total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
         total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-        portfolio_value = total_market_value  # Portfolio Value = totale market value van alle posities
+        portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
         portfolio_data_formatted = []
         for p in MOCK_POSITIONS:
             weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
@@ -793,6 +1043,8 @@ def portfolio():
         portfolio_value=format_currency(portfolio_value),
         pnl=format_currency(total_unrealized_gain),
         position_value=format_currency(total_market_value),
+        cash_amount=format_currency(cash_amount),
+        cash_amount_raw=cash_amount,
         portfolio=portfolio_data_formatted
     )
 
@@ -1025,18 +1277,82 @@ def voting():
 def deelnemers():
     # Haal alle members op en filter op basis van rol
     try:
-        all_members = db.session.query(Member).order_by(Member.member_id.asc()).all()
+        all_members = db.session.query(Member).all()
         
-        # Filter members op basis van rol
-        board_members = [m for m in all_members if m.get_role() == 'board']
-        analisten = [m for m in all_members if m.get_role() == 'analist']
-        leden = [m for m in all_members if m.get_role() == 'lid']
-        kapitaalverschaffers = [m for m in all_members if m.get_role() == 'kapitaalverschaffers']
-        oud_bestuur_analisten = [m for m in all_members if m.get_role() == 'oud_bestuur_analisten']
+        def get_first_three_digits(member_id):
+            """Haal eerste 3 cijfers van ID op voor sortering"""
+            id_str = str(member_id).zfill(6)
+            return int(id_str[:3]) if len(id_str) >= 3 else 0
+        
+        def get_last_three_digits(member_id):
+            """Haal laatste 3 cijfers van ID op (jaar) voor sortering"""
+            id_str = str(member_id).zfill(6)
+            return int(id_str[-3:]) if len(id_str) >= 3 else 0
+        
+        def sort_members(members_list):
+            """Sorteer members: eerst op eerste 3 cijfers, dan op laatste 3 cijfers (jaar)"""
+            return sorted(members_list, key=lambda m: (get_first_three_digits(m.member_id), get_last_three_digits(m.member_id)))
+        
+        # Categoriseer members op basis van ID nummer
+        admin_members = []
+        board_members = []
+        analisten = []
+        leden = []
+        kapitaalverschaffers = []
+        oud_bestuur_analisten = []
+        
+        for m in all_members:
+            id_str = str(m.member_id).zfill(6)
+            first_digit = int(id_str[0]) if len(id_str) > 0 else 0
+            first_two_digits = int(id_str[:2]) if len(id_str) >= 2 else 0
+            first_five_digits = int(id_str[:5]) if len(id_str) >= 5 else 0
+            
+            # Admin: begint met 5 nullen (00000x)
+            if first_five_digits == 0 and len(id_str) == 6:
+                admin_members.append(m)
+            # Bestuur: begint met 00 en dan een getal (00xxxx, maar niet 00000x)
+            elif first_two_digits == 0 and first_five_digits != 0:
+                board_members.append(m)
+            # Analist: begint met 1
+            elif first_digit == 1:
+                analisten.append(m)
+            # Leden: begint met 2
+            elif first_digit == 2:
+                leden.append(m)
+            # Kapitaalverschaffer: begint met 3
+            elif first_digit == 3:
+                kapitaalverschaffers.append(m)
+            # Oud bestuur: begint met 4
+            elif first_digit == 4:
+                oud_bestuur_analisten.append(m)
+            # Fallback: gebruik get_role() methode
+            else:
+                role = m.get_role()
+                if role == 'board':
+                    board_members.append(m)
+                elif role == 'analist':
+                    analisten.append(m)
+                elif role == 'lid':
+                    leden.append(m)
+                elif role == 'kapitaalverschaffers':
+                    kapitaalverschaffers.append(m)
+                elif role == 'oud_bestuur_analisten':
+                    oud_bestuur_analisten.append(m)
+        
+        # Sorteer alle lijsten
+        admin_members = sort_members(admin_members)
+        board_members = sort_members(board_members)
+        analisten = sort_members(analisten)
+        leden = sort_members(leden)
+        kapitaalverschaffers = sort_members(kapitaalverschaffers)
+        oud_bestuur_analisten = sort_members(oud_bestuur_analisten)
         
     except Exception as exc:
         print(f"WARNING: Database fetch failed: {exc}")
+        import traceback
+        traceback.print_exc()
         all_members = []
+        admin_members = []
         board_members = []
         analisten = []
         leden = []
@@ -1046,12 +1362,172 @@ def deelnemers():
     return render_template(
         "deelnemers.html",
         members=leden,  # Leden worden als 'members' doorgegeven voor backward compatibility
+        admin_members=admin_members,  # Admin members voor Site-Admin sectie
         board_members=board_members,
         analisten=analisten,
         kapitaalverschaffers=kapitaalverschaffers,
         oud_bestuur_analisten=oud_bestuur_analisten,
         all_members=all_members  # Voor eventuele andere doeleinden
     )
+
+@main.route("/deelnemers/add", methods=["POST"])
+@login_required
+def add_member():
+    """Voeg een nieuwe deelnemer toe"""
+    try:
+        member_id = request.form.get("member_id", "").strip()
+        member_name = request.form.get("member_name", "").strip()
+        password = request.form.get("password", "").strip()
+        email = request.form.get("email", "").strip() or None
+        voting_right = request.form.get("voting_right", "").strip() or None
+        sector = request.form.get("sector", "").strip() or None
+        join_date = request.form.get("join_date", "").strip()
+        
+        if not member_id or not member_name or not password:
+            flash("ID nummer, naam en wachtwoord zijn verplicht.", "error")
+            return redirect(url_for("main.deelnemers"))
+        
+        member_id_int = int(member_id)
+        
+        # Check of ID al bestaat
+        existing = db.session.query(Member).filter_by(member_id=member_id_int).first()
+        if existing:
+            flash(f"ID nummer {member_id_int:06d} bestaat al. Kies een uniek ID nummer.", "error")
+            return redirect(url_for("main.deelnemers"))
+        
+        # Check of email al bestaat (als email is opgegeven)
+        if email:
+            existing_email = db.session.query(Member).filter_by(email=email).first()
+            if existing_email:
+                flash(f"Email {email} is al in gebruik.", "error")
+                return redirect(url_for("main.deelnemers"))
+        
+        # Maak nieuwe member
+        member = Member(
+            member_id=member_id_int,
+            member_name=member_name,
+            email=email,
+            voting_right=voting_right,
+            sector=sector,
+            join_date=int(join_date) if join_date else datetime.now().year
+        )
+        member.set_password(password)
+        
+        db.session.add(member)
+        db.session.commit()
+        
+        flash(f"Deelnemer {member_name} (ID: {member_id_int:06d}) is toegevoegd.", "success")
+    except ValueError:
+        flash("Ongeldig ID nummer of startjaar.", "error")
+    except Exception as exc:
+        db.session.rollback()
+        print(f"ERROR: Failed to add member: {exc}")
+        flash("Er is een fout opgetreden bij het toevoegen van de deelnemer.", "error")
+    
+    return redirect(url_for("main.deelnemers"))
+
+@main.route("/deelnemers/get-member/<int:member_id>")
+@login_required
+def get_member(member_id):
+    """Haal een deelnemer op voor edit/delete"""
+    try:
+        member = db.session.query(Member).filter_by(member_id=member_id).first()
+        if not member:
+            return jsonify({"error": f"Deelnemer met ID {member_id:06d} niet gevonden."}), 404
+        
+        return jsonify({
+            "member_id": member.member_id,
+            "member_name": member.member_name or "",
+            "email": member.email or "",
+            "voting_right": member.voting_right or "",
+            "sector": member.sector or "",
+            "join_date": member.join_date or member.get_year() or datetime.now().year,
+            "tel": "",  # Tel en studie zijn niet in het model, maar we geven lege strings terug
+            "studie": ""
+        })
+    except Exception as exc:
+        print(f"ERROR: Failed to get member: {exc}")
+        return jsonify({"error": "Er is een fout opgetreden bij het ophalen van de deelnemer."}), 500
+
+@main.route("/deelnemers/update", methods=["POST"])
+@login_required
+def update_member():
+    """Update een deelnemer"""
+    try:
+        member_id = int(request.form.get("member_id", "").strip())
+        member_name = request.form.get("member_name", "").strip()
+        password = request.form.get("password", "").strip()
+        email = request.form.get("email", "").strip() or None
+        voting_right = request.form.get("voting_right", "").strip() or None
+        sector = request.form.get("sector", "").strip() or None
+        join_date = request.form.get("join_date", "").strip()
+        
+        if not member_name:
+            flash("Naam is verplicht.", "error")
+            return redirect(url_for("main.deelnemers"))
+        
+        member = db.session.query(Member).filter_by(member_id=member_id).first()
+        if not member:
+            flash(f"Deelnemer met ID {member_id:06d} niet gevonden.", "error")
+            return redirect(url_for("main.deelnemers"))
+        
+        # Update velden
+        member.member_name = member_name
+        if password:
+            member.set_password(password)
+        member.voting_right = voting_right
+        member.sector = sector
+        if join_date:
+            member.join_date = int(join_date)
+        
+        # Check email uniekheid (als email is opgegeven en gewijzigd)
+        if email and email != member.email:
+            existing_email = db.session.query(Member).filter_by(email=email).first()
+            if existing_email:
+                flash(f"Email {email} is al in gebruik door een andere deelnemer.", "error")
+                return redirect(url_for("main.deelnemers"))
+            member.email = email
+        elif not email:
+            member.email = None
+        
+        db.session.commit()
+        
+        flash(f"Deelnemer {member_name} (ID: {member_id:06d}) is bijgewerkt.", "success")
+    except ValueError:
+        flash("Ongeldig ID nummer of startjaar.", "error")
+    except Exception as exc:
+        db.session.rollback()
+        print(f"ERROR: Failed to update member: {exc}")
+        flash("Er is een fout opgetreden bij het bijwerken van de deelnemer.", "error")
+    
+    return redirect(url_for("main.deelnemers"))
+
+@main.route("/deelnemers/delete", methods=["POST"])
+@login_required
+def delete_member():
+    """Verwijder een deelnemer"""
+    try:
+        member_id = int(request.form.get("member_id", "").strip())
+        
+        member = db.session.query(Member).filter_by(member_id=member_id).first()
+        if not member:
+            flash(f"Deelnemer met ID {member_id:06d} niet gevonden.", "error")
+            return redirect(url_for("main.deelnemers"))
+        
+        member_name = member.member_name or "Onbekend"
+        
+        db.session.delete(member)
+        db.session.commit()
+        
+        flash(f"Deelnemer {member_name} (ID: {member_id:06d}) is verwijderd.", "success")
+    except ValueError:
+        flash("Ongeldig ID nummer.", "error")
+    except Exception as exc:
+        db.session.rollback()
+        print(f"ERROR: Failed to delete member: {exc}")
+        flash("Er is een fout opgetreden bij het verwijderen van de deelnemer.", "error")
+    
+    return redirect(url_for("main.deelnemers"))
 
 # Portfolio: Positie toevoegen
 @main.route("/portfolio/add", methods=["POST"])
@@ -1126,6 +1602,257 @@ def add_position():
         traceback.print_exc()
         db.session.rollback()
         flash("Fout bij toevoegen van positie.", "error")
+    
+    return redirect(url_for("main.portfolio"))
+
+# Portfolio: Cash bedrag bijwerken
+@main.route("/portfolio/update-cash", methods=["POST"])
+@login_required
+def update_cash():
+    cash_amount_str = request.form.get("cash_amount", "").strip()
+    
+    if not cash_amount_str:
+        flash("Cash bedrag is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
+    
+    try:
+        cash_amount = float(cash_amount_str)
+        if cash_amount < 0:
+            flash("Cash bedrag moet positief zijn.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Haal cash position op (pos_id = 0) of maak aan
+        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+        
+        # Eerst portfolio ophalen of aanmaken (nodig voor portfolio_id)
+        central_portfolio = db.session.query(Portfolio).first()
+        if not central_portfolio:
+            central_portfolio = Portfolio()
+            db.session.add(central_portfolio)
+            db.session.flush()
+        
+        if not cash_position:
+            # Maak nieuwe cash position aan met pos_id = 0 via direct SQL
+            # (omdat autoincrement normaal niet toestaat om pos_id = 0 handmatig in te stellen)
+            from sqlalchemy import text
+            try:
+                db.session.execute(
+                    text("""
+                        INSERT INTO positions (pos_id, pos_name, pos_type, pos_quantity, pos_value, pos_ticker, pos_sector, portfolio_id)
+                        VALUES (0, 'CASH', 'Cash', 1, :cash, 'CASH', 'Cash', :portfolio_id)
+                    """),
+                    {"cash": cash_amount, "portfolio_id": central_portfolio.portfolio_id}
+                )
+                db.session.commit()
+            except Exception as insert_exc:
+                # Als insert faalt (bijv. pos_id = 0 bestaat al), probeer update
+                print(f"Insert failed, trying update: {insert_exc}")
+                db.session.rollback()
+                db.session.execute(
+                    text("UPDATE positions SET pos_value = :cash WHERE pos_id = 0"),
+                    {"cash": cash_amount}
+                )
+                db.session.commit()
+        else:
+            # Update bestaande cash position
+            cash_position.pos_value = cash_amount
+            db.session.commit()
+        
+        flash(f"Cash bedrag bijgewerkt naar € {format_currency(cash_amount)}.", "success")
+        
+    except Exception as exc:
+        print(f"WARNING: Cash update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van cash bedrag.", "error")
+        db.session.rollback()
+    except (ValueError, TypeError):
+        flash("Cash bedrag moet een geldig getal zijn.", "error")
+    
+    return redirect(url_for("main.portfolio"))
+
+# Portfolio: Get position by number (for deletion)
+@main.route("/portfolio/get-position/<int:position_number>")
+@login_required
+def get_position_by_number(position_number):
+    """Haal positie op op basis van het nummer in de tabel (1-based index)"""
+    try:
+        # Haal alle positions op (exclude cash, pos_id = 0)
+        positions = db.session.query(Position).filter(Position.pos_id != 0).order_by(Position.pos_id).all()
+        
+        if not positions:
+            return jsonify({'error': 'Geen posities gevonden.'}), 404
+        
+        # Check if position_number is valid (1-based index)
+        if position_number < 1 or position_number > len(positions):
+            return jsonify({'error': f'Ongeldig positie nummer. Kies een nummer tussen 1 en {len(positions)}.'}), 404
+        
+        # Get position at index (position_number - 1 because it's 1-based)
+        position = positions[position_number - 1]
+        
+        return jsonify({
+            'position_id': position.pos_id,
+            'position_name': position.pos_name or 'Onbekend',
+            'ticker': position.pos_ticker or 'N/A'
+        })
+    except Exception as e:
+        print(f"Error fetching position: {e}")
+        return jsonify({'error': 'Fout bij ophalen van positie informatie.'}), 500
+
+# Portfolio: Get position details for editing
+@main.route("/portfolio/get-position-details/<int:position_id>")
+@login_required
+def get_position_details(position_id):
+    """Haal volledige positie details op voor editing"""
+    try:
+        position = db.session.query(Position).filter(Position.pos_id == position_id).first()
+        
+        if not position:
+            return jsonify({'error': 'Positie niet gevonden.'}), 404
+        
+        # Prevent editing cash position (pos_id = 0)
+        if position_id == 0:
+            return jsonify({'error': 'Cash positie kan niet bewerkt worden.'}), 400
+        
+        return jsonify({
+            'position_id': position.pos_id,
+            'pos_name': position.pos_name or '',
+            'pos_ticker': position.pos_ticker or '',
+            'pos_sector': position.pos_sector or '',
+            'pos_type': position.pos_type or '',
+            'pos_quantity': position.pos_quantity or 0,
+            'pos_value': float(position.pos_value) if position.pos_value else 0.0
+        })
+    except Exception as e:
+        print(f"Error fetching position details: {e}")
+        return jsonify({'error': 'Fout bij ophalen van positie details.'}), 500
+
+# Portfolio: Update position
+@main.route("/portfolio/update-position", methods=["POST"])
+@login_required
+def update_position():
+    """Update een positie in het portfolio"""
+    try:
+        position_id = request.form.get("position_id", "").strip()
+        
+        if not position_id:
+            flash("Positie ID ontbreekt.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        try:
+            position_id = int(position_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig positie ID.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Prevent editing cash position (pos_id = 0)
+        if position_id == 0:
+            flash("Cash positie kan niet bewerkt worden.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Find position
+        position = db.session.query(Position).filter(Position.pos_id == position_id).first()
+        
+        if not position:
+            flash("Positie niet gevonden.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Get form data
+        pos_name = request.form.get("pos_name", "").strip()
+        pos_ticker = request.form.get("pos_ticker", "").strip()
+        pos_sector = request.form.get("pos_sector", "").strip()
+        pos_type = request.form.get("pos_type", "").strip()
+        pos_quantity_str = request.form.get("pos_quantity", "").strip()
+        pos_value_str = request.form.get("pos_value", "").strip()
+        
+        # Validate required fields
+        if not pos_name or not pos_ticker or not pos_sector or not pos_type:
+            flash("Alle verplichte velden moeten ingevuld zijn.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Parse quantity
+        try:
+            pos_quantity = int(pos_quantity_str)
+            if pos_quantity < 1:
+                raise ValueError("Quantity must be positive")
+        except (ValueError, TypeError):
+            flash("Ongeldige hoeveelheid.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Parse avg buy price and calculate total pos_value
+        try:
+            avg_buy_price = float(pos_value_str.replace(',', '.'))
+            if avg_buy_price < 0:
+                raise ValueError("Price must be non-negative")
+            # Calculate total pos_value (avg buy price * quantity)
+            pos_value = avg_buy_price * pos_quantity
+        except (ValueError, TypeError):
+            flash("Ongeldige gemiddelde aankoopprijs.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Update position
+        position.pos_name = pos_name
+        position.pos_ticker = pos_ticker
+        position.pos_sector = pos_sector
+        position.pos_type = pos_type
+        position.pos_quantity = pos_quantity
+        position.pos_value = pos_value
+        
+        db.session.commit()
+        
+        flash(f"Positie '{pos_name}' is succesvol bijgewerkt.", "success")
+    except Exception as exc:
+        print(f"WARNING: Position update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van positie.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.portfolio"))
+
+# Portfolio: Delete position
+@main.route("/portfolio/delete-position", methods=["POST"])
+@login_required
+def delete_position():
+    """Verwijder een positie uit het portfolio"""
+    try:
+        position_id = request.form.get("position_id", "").strip()
+        
+        if not position_id:
+            flash("Positie ID ontbreekt.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        try:
+            position_id = int(position_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig positie ID.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Prevent deletion of cash position (pos_id = 0)
+        if position_id == 0:
+            flash("Cash positie kan niet verwijderd worden.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Find and delete position
+        position = db.session.query(Position).filter(Position.pos_id == position_id).first()
+        
+        if not position:
+            flash("Positie niet gevonden.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        position_name = position.pos_name or 'Onbekend'
+        
+        # Delete the position
+        db.session.delete(position)
+        db.session.commit()
+        
+        flash(f"Positie '{position_name}' is succesvol verwijderd.", "success")
+    except Exception as exc:
+        print(f"WARNING: Position deletion failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij verwijderen van positie.", "error")
+        db.session.rollback()
     
     return redirect(url_for("main.portfolio"))
 
@@ -1279,6 +2006,234 @@ def add_transaction():
         traceback.print_exc()
         db.session.rollback()
         flash("Fout bij toevoegen van transactie.", "error")
+    
+    return redirect(url_for("main.transactions"))
+
+# Transactions: Get transaction by number (for deletion/editing)
+@main.route("/transactions/get-transaction/<int:transaction_number>")
+@login_required
+def get_transaction_by_number(transaction_number):
+    """Haal transactie op op basis van het nummer in de tabel (1-based index)"""
+    try:
+        # Haal transacties direct uit de database in dezelfde volgorde als getoond
+        try:
+            db_transactions = db.session.query(Transaction).order_by(Transaction.transaction_date.asc()).all()
+        except Exception as db_exc:
+            print(f"Warning: Could not fetch from database: {db_exc}")
+            db_transactions = []
+        
+        if not db_transactions:
+            # Fallback naar genormaliseerde transacties
+            transactions = _fetch_transactions()
+            if not transactions:
+                return jsonify({'error': 'Geen transacties gevonden.'}), 404
+            
+            if transaction_number < 1 or transaction_number > len(transactions):
+                return jsonify({'error': f'Ongeldig transactie nummer. Kies een nummer tussen 1 en {len(transactions)}.'}), 404
+            
+            transaction = transactions[transaction_number - 1]
+            transaction_id = transaction.get('transaction_id') or transaction.get('number')
+            
+            if not transaction_id:
+                return jsonify({'error': 'Transactie ID niet gevonden.'}), 500
+            
+            return jsonify({
+                'transaction_id': transaction_id,
+                'transaction_name': transaction.get('asset_name') or transaction.get('asset') or 'Onbekend',
+                'ticker': transaction.get('ticker') or 'N/A'
+            })
+        
+        # Check if transaction_number is valid (1-based index)
+        if transaction_number < 1 or transaction_number > len(db_transactions):
+            return jsonify({'error': f'Ongeldig transactie nummer. Kies een nummer tussen 1 en {len(db_transactions)}.'}), 404
+        
+        # Get transaction at index (transaction_number - 1 because it's 1-based)
+        db_transaction = db_transactions[transaction_number - 1]
+        
+        # Get asset name from asset_type or ticker
+        asset_name = db_transaction.asset_type or db_transaction.transaction_ticker or 'Onbekend'
+        
+        return jsonify({
+            'transaction_id': db_transaction.transaction_id,
+            'transaction_name': asset_name,
+            'ticker': db_transaction.transaction_ticker or 'N/A'
+        })
+    except Exception as e:
+        print(f"Error fetching transaction: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Fout bij ophalen van transactie informatie.'}), 500
+
+# Transactions: Get transaction details for editing
+@main.route("/transactions/get-transaction-details/<int:transaction_id>")
+@login_required
+def get_transaction_details(transaction_id):
+    """Haal volledige transactie details op voor editing"""
+    try:
+        transaction = db.session.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+        
+        if not transaction:
+            return jsonify({'error': 'Transactie niet gevonden.'}), 404
+        
+        # Format date as dd/mm/yyyy
+        date_str = ''
+        if transaction.transaction_date:
+            if isinstance(transaction.transaction_date, str):
+                date_str = transaction.transaction_date
+            else:
+                date_str = transaction.transaction_date.strftime("%d/%m/%Y")
+        
+        # Get asset_name from asset_type or construct from ticker
+        asset_name = transaction.asset_type or transaction.transaction_ticker or ''
+        
+        return jsonify({
+            'transaction_id': transaction.transaction_id,
+            'transaction_date': date_str,
+            'transaction_type': transaction.transaction_type or '',
+            'asset_name': asset_name,
+            'transaction_ticker': transaction.transaction_ticker or '',
+            'transaction_quantity': float(transaction.transaction_quantity) if transaction.transaction_quantity else 0.0,
+            'transaction_share_price': float(transaction.transaction_share_price) if transaction.transaction_share_price else 0.0,
+            'transaction_currency': transaction.transaction_currency or 'EUR',
+            'asset_class': transaction.asset_class or transaction.asset_type or 'Stock',
+            'sector': transaction.sector or ''
+        })
+    except Exception as e:
+        print(f"Error fetching transaction details: {e}")
+        return jsonify({'error': 'Fout bij ophalen van transactie details.'}), 500
+
+# Transactions: Update transaction
+@main.route("/transactions/update-transaction", methods=["POST"])
+@login_required
+def update_transaction():
+    """Update een transactie"""
+    try:
+        transaction_id = request.form.get("transaction_id", "").strip()
+        
+        if not transaction_id:
+            flash("Transactie ID ontbreekt.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        try:
+            transaction_id = int(transaction_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig transactie ID.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Find transaction
+        transaction = db.session.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+        
+        if not transaction:
+            flash("Transactie niet gevonden.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Get form data
+        transaction_date = request.form.get("transaction_date", "").strip()
+        transaction_type = request.form.get("transaction_type", "").strip()
+        asset_name = request.form.get("asset_name", "").strip()
+        transaction_ticker = request.form.get("transaction_ticker", "").strip()
+        transaction_quantity_str = request.form.get("transaction_quantity", "").strip()
+        transaction_share_price_str = request.form.get("transaction_share_price", "").strip()
+        transaction_currency = request.form.get("transaction_currency", "EUR").strip()
+        asset_class = request.form.get("asset_class", "Stock").strip()
+        sector = request.form.get("sector", "").strip()
+        
+        # Validate required fields
+        if not transaction_date or not transaction_type or not asset_name or not transaction_ticker:
+            flash("Alle verplichte velden moeten ingevuld zijn.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Parse date
+        parsed_date = None
+        for date_format in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
+            try:
+                parsed_date = datetime.strptime(transaction_date, date_format)
+                break
+            except ValueError:
+                continue
+        if not parsed_date:
+            parsed_date = datetime.now()
+        
+        # Parse quantity and price
+        try:
+            quantity = float(transaction_quantity_str)
+            if quantity <= 0:
+                raise ValueError("Quantity must be positive")
+        except (ValueError, TypeError):
+            flash("Ongeldige hoeveelheid.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        try:
+            share_price = float(transaction_share_price_str)
+            if share_price <= 0:
+                raise ValueError("Price must be positive")
+        except (ValueError, TypeError):
+            flash("Ongeldige prijs per aandeel.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Calculate total amount
+        transaction_amount = quantity * share_price
+        
+        # Update transaction
+        transaction.transaction_date = parsed_date
+        transaction.transaction_type = transaction_type.upper()
+        transaction.transaction_ticker = transaction_ticker
+        transaction.transaction_quantity = quantity
+        transaction.transaction_share_price = share_price
+        transaction.transaction_amount = transaction_amount
+        transaction.transaction_currency = transaction_currency.upper()
+        transaction.asset_type = asset_class
+        transaction.asset_class = asset_class
+        transaction.sector = sector if sector else None
+        
+        db.session.commit()
+        
+        flash(f"Transactie is succesvol bijgewerkt.", "success")
+    except Exception as exc:
+        print(f"WARNING: Transaction update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van transactie.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.transactions"))
+
+# Transactions: Delete transaction
+@main.route("/transactions/delete-transaction", methods=["POST"])
+@login_required
+def delete_transaction():
+    """Verwijder een transactie"""
+    try:
+        transaction_id = request.form.get("transaction_id", "").strip()
+        
+        if not transaction_id:
+            flash("Transactie ID ontbreekt.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        try:
+            transaction_id = int(transaction_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig transactie ID.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Find and delete transaction
+        transaction = db.session.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+        
+        if not transaction:
+            flash("Transactie niet gevonden.", "error")
+            return redirect(url_for("main.transactions"))
+        
+        # Delete the transaction
+        db.session.delete(transaction)
+        db.session.commit()
+        
+        flash(f"Transactie is succesvol verwijderd.", "success")
+    except Exception as exc:
+        print(f"WARNING: Transaction deletion failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij verwijderen van transactie.", "error")
+        db.session.rollback()
     
     return redirect(url_for("main.transactions"))
 

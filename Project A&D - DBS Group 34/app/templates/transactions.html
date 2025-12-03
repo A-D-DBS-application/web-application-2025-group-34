@@ -1,4 +1,5 @@
 {% extends "logged_in_base.html" %}
+{% from "macros.html" import action_buttons %}
 
 {% block sub_content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/transactions.css') }}">
@@ -8,10 +9,7 @@
     <div class="transactions-header">
         <h2 class="transactions-title">Huidige transacties</h2>
         <div class="transactions-header-right">
-            <button class="add-transaction-btn" onclick="document.getElementById('addTransactionForm').style.display='block'">
-                <span>+</span>
-                <span>Transactie toevoegen</span>
-            </button>
+            {{ action_buttons("Transactie", "addTransactionForm", "openEditTransactionModal", "openDeleteTransactionModal", "+ Transactie toevoegen") }}
         </div>
     </div>
 
@@ -69,7 +67,14 @@
                 </div>
                 <div class="form-group">
                     <label>Sector</label>
-                    <input type="text" name="sector" placeholder="Bijv. Tech, Energy, etc.">
+                    <select name="sector">
+                        <option value="">Selecteer sector...</option>
+                        <option value="Tech">Tech</option>
+                        <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
+                        <option value="Cons. & Health">Cons. & Health</option>
+                        <option value="RE, F. & Hold.">RE, F. & Hold.</option>
+                        <option value="ETF">ETF</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Total Transaction Amount</label>
@@ -126,6 +131,159 @@
     });
     </script>
 
+    <!-- Edit Transaction Modal (stap 1: nummer invoeren) -->
+    <div id="editTransactionModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <h2>Transactie Bewerken</h2>
+                <span class="modal-close" onclick="closeEditTransactionModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editTransactionForm" onsubmit="fetchTransactionForEditing(event)">
+                    <div class="form-group">
+                        <label>Transactie Nummer *</label>
+                        <input type="number" min="1" name="transaction_number" id="editTransactionNumberInput" required placeholder="Bijv. 1, 2, 3...">
+                        <small style="color: #666; font-size: 12px;">Voer het nummer in van de transactie die je wilt bewerken (zie de eerste kolom in de tabel)</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn">Volgende</button>
+                        <button type="button" class="btn ghost" onclick="closeEditTransactionModal()">Annuleren</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Transaction Form Modal (stap 2: formulier) -->
+    <div id="editTransactionFormModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:700px;">
+            <div class="modal-header">
+                <h2>Transactie Bewerken</h2>
+                <span class="modal-close" onclick="closeEditTransactionFormModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas de transactie aan.</p>
+                <form id="editTransactionFormSubmit" method="POST" action="{{ url_for('main.update_transaction') }}">
+                    <input type="hidden" name="transaction_id" id="editTransactionId">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label>Datum *</label>
+                            <input type="text" name="transaction_date" id="editTransactionDate" required placeholder="dd/mm/yyyy" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Transactie Type *</label>
+                            <select name="transaction_type" id="editTransactionType" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                                <option value="">Selecteer...</option>
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Asset Naam *</label>
+                            <input type="text" name="asset_name" id="editAssetName" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Ticker *</label>
+                            <input type="text" name="transaction_ticker" id="editTransactionTicker" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Hoeveelheid (Quantity) *</label>
+                            <input type="number" step="0.01" name="transaction_quantity" id="editTransactionQuantity" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Prijs per Aandeel (Price) *</label>
+                            <input type="number" step="0.01" name="transaction_share_price" id="editTransactionSharePrice" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency *</label>
+                            <select name="transaction_currency" id="editTransactionCurrency" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                                <option value="EUR">EUR</option>
+                                <option value="USD">USD</option>
+                                <option value="CAD">CAD</option>
+                                <option value="DKK">DKK</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Asset Class *</label>
+                            <select name="asset_class" id="editAssetClass" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                                <option value="Stock">Stock</option>
+                                <option value="Bond">Bond</option>
+                                <option value="ETF">ETF</option>
+                                <option value="Crypto">Crypto</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Sector</label>
+                            <select name="sector" id="editSector" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                                <option value="">Selecteer sector...</option>
+                                <option value="Tech">Tech</option>
+                                <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
+                                <option value="Cons. & Health">Cons. & Health</option>
+                                <option value="RE, F. & Hold.">RE, F. & Hold.</option>
+                                <option value="ETF">ETF</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Total Transaction Amount</label>
+                            <input type="number" step="0.01" name="transaction_amount" id="editTransactionAmount" readonly style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; background: #f5f5f5;">
+                            <small style="color: #666; font-size: 0.85em;">Wordt automatisch berekend</small>
+                        </div>
+                    </div>
+                    <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                        <button type="button" class="btn ghost" onclick="closeEditTransactionFormModal()">Annuleren</button>
+                        <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Transaction Modal (stap 1: nummer invoeren) -->
+    <div id="deleteTransactionModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <h2>Transactie Verwijderen</h2>
+                <span class="modal-close" onclick="closeDeleteTransactionModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="deleteTransactionForm" onsubmit="fetchTransactionForDeletion(event)">
+                    <div class="form-group">
+                        <label>Transactie Nummer *</label>
+                        <input type="number" min="1" name="transaction_number" id="deleteTransactionNumberInput" required placeholder="Bijv. 1, 2, 3...">
+                        <small style="color: #666; font-size: 12px;">Voer het nummer in van de transactie die je wilt verwijderen (zie de eerste kolom in de tabel)</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn">Volgende</button>
+                        <button type="button" class="btn ghost" onclick="closeDeleteTransactionModal()">Annuleren</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Transaction Confirmation Modal (stap 2: bevestiging) -->
+    <div id="deleteTransactionConfirmModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:450px;">
+            <div class="modal-header">
+                <h2>Transactie Verwijderen</h2>
+                <span class="modal-close" onclick="closeDeleteTransactionConfirmModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="deleteTransactionConfirmMessage" style="margin-bottom: 20px; font-size: 15px; line-height: 1.5;">
+                    Weet je zeker dat je deze transactie wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.
+                </p>
+                <form id="deleteTransactionConfirmForm" method="POST" action="{{ url_for('main.delete_transaction') }}">
+                    <input type="hidden" name="transaction_id" id="deleteTransactionId">
+                    <div class="form-actions">
+                        <button type="button" class="btn ghost" onclick="closeDeleteTransactionConfirmModal()">Annuleren</button>
+                        <button type="submit" class="btn" style="background: #d32f2f; color: white;">Bevestigen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Filter/Sort Section -->
     <div class="filter-section">
         <span class="filter-label">Sorteren/Filteren:</span>
@@ -139,9 +297,10 @@
                 <div class="sector-dropdown" id="sectorDropdown" style="display: none;">
                     <div class="sector-option" onclick="selectSector('')">Alle sectoren</div>
                     <div class="sector-option" onclick="selectSector('Tech')">Tech</div>
+                    <div class="sector-option" onclick="selectSector('Ind., E. & R.M.')">Ind., E. & R.M.</div>
                     <div class="sector-option" onclick="selectSector('Cons. & Health')">Cons. & Health</div>
-                    <div class="sector-option" onclick="selectSector('Financial Services')">Financial Services</div>
-                    <div class="sector-option" onclick="selectSector('Energy')">Energy</div>
+                    <div class="sector-option" onclick="selectSector('RE, F. & Hold.')">RE, F. & Hold.</div>
+                    <div class="sector-option" onclick="selectSector('ETF')">ETF</div>
                 </div>
             </div>
             <button class="filter-btn" data-filter="size" onclick="toggleFilter('size')">Transactie grootte</button>
@@ -163,12 +322,12 @@
                     <th>DATE</th>
                     <th>ASSET</th>
                     <th>TICKER</th>
+                    <th>SECTOR</th>
                     <th>TRANSACTION TYPE</th>
                     <th>QUANTITY</th>
                     <th>PRICE</th>
                     <th>TOTAL TRANSACTION AMOUNT</th>
                     <th>CURRENCY</th>
-                    <th>SECTOR</th>
                     <th>ASSET CLASS</th>
                 </tr>
             </thead>
@@ -193,12 +352,12 @@
                             {% endif %}
                         </td>
                         <td class="ticker">{{ t.ticker or '' }}</td>
+                        <td>{{ t.sector or 'Unknown' }}</td>
                         <td class="{% if t.type == 'BUY' %}type-buy{% else %}type-sell{% endif %}">{{ t.type or '' }}</td>
                         <td>{{ "%.0f"|format(t.units) if t.units % 1 == 0 else "%.2f"|format(t.units) if t.units else '0' }}</td>
                         <td>{{ t.price or '0,00' }} {{ t.currency or 'EUR' }}</td>
                         <td>{{ t.total or '0,00' }} {{ t.currency or 'EUR' }}</td>
                         <td>{{ t.currency or 'EUR' }}</td>
-                        <td>{{ t.sector or 'Unknown' }}</td>
                         <td>{{ t.asset_class or 'Stock' }}</td>
                     </tr>
                     {% endfor %}
@@ -462,5 +621,165 @@ document.addEventListener('click', function(event) {
         dropdown.style.display = 'none';
     }
 });
+
+// ============================================================================
+// TRANSACTION EDIT/DELETE MODAL FUNCTIONALITY
+// ============================================================================
+
+// Edit Transaction Modal Functions
+function openEditTransactionModal() {
+    const modal = document.getElementById('editTransactionModal');
+    modal.style.display = 'block';
+    document.getElementById('editTransactionNumberInput').value = '';
+    document.getElementById('editTransactionNumberInput').focus();
+}
+
+function closeEditTransactionModal() {
+    document.getElementById('editTransactionModal').style.display = 'none';
+    document.getElementById('editTransactionNumberInput').value = '';
+}
+
+function closeEditTransactionFormModal() {
+    document.getElementById('editTransactionFormModal').style.display = 'none';
+    closeEditTransactionModal();
+}
+
+async function fetchTransactionForEditing(event) {
+    event.preventDefault();
+    const transactionNumber = parseInt(document.getElementById('editTransactionNumberInput').value);
+    
+    if (!transactionNumber || transactionNumber < 1) {
+        alert('Voer een geldig transactie nummer in.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/transactions/get-transaction/${transactionNumber}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Fetch full transaction details
+        const detailResponse = await fetch(`/transactions/get-transaction-details/${data.transaction_id}`);
+        const detailData = await detailResponse.json();
+        
+        if (detailData.error) {
+            alert(detailData.error);
+            return;
+        }
+        
+        // Fill form with transaction data
+        document.getElementById('editTransactionId').value = detailData.transaction_id;
+        document.getElementById('editTransactionDate').value = detailData.transaction_date || '';
+        document.getElementById('editTransactionType').value = detailData.transaction_type || '';
+        document.getElementById('editAssetName').value = detailData.asset_name || '';
+        document.getElementById('editTransactionTicker').value = detailData.transaction_ticker || '';
+        document.getElementById('editTransactionQuantity').value = detailData.transaction_quantity || '';
+        document.getElementById('editTransactionSharePrice').value = detailData.transaction_share_price || '';
+        document.getElementById('editTransactionCurrency').value = detailData.transaction_currency || 'EUR';
+        document.getElementById('editAssetClass').value = detailData.asset_class || 'Stock';
+        document.getElementById('editSector').value = detailData.sector || '';
+        
+        // Calculate and set total amount
+        const quantity = parseFloat(detailData.transaction_quantity) || 0;
+        const price = parseFloat(detailData.transaction_share_price) || 0;
+        const total = quantity * price;
+        document.getElementById('editTransactionAmount').value = total.toFixed(2);
+        
+        // Setup auto-calculation for edit form
+        const qtyInput = document.getElementById('editTransactionQuantity');
+        const priceInput = document.getElementById('editTransactionSharePrice');
+        const totalInput = document.getElementById('editTransactionAmount');
+        
+        function calculateEditTotal() {
+            const qty = parseFloat(qtyInput.value) || 0;
+            const prc = parseFloat(priceInput.value) || 0;
+            totalInput.value = (qty * prc).toFixed(2);
+        }
+        
+        qtyInput.oninput = calculateEditTotal;
+        priceInput.oninput = calculateEditTotal;
+        
+        // Close first modal and open form modal
+        closeEditTransactionModal();
+        document.getElementById('editTransactionFormModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error fetching transaction:', error);
+        alert('Fout bij ophalen van transactie informatie.');
+    }
+}
+
+// Delete Transaction Modal Functions
+function openDeleteTransactionModal() {
+    const modal = document.getElementById('deleteTransactionModal');
+    modal.style.display = 'block';
+    document.getElementById('deleteTransactionNumberInput').value = '';
+    document.getElementById('deleteTransactionNumberInput').focus();
+}
+
+function closeDeleteTransactionModal() {
+    document.getElementById('deleteTransactionModal').style.display = 'none';
+    document.getElementById('deleteTransactionNumberInput').value = '';
+}
+
+function closeDeleteTransactionConfirmModal() {
+    document.getElementById('deleteTransactionConfirmModal').style.display = 'none';
+    closeDeleteTransactionModal();
+}
+
+async function fetchTransactionForDeletion(event) {
+    event.preventDefault();
+    const transactionNumber = parseInt(document.getElementById('deleteTransactionNumberInput').value);
+    
+    if (!transactionNumber || transactionNumber < 1) {
+        alert('Voer een geldig transactie nummer in.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/transactions/get-transaction/${transactionNumber}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        // Show confirmation modal
+        document.getElementById('deleteTransactionId').value = data.transaction_id;
+        document.getElementById('deleteTransactionConfirmMessage').textContent = 
+            `Weet je zeker dat je deze transactie wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
+        
+        closeDeleteTransactionModal();
+        document.getElementById('deleteTransactionConfirmModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error fetching transaction:', error);
+        alert('Fout bij ophalen van transactie informatie.');
+    }
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const editModal = document.getElementById('editTransactionModal');
+    const editFormModal = document.getElementById('editTransactionFormModal');
+    const deleteModal = document.getElementById('deleteTransactionModal');
+    const confirmModal = document.getElementById('deleteTransactionConfirmModal');
+    
+    if (event.target == editModal) {
+        closeEditTransactionModal();
+    }
+    if (event.target == editFormModal) {
+        closeEditTransactionFormModal();
+    }
+    if (event.target == deleteModal) {
+        closeDeleteTransactionModal();
+    }
+    if (event.target == confirmModal) {
+        closeDeleteTransactionConfirmModal();
+    }
+};
 </script>
 {% endblock %}

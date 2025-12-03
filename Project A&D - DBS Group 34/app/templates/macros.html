@@ -1,0 +1,41 @@
+{# Herbruikbare macro voor action buttons (add, edit, delete) #}
+{% macro action_buttons(entity_name, add_form_id="", edit_modal_func="", delete_modal_func="", add_label="") %}
+  {# 
+    entity_name: naam van de entiteit (bijv. "Positie", "Transactie")
+    add_form_id: ID van het add form element
+    edit_modal_func: JavaScript functie naam voor edit modal (bijv. "openEditPositionModal")
+    delete_modal_func: JavaScript functie naam voor delete modal (bijv. "openDeletePositionModal")
+    add_label: Label voor add button (bijv. "+ Positie Toevoegen")
+  #}
+  <div style="display: flex; gap: 10px; align-items: center;">
+    {% if add_form_id %}
+    <button class="add-transaction-btn" onclick="document.getElementById('{{ add_form_id }}').style.display='block'">
+      {% if add_label %}
+        {{ add_label }}
+      {% else %}
+        + {{ entity_name }} Toevoegen
+      {% endif %}
+    </button>
+    {% endif %}
+    
+    {% if edit_modal_func %}
+    <button class="edit-position-btn" onclick="{{ edit_modal_func }}()" title="{{ entity_name }} bewerken">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+    </button>
+    {% endif %}
+    
+    {% if delete_modal_func %}
+    <button class="delete-position-btn" onclick="{{ delete_modal_func }}()" title="{{ entity_name }} verwijderen">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"></path>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+      </svg>
+    </button>
+    {% endif %}
+  </div>
+{% endmacro %}
+

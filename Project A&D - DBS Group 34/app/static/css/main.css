@@ -40,6 +40,24 @@
   .btn.ghost{background:transparent;color:var(--green);border:1px solid var(--green)}
   
   .small{font-size:13px;padding:6px 10px}
+
+  /* CTA button used for adding items (transactions, announcements, events, votings) */
+  .add-transaction-btn{
+    background:var(--cta);
+    color:white;
+    padding:12px 18px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s;
+  }
+  .add-transaction-btn:hover{
+    background:#1565c0;
+  }
   
   /* utilities */
   .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}

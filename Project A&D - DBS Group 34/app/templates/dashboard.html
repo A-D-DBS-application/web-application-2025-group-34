@@ -8,6 +8,9 @@
   <section class="leftcol card">
     <div class="section-head">
       <h3>Aankondigingen</h3>
+      <button class="add-transaction-btn" type="button" onclick="openAnnouncementModal()">
+        + Bericht toevoegen
+      </button>
     </div>
 
     {% for post in announcements %}
@@ -17,49 +20,188 @@
       <div class="meta">{{ post.date }} • {{ post.author }}</div>
     </article>
     {% endfor %}
-
-    <form method="post" action="{{ url_for('main.add_announcement') }}" class="inline-form">
-      <h4>Nieuw bericht</h4>
-      <label>Titel
-        <input type="text" name="title" placeholder="Titel aankondiging" required>
-      </label>
-      <label>Bericht
-        <textarea name="body" rows="3" placeholder="Wat wil je delen?" required></textarea>
-      </label>
-      <button class="btn small" type="submit">Opslaan</button>
-    </form>
   </section>
 
   <aside class="rightcol card">
+    <!-- AGENDA LAYOUT: header met acties (Event toevoegen + iCal exporteren) -->
     <div class="section-head">
       <h3>Agenda</h3>
+      <div class="agenda-actions">
+        <button class="add-transaction-btn" type="button" onclick="openEventModal()">
+          + Event toevoegen
+        </button>
+        <a href="{{ url_for('main.export_all_events_ical') }}" class="add-transaction-btn agenda-ical-btn">
+          📅 iCal Exporteren
+        </a>
+      </div>
     </div>
 
-    <h4>Toekomstige Events</h4>
-    {% for ev in upcoming %}
-    <div class="event">
-      <strong>{{ ev.title }}</strong>
-      <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
-      <div class="muted">{{ ev.location }}</div>
-    </div>
-    {% endfor %}
+    <!-- AGENDA LAYOUT: Toekomstige Events -->
+    <section class="agenda-section">
+      <div class="agenda-section-title">Toekomstige Events</div>
+      {% if upcoming_events %}
+        {% for ev in upcoming_events %}
+        <div class="agenda-event-card">
+          <strong>{{ ev.title }}</strong>
+          <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+          <div class="muted">{{ ev.location }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="agenda-empty muted">Geen toekomstige events</div>
+      {% endif %}
+    </section>
 
-    <form method="post" action="{{ url_for('main.add_event') }}" class="inline-form">
-      <h4>Nieuw event</h4>
-      <label>Titel
-        <input type="text" name="title" placeholder="Naam event" required>
-      </label>
-      <label>Datum
-        <input type="text" name="date" placeholder="bv. 12/12/2025">
-      </label>
-      <label>Tijd
-        <input type="text" name="time" placeholder="bv. 19:30">
-      </label>
-      <label>Locatie
-        <input type="text" name="location" placeholder="Gent, Belgium">
-      </label>
-      <button class="btn small" type="submit">Opslaan</button>
-    </form>
+    <!-- AGENDA LAYOUT: Vandaag -->
+    <section class="agenda-section">
+      <div class="agenda-section-title">{{ today_label }}</div>
+      {% if today_events %}
+        {% for ev in today_events %}
+        <div class="agenda-event-card">
+          <strong>{{ ev.title }}</strong>
+          <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+          <div class="muted">{{ ev.location }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="agenda-empty muted">Geen events vandaag</div>
+      {% endif %}
+    </section>
+
+    <!-- AGENDA LAYOUT: Voorbije Events -->
+    <section class="agenda-section">
+      <div class="agenda-section-title">Voorbije Events</div>
+      {% if past_events %}
+        {% for ev in past_events %}
+        <div class="agenda-event-card agenda-event-past">
+          <strong>{{ ev.title }}</strong>
+          <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+          <div class="muted">{{ ev.location }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="agenda-empty muted">Geen voorbije events</div>
+      {% endif %}
+    </section>
+
   </aside>
 </div>
+
+<!-- Announcement Modal -->
+<div id="announcementModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Nieuwe Aankondiging</h2>
+      <span class="modal-close" onclick="closeAnnouncementModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Voeg een nieuwe aankondiging toe.</p>
+      <form method="post" action="{{ url_for('main.add_announcement') }}">
+        <div class="form-group">
+          <label>Titel *</label>
+          <input type="text" name="title" id="announcementTitle" placeholder="Voer de titel in" required>
+        </div>
+        <div class="form-group">
+          <label>Bericht *</label>
+          <textarea name="body" id="announcementBody" rows="4" placeholder="Voer het bericht in" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Datum</label>
+          <input type="text" id="announcementDate" readonly style="background: #f5f5f5;">
+        </div>
+        <div class="form-group">
+          <label>Auteur</label>
+          <input type="text" value="{{ g.user.member_name if g.user else 'Onbekend' }}" readonly style="background: #f5f5f5;">
+        </div>
+        <div class="form-actions" style="margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeAnnouncementModal()">Annuleren</button>
+          <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<div id="eventModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Event Toevoegen</h2>
+      <span class="modal-close" onclick="closeEventModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Voeg een nieuw event toe aan de agenda.</p>
+      <form method="post" action="{{ url_for('main.add_event') }}">
+        <div class="form-group">
+          <label>Event titel *</label>
+          <input type="text" name="title" id="eventTitle" placeholder="Event titel" required>
+        </div>
+        <div class="form-group">
+          <label>mededeling (optioneel)</label>
+          <textarea name="message" id="eventMessage" rows="3" placeholder="Extra informatie over het event"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Datum</label>
+          <input type="text" name="date" id="eventDate" placeholder="dd/mm/yyyy">
+        </div>
+        <div class="form-group">
+          <label>Start uur</label>
+          <input type="text" name="time" id="eventTime" placeholder="--:--">
+        </div>
+        <div class="form-group">
+          <label>locatie (optioneel)</label>
+          <input type="text" name="location" id="eventLocation" placeholder="Event locatie">
+        </div>
+        <div class="form-actions" style="margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeEventModal()">Annuleren</button>
+          <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAnnouncementModal() {
+    const modal = document.getElementById('announcementModal');
+    modal.style.display = 'flex';
+    // Set current date
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    document.getElementById('announcementDate').value = `${day}-${month}-${year}`;
+}
+
+function closeAnnouncementModal() {
+    document.getElementById('announcementModal').style.display = 'none';
+    document.getElementById('announcementTitle').value = '';
+    document.getElementById('announcementBody').value = '';
+}
+
+function openEventModal() {
+    document.getElementById('eventModal').style.display = 'flex';
+}
+
+function closeEventModal() {
+    document.getElementById('eventModal').style.display = 'none';
+    document.getElementById('eventTitle').value = '';
+    document.getElementById('eventMessage').value = '';
+    document.getElementById('eventDate').value = '';
+    document.getElementById('eventTime').value = '';
+    document.getElementById('eventLocation').value = '';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const announcementModal = document.getElementById('announcementModal');
+    const eventModal = document.getElementById('eventModal');
+    if (event.target == announcementModal) {
+        closeAnnouncementModal();
+    }
+    if (event.target == eventModal) {
+        closeEventModal();
+    }
+}
+</script>
 {% endblock %}

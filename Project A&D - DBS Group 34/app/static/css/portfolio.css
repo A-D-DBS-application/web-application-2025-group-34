@@ -1,13 +1,236 @@
+/* ===== CASH BAR ===== */
+.cash-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(37,91,72,0.15);
+}
+
+.cash-label {
+    font-weight: 700;
+    font-size: 16px;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cash-amount-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cash-amount {
+    font-weight: 800;
+    color: white;
+    font-size: 18px;
+}
+
+.cash-edit-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ff9800;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.cash-edit-btn:hover {
+    background: #f57c00;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.cash-edit-btn:active {
+    transform: scale(0.95);
+}
+
+.delete-position-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #d32f2f;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.delete-position-btn:hover {
+    background: #b71c1c;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.delete-position-btn:active {
+    transform: scale(0.95);
+}
+
+.edit-position-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #ff9800;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.edit-position-btn:hover {
+    background: #f57c00;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.edit-position-btn:active {
+    transform: scale(0.95);
+}
+
 .portfolio-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid var(--border);background:linear-gradient(90deg,rgba(37,91,72,0.95), rgba(37,91,72,0.95))}
 .portfolio-header .muted{color:rgba(255,255,255,0.9)}
 .portfolio-header .big{font-weight:800;color:white;font-size:20px}
 
+.portfolio-table-wrapper{overflow-x:auto}
 .portfolio-table{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden}
 .portfolio-table th, .portfolio-table td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}
 .portfolio-table thead th{background:var(--green);color:white;font-weight:700}
 .portfolio-table tbody tr:nth-child(even){background:#f7faf8}
 .positive{color:#0b7a51;font-weight:700}
 .negative{color:#9b2f2f;font-weight:700}
+
+/* ===== PORTFOLIO FILTER SECTION (vergelijkbaar met transactions) ===== */
+.filter-section {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.filter-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--green);
+    margin-bottom: 10px;
+    display: block;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    background: #f8fffc;
+    border-color: var(--green);
+}
+
+.filter-btn.active {
+    background: var(--green) !important;
+    color: white !important;
+    border-color: var(--green) !important;
+    font-weight: 600;
+}
+
+/* Sector Dropdown */
+.sector-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.sector-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 5px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 180px;
+    overflow: hidden;
+}
+
+.sector-option {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--green);
+    transition: background 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.sector-option:last-child {
+    border-bottom: none;
+}
+
+.sector-option:hover {
+    background: #f8fffc;
+    color: var(--green);
+}
+
+.sector-option:active {
+    background: var(--green);
+    color: white;
+}
+
+/* Horizontal Scrollbar Spacer */
+.scrollbar-spacer {
+    height: 17px;
+    margin-bottom: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: transparent;
+}
+
+.scrollbar-spacer::-webkit-scrollbar {
+    height: 17px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.scrollbar-spacer::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
 
 /* ============================================================================ */
 /* COMPANY INFO MODAL FEATURE - START */
@@ -193,6 +416,123 @@
   font-size: 16px;
 }
 
+/* ============================================================================ */
+/* PORTFOLIO BREAKDOWN SECTION */
+/* ============================================================================ */
+.portfolio-breakdown-section {
+    margin-top: 40px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.breakdown-header {
+    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.sector-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sector-tab {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sector-tab:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.sector-tab.active {
+    background: white;
+    color: var(--green);
+}
+
+.breakdown-content {
+    padding: 20px;
+}
+
+.breakdown-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    align-items: start;
+}
+
+.breakdown-table-wrapper {
+    overflow-x: auto;
+}
+
+.breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.breakdown-table thead {
+    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+}
+
+.breakdown-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: white;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.breakdown-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.breakdown-table tbody tr:hover {
+    background: #f8fffc;
+}
+
+.breakdown-table tbody tr:nth-child(even) {
+    background: #f7faf8;
+}
+
+.breakdown-total-row {
+    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95)) !important;
+    font-weight: 600;
+    border-top: 2px solid rgba(255, 255, 255, 0.2) !important;
+    color: white;
+}
+
+.breakdown-total-row td {
+    padding-top: 14px;
+    padding-bottom: 14px;
+    color: white;
+}
+
+.breakdown-chart-wrapper {
+    position: relative;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 @media(max-width:900px){
   .portfolio-table th:nth-child(6), .portfolio-table td:nth-child(6), .portfolio-table th:nth-child(7), .portfolio-table td:nth-child(7){display:none}
   
@@ -207,6 +547,14 @@
   .modal-content {
     width: 95%;
     margin: 5% auto;
+  }
+  
+  .breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .breakdown-chart-wrapper {
+    height: 300px;
   }
 }
 
