@@ -23,12 +23,18 @@
   </section>
 
   <aside class="rightcol card">
-    <!-- AGENDA LAYOUT: header met acties (Event toevoegen + iCal exporteren) -->
+    <!-- AGENDA LAYOUT: header met acties (Event toevoegen + iCal exporteren + Edit/Delete) -->
     <div class="section-head">
       <h3>Agenda</h3>
       <div class="agenda-actions">
         <button class="add-transaction-btn" type="button" onclick="openEventModal()">
           + Event toevoegen
+        </button>
+        <button class="add-transaction-btn" type="button" onclick="openEditEventModal()" style="background: #ff9800;">
+          ✏️ Event wijzigen
+        </button>
+        <button class="add-transaction-btn" type="button" onclick="openDeleteEventModal()" style="background: #f44336;">
+          🗑️ Event verwijderen
         </button>
         <a href="{{ url_for('main.export_all_events_ical') }}" class="add-transaction-btn agenda-ical-btn">
           📅 iCal Exporteren
@@ -161,6 +167,116 @@
   </div>
 </div>
 
+<!-- Edit Event Modal (stap 1: dropdown selecteren) -->
+<div id="editEventModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Event Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditEventModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="editEventForm" onsubmit="fetchEventForEditing(event)">
+        <div class="form-group">
+          <label>Selecteer Event *</label>
+          <select name="event_number" id="editEventSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+          <small style="color: #666; font-size: 12px;">Selecteer het event dat je wilt wijzigen</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeEditEventModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Event Form Modal (stap 2: formulier) -->
+<div id="editEventFormModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Event Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditEventFormModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas het event aan.</p>
+      <form id="editEventFormSubmit" method="POST" action="{{ url_for('main.update_event') }}">
+        <input type="hidden" name="event_number" id="editEventNumber">
+        <div class="form-group">
+          <label>Event titel *</label>
+          <input type="text" name="event_name" id="editEventName" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+        </div>
+        <div class="form-group">
+          <label>Datum *</label>
+          <input type="text" name="event_date" id="editEventDate" required placeholder="dd/mm/yyyy" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+        </div>
+        <div class="form-group">
+          <label>Start uur *</label>
+          <input type="text" name="event_time" id="editEventTime" required placeholder="HH:MM" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+        </div>
+        <div class="form-group">
+          <label>Locatie (optioneel)</label>
+          <input type="text" name="location" id="editEventLocation" placeholder="Event locatie" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+        </div>
+        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeEditEventFormModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Event Modal (stap 1: dropdown selecteren) -->
+<div id="deleteEventModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Event Verwijderen</h2>
+      <span class="modal-close" onclick="closeDeleteEventModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="deleteEventForm" onsubmit="fetchEventForDeletion(event)">
+        <div class="form-group">
+          <label>Selecteer Event *</label>
+          <select name="event_number" id="deleteEventSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+          <small style="color: #666; font-size: 12px;">Selecteer het event dat je wilt verwijderen</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeDeleteEventModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Event Confirmation Modal (stap 2: bevestiging) -->
+<div id="deleteEventConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2>Event Verwijderen Bevestigen</h2>
+      <span class="modal-close" onclick="closeDeleteEventConfirmModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je dit event wilt verwijderen?</p>
+      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+        <strong id="deleteEventNameDisplay"></strong>
+        <div style="margin-top: 5px; font-size: 14px; color: #666;" id="deleteEventDetailsDisplay"></div>
+      </div>
+      <form id="deleteEventConfirmForm" method="POST" action="{{ url_for('main.delete_event') }}">
+        <input type="hidden" name="event_number" id="deleteEventNumber">
+        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn ghost" onclick="closeDeleteEventConfirmModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #f44336; color: white; padding: 10px 20px;">Verwijderen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
 function openAnnouncementModal() {
     const modal = document.getElementById('announcementModal');
@@ -196,12 +312,171 @@ function closeEventModal() {
 window.onclick = function(event) {
     const announcementModal = document.getElementById('announcementModal');
     const eventModal = document.getElementById('eventModal');
+    const editEventModal = document.getElementById('editEventModal');
+    const editEventFormModal = document.getElementById('editEventFormModal');
+    const deleteEventModal = document.getElementById('deleteEventModal');
+    const deleteEventConfirmModal = document.getElementById('deleteEventConfirmModal');
+    
     if (event.target == announcementModal) {
         closeAnnouncementModal();
     }
     if (event.target == eventModal) {
         closeEventModal();
     }
+    if (event.target == editEventModal) {
+        closeEditEventModal();
+    }
+    if (event.target == editEventFormModal) {
+        closeEditEventFormModal();
+    }
+    if (event.target == deleteEventModal) {
+        closeDeleteEventModal();
+    }
+    if (event.target == deleteEventConfirmModal) {
+        closeDeleteEventConfirmModal();
+    }
+}
+
+// Edit Event Modal Functions
+function openEditEventModal() {
+    const modal = document.getElementById('editEventModal');
+    const select = document.getElementById('editEventSelect');
+    modal.style.display = 'flex';
+    
+    // Load events into dropdown
+    fetch('/events/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een event...</option>';
+            if (data.events && data.events.length > 0) {
+                data.events.forEach(event => {
+                    const option = document.createElement('option');
+                    option.value = event.event_number;
+                    option.textContent = event.display;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Geen events beschikbaar</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading events:', error);
+            select.innerHTML = '<option value="">Fout bij laden van events</option>';
+        });
+}
+
+function closeEditEventModal() {
+    document.getElementById('editEventModal').style.display = 'none';
+    document.getElementById('editEventSelect').value = '';
+}
+
+function closeEditEventFormModal() {
+    document.getElementById('editEventFormModal').style.display = 'none';
+    closeEditEventModal(); // Also close the first modal
+}
+
+function fetchEventForEditing(event) {
+    event.preventDefault();
+    const eventNumber = document.getElementById('editEventSelect').value;
+    
+    if (!eventNumber) {
+        alert('Selecteer eerst een event.');
+        return;
+    }
+    
+    fetch(`/events/get-details/${eventNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Fill form with event data
+            document.getElementById('editEventNumber').value = data.event_number;
+            document.getElementById('editEventName').value = data.event_name;
+            document.getElementById('editEventDate').value = data.event_date;
+            document.getElementById('editEventTime').value = data.event_time;
+            document.getElementById('editEventLocation').value = data.location || '';
+            
+            // Close first modal and open form modal
+            closeEditEventModal();
+            document.getElementById('editEventFormModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching event details:', error);
+            alert('Fout bij ophalen van event details.');
+        });
+}
+
+// Delete Event Modal Functions
+function openDeleteEventModal() {
+    const modal = document.getElementById('deleteEventModal');
+    const select = document.getElementById('deleteEventSelect');
+    modal.style.display = 'flex';
+    
+    // Load events into dropdown
+    fetch('/events/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een event...</option>';
+            if (data.events && data.events.length > 0) {
+                data.events.forEach(event => {
+                    const option = document.createElement('option');
+                    option.value = event.event_number;
+                    option.textContent = event.display;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Geen events beschikbaar</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading events:', error);
+            select.innerHTML = '<option value="">Fout bij laden van events</option>';
+        });
+}
+
+function closeDeleteEventModal() {
+    document.getElementById('deleteEventModal').style.display = 'none';
+    document.getElementById('deleteEventSelect').value = '';
+}
+
+function closeDeleteEventConfirmModal() {
+    document.getElementById('deleteEventConfirmModal').style.display = 'none';
+    closeDeleteEventModal(); // Also close the first modal
+}
+
+function fetchEventForDeletion(event) {
+    event.preventDefault();
+    const eventNumber = document.getElementById('deleteEventSelect').value;
+    
+    if (!eventNumber) {
+        alert('Selecteer eerst een event.');
+        return;
+    }
+    
+    fetch(`/events/get-details/${eventNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Fill confirmation modal with event data
+            document.getElementById('deleteEventNumber').value = data.event_number;
+            document.getElementById('deleteEventNameDisplay').textContent = data.event_name;
+            document.getElementById('deleteEventDetailsDisplay').textContent = `${data.event_date} ${data.event_time} - ${data.location || 'Geen locatie'}`;
+            
+            // Close first modal and open confirmation modal
+            closeDeleteEventModal();
+            document.getElementById('deleteEventConfirmModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching event details:', error);
+            alert('Fout bij ophalen van event details.');
+        });
 }
 </script>
 {% endblock %}

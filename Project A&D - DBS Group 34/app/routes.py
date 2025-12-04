@@ -761,6 +761,167 @@ def add_event():
     return redirect(url_for("main.dashboard"))
 
 
+# --- Agenda / Events: Edit and Delete routes ---
+
+@main.route("/events/get-all")
+@login_required
+def get_all_events():
+    """Haal alle events op voor dropdown selectie"""
+    try:
+        events = db.session.query(Event).order_by(Event.event_date.asc()).all()
+        events_list = []
+        for evt in events:
+            event_dt = evt.event_date or datetime.now()
+            if event_dt.tzinfo is None:
+                tz = pytz.timezone("Europe/Brussels")
+                event_dt = tz.localize(event_dt)
+            else:
+                event_dt = event_dt.astimezone(pytz.timezone("Europe/Brussels"))
+            
+            events_list.append({
+                "event_number": evt.event_number,
+                "event_name": evt.event_name,
+                "event_date": event_dt.strftime("%d/%m/%Y"),
+                "event_time": event_dt.strftime("%H:%M"),
+                "location": evt.location or "Onbekende locatie",
+                "display": f"{evt.event_name} - {event_dt.strftime('%d/%m/%Y %H:%M')}"
+            })
+        return jsonify({"events": events_list})
+    except Exception as e:
+        print(f"Error fetching all events: {e}")
+        return jsonify({"error": "Fout bij ophalen van events."}), 500
+
+@main.route("/events/get-details/<int:event_number>")
+@login_required
+def get_event_details(event_number):
+    """Haal event details op voor editing"""
+    try:
+        event = db.session.query(Event).filter(Event.event_number == event_number).first()
+        
+        if not event:
+            return jsonify({'error': 'Event niet gevonden.'}), 404
+        
+        event_dt = event.event_date or datetime.now()
+        if event_dt.tzinfo is None:
+            tz = pytz.timezone("Europe/Brussels")
+            event_dt = tz.localize(event_dt)
+        else:
+            event_dt = event_dt.astimezone(pytz.timezone("Europe/Brussels"))
+        
+        return jsonify({
+            'event_number': event.event_number,
+            'event_name': event.event_name or '',
+            'event_date': event_dt.strftime("%d/%m/%Y"),
+            'event_time': event_dt.strftime("%H:%M"),
+            'location': event.location or ''
+        })
+    except Exception as e:
+        print(f"Error fetching event details: {e}")
+        return jsonify({'error': 'Fout bij ophalen van event details.'}), 500
+
+@main.route("/events/update", methods=["POST"])
+@login_required
+def update_event():
+    """Update een event"""
+    try:
+        event_number = request.form.get("event_number", "").strip()
+        
+        if not event_number:
+            flash("Event nummer ontbreekt.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        try:
+            event_number = int(event_number)
+        except (ValueError, TypeError):
+            flash("Ongeldig event nummer.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Find event
+        event = db.session.query(Event).filter(Event.event_number == event_number).first()
+        
+        if not event:
+            flash("Event niet gevonden.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Get form data
+        event_name = request.form.get("event_name", "").strip()
+        event_date = request.form.get("event_date", "").strip()
+        event_time = request.form.get("event_time", "").strip()
+        location = request.form.get("location", "").strip()
+        
+        # Validate required fields
+        if not event_name:
+            flash("Event naam is verplicht.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        if not event_date:
+            flash("Datum is verplicht.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        if not event_time:
+            event_time = "00:00"
+        
+        # Parse and format date
+        iso_date = _format_event_date(event_date, event_time)
+        
+        # Update event
+        event.event_name = event_name
+        event.event_date = datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
+        event.location = location or "Onbekende locatie"
+        
+        db.session.commit()
+        
+        flash(f"Event '{event_name}' is succesvol bijgewerkt.", "success")
+    except Exception as exc:
+        print(f"WARNING: Event update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van event.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/events/delete", methods=["POST"])
+@login_required
+def delete_event():
+    """Verwijder een event"""
+    try:
+        event_number = request.form.get("event_number", "").strip()
+        
+        if not event_number:
+            flash("Event nummer ontbreekt.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        try:
+            event_number = int(event_number)
+        except (ValueError, TypeError):
+            flash("Ongeldig event nummer.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Find and delete event
+        event = db.session.query(Event).filter(Event.event_number == event_number).first()
+        
+        if not event:
+            flash("Event niet gevonden.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        event_name = event.event_name or 'Onbekend'
+        
+        # Delete the event
+        db.session.delete(event)
+        db.session.commit()
+        
+        flash(f"Event '{event_name}' is succesvol verwijderd.", "success")
+    except Exception as exc:
+        print(f"WARNING: Event deletion failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij verwijderen van event.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.dashboard"))
+
+
 # --- Agenda / Events: iCal export routes ---
 
 @main.route("/events/<int:event_id>/ical")
