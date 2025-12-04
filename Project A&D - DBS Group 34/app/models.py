@@ -388,6 +388,24 @@ class VotingProposal(db.Model):
     proposal_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
     proposal_type = db.Column(db.Text)
     minimum_requirements = db.Column(db.Text)
+    stock_name = db.Column(db.String(255))  # Bijv. "Stock XYZ"
+    deadline = db.Column(db.DateTime(timezone=True), nullable=False)  # Deadline voor stemmen
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+    
+    # Relationship to votes
+    votes = db.relationship('Vote', backref='proposal', lazy='dynamic', cascade='all, delete-orphan')
+
+# --- votes Table ---
+class Vote(db.Model):
+    __tablename__ = 'votes'
+    vote_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    proposal_id = db.Column(db.BigInteger, db.ForeignKey('voting_proposal.proposal_id'), nullable=False)
+    member_id = db.Column(db.BigInteger, db.ForeignKey('members.id'), nullable=False)
+    vote_option = db.Column(db.String(20), nullable=False)  # 'voor', 'tegen', 'onthouding'
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+    
+    # Unique constraint: een member kan maar één keer stemmen per proposal
+    __table_args__ = (db.UniqueConstraint('proposal_id', 'member_id', name='unique_member_proposal_vote'),)
 
 
 class Announcement(db.Model):

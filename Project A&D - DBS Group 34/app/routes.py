@@ -6,7 +6,7 @@ import yfinance as yf  # Added: for company info and financial ratios
 import pytz  # Added: for Europe/Brussels timezone handling
 from . import supabase, db
 from .models import (
-    Member, Announcement, Event, Position, Transaction, VotingProposal, Portfolio,
+    Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio,
     generate_board_member_id, generate_analist_id, generate_lid_id, 
     generate_kapitaalverschaffer_id, convert_to_oud_id, get_next_available_id
 )
@@ -1430,7 +1430,65 @@ def transactions():
 @main.route("/voting")
 @login_required
 def voting():
-    return render_template("voting.html", votes=MOCK_VOTES)
+    """Voting pagina met openstaande votingen en resultaten"""
+    tz = pytz.timezone("Europe/Brussels")
+    now = datetime.now(tz)
+    
+    # Haal alle voting proposals op
+    proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
+    
+    open_votes = []
+    results = []
+    user_id = g.user.member_id if g.user else None
+    
+    for proposal in proposals:
+        # Check of deadline verstreken is
+        deadline = proposal.deadline
+        if deadline.tzinfo is None:
+            deadline = tz.localize(deadline)
+        else:
+            deadline = deadline.astimezone(tz)
+        
+        is_pending = deadline > now
+        
+        # Haal stemmen op voor dit proposal
+        votes = db.session.query(Vote).filter(Vote.proposal_id == proposal.proposal_id).all()
+        
+        # Tel stemmen
+        for_votes = sum(1 for v in votes if v.vote_option == 'voor')
+        against_votes = sum(1 for v in votes if v.vote_option == 'tegen')
+        abstain_votes = sum(1 for v in votes if v.vote_option == 'onthouding')
+        total_votes = len(votes)
+        
+        # Check of gebruiker al gestemd heeft
+        user_voted = False
+        if user_id:
+            user_vote = db.session.query(Vote).filter(
+                Vote.proposal_id == proposal.proposal_id,
+                Vote.member_id == user_id
+            ).first()
+            user_voted = user_vote is not None
+        
+        proposal_data = {
+            'proposal_id': proposal.proposal_id,
+            'title': proposal.proposal_type or 'Onbekend',
+            'stock_name': proposal.stock_name or 'Stock XYZ',
+            'deadline': deadline.strftime('%d/%m/%Y'),
+            'deadline_datetime': deadline,
+            'for_votes': for_votes,
+            'against_votes': against_votes,
+            'abstain_votes': abstain_votes,
+            'total_votes': total_votes,
+            'is_pending': is_pending,
+            'user_voted': user_voted
+        }
+        
+        if is_pending:
+            open_votes.append(proposal_data)
+        else:
+            results.append(proposal_data)
+    
+    return render_template("voting.html", open_votes=open_votes, results=results)
 
 # Deelnemers pagina
 @main.route("/deelnemers")
@@ -2403,26 +2461,285 @@ def delete_transaction():
 @login_required
 def add_voting_proposal():
     proposal_type = request.form.get("proposal_type", "").strip()
+    stock_name = request.form.get("stock_name", "").strip()
+    deadline_date = request.form.get("deadline_date", "").strip()
     minimum_requirements = request.form.get("minimum_requirements", "").strip()
     
     if not proposal_type:
         flash("Proposal type is verplicht.", "error")
         return redirect(url_for("main.voting"))
     
+    if not stock_name:
+        flash("Stock naam is verplicht.", "error")
+        return redirect(url_for("main.voting"))
+    
+    if not deadline_date:
+        flash("Deadline is verplicht.", "error")
+        return redirect(url_for("main.voting"))
+    
     try:
+        # Parse deadline (dd/mm/yyyy format)
+        tz = pytz.timezone("Europe/Brussels")
+        deadline_dt = datetime.strptime(deadline_date, "%d/%m/%Y")
+        deadline_dt = tz.localize(deadline_dt.replace(hour=23, minute=59, second=59))
+        
         proposal = VotingProposal(
             proposal_type=proposal_type,
+            stock_name=stock_name,
+            deadline=deadline_dt,
             minimum_requirements=minimum_requirements or None
         )
         db.session.add(proposal)
         db.session.commit()
         flash(f"Stemming '{proposal_type}' toegevoegd.", "success")
+    except ValueError:
+        flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
     except Exception as exc:
         print(f"ERROR: Voting proposal insert failed: {exc}")
         import traceback
         traceback.print_exc()
         db.session.rollback()
         flash("Fout bij toevoegen van stemming.", "error")
+    
+    return redirect(url_for("main.voting"))
+
+# Voting: Get all proposals for dropdown
+@main.route("/voting/get-all")
+@login_required
+def get_all_voting_proposals():
+    """Haal alle voting proposals op voor dropdown selectie"""
+    try:
+        proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
+        proposals_list = []
+        tz = pytz.timezone("Europe/Brussels")
+        
+        for prop in proposals:
+            deadline = prop.deadline
+            if deadline.tzinfo is None:
+                deadline = tz.localize(deadline)
+            else:
+                deadline = deadline.astimezone(tz)
+            
+            proposals_list.append({
+                "proposal_id": prop.proposal_id,
+                "proposal_type": prop.proposal_type or 'Onbekend',
+                "stock_name": prop.stock_name or 'Stock XYZ',
+                "deadline": deadline.strftime("%d/%m/%Y"),
+                "display": f"{prop.proposal_type or 'Onbekend'} - {prop.stock_name or 'Stock XYZ'}"
+            })
+        return jsonify({"proposals": proposals_list})
+    except Exception as e:
+        print(f"Error fetching all voting proposals: {e}")
+        return jsonify({"error": "Fout bij ophalen van voting proposals."}), 500
+
+# Voting: Get proposal details for editing
+@main.route("/voting/get-details/<int:proposal_id>")
+@login_required
+def get_voting_proposal_details(proposal_id):
+    """Haal voting proposal details op voor editing"""
+    try:
+        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
+        
+        if not proposal:
+            return jsonify({'error': 'Voting proposal niet gevonden.'}), 404
+        
+        deadline = proposal.deadline
+        tz = pytz.timezone("Europe/Brussels")
+        if deadline.tzinfo is None:
+            deadline = tz.localize(deadline)
+        else:
+            deadline = deadline.astimezone(tz)
+        
+        return jsonify({
+            'proposal_id': proposal.proposal_id,
+            'proposal_type': proposal.proposal_type or '',
+            'stock_name': proposal.stock_name or '',
+            'deadline': deadline.strftime("%d/%m/%Y"),
+            'minimum_requirements': proposal.minimum_requirements or ''
+        })
+    except Exception as e:
+        print(f"Error fetching voting proposal details: {e}")
+        return jsonify({'error': 'Fout bij ophalen van voting proposal details.'}), 500
+
+# Voting: Update proposal
+@main.route("/voting/update", methods=["POST"])
+@login_required
+def update_voting_proposal():
+    """Update een voting proposal"""
+    try:
+        proposal_id = request.form.get("proposal_id", "").strip()
+        
+        if not proposal_id:
+            flash("Proposal ID ontbreekt.", "error")
+            return redirect(url_for("main.voting"))
+        
+        try:
+            proposal_id = int(proposal_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig proposal ID.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Find proposal
+        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
+        
+        if not proposal:
+            flash("Voting proposal niet gevonden.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Get form data
+        proposal_type = request.form.get("proposal_type", "").strip()
+        stock_name = request.form.get("stock_name", "").strip()
+        deadline_date = request.form.get("deadline_date", "").strip()
+        minimum_requirements = request.form.get("minimum_requirements", "").strip()
+        
+        # Validate required fields
+        if not proposal_type:
+            flash("Proposal type is verplicht.", "error")
+            return redirect(url_for("main.voting"))
+        
+        if not stock_name:
+            flash("Stock naam is verplicht.", "error")
+            return redirect(url_for("main.voting"))
+        
+        if not deadline_date:
+            flash("Deadline is verplicht.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Parse deadline
+        tz = pytz.timezone("Europe/Brussels")
+        deadline_dt = datetime.strptime(deadline_date, "%d/%m/%Y")
+        deadline_dt = tz.localize(deadline_dt.replace(hour=23, minute=59, second=59))
+        
+        # Update proposal
+        proposal.proposal_type = proposal_type
+        proposal.stock_name = stock_name
+        proposal.deadline = deadline_dt
+        proposal.minimum_requirements = minimum_requirements or None
+        
+        db.session.commit()
+        
+        flash(f"Voting proposal '{proposal_type}' is succesvol bijgewerkt.", "success")
+    except ValueError:
+        flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
+    except Exception as exc:
+        print(f"WARNING: Voting proposal update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van voting proposal.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.voting"))
+
+# Voting: Delete proposal
+@main.route("/voting/delete", methods=["POST"])
+@login_required
+def delete_voting_proposal():
+    """Verwijder een voting proposal"""
+    try:
+        proposal_id = request.form.get("proposal_id", "").strip()
+        
+        if not proposal_id:
+            flash("Proposal ID ontbreekt.", "error")
+            return redirect(url_for("main.voting"))
+        
+        try:
+            proposal_id = int(proposal_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig proposal ID.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Find and delete proposal
+        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
+        
+        if not proposal:
+            flash("Voting proposal niet gevonden.", "error")
+            return redirect(url_for("main.voting"))
+        
+        proposal_type = proposal.proposal_type or 'Onbekend'
+        
+        # Delete the proposal (cascade will delete votes)
+        db.session.delete(proposal)
+        db.session.commit()
+        
+        flash(f"Voting proposal '{proposal_type}' is succesvol verwijderd.", "success")
+    except Exception as exc:
+        print(f"WARNING: Voting proposal deletion failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij verwijderen van voting proposal.", "error")
+        db.session.rollback()
+    
+    return redirect(url_for("main.voting"))
+
+# Voting: Submit vote
+@main.route("/voting/submit-vote", methods=["POST"])
+@login_required
+def submit_vote():
+    """Stem op een voting proposal"""
+    try:
+        proposal_id = request.form.get("proposal_id", "").strip()
+        vote_option = request.form.get("vote_option", "").strip()
+        
+        if not proposal_id or not vote_option:
+            flash("Proposal ID en stem optie zijn verplicht.", "error")
+            return redirect(url_for("main.voting"))
+        
+        if vote_option not in ['voor', 'tegen', 'onthouding']:
+            flash("Ongeldige stem optie.", "error")
+            return redirect(url_for("main.voting"))
+        
+        try:
+            proposal_id = int(proposal_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig proposal ID.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Check if proposal exists and deadline not passed
+        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
+        if not proposal:
+            flash("Voting proposal niet gevonden.", "error")
+            return redirect(url_for("main.voting"))
+        
+        tz = pytz.timezone("Europe/Brussels")
+        deadline = proposal.deadline
+        if deadline.tzinfo is None:
+            deadline = tz.localize(deadline)
+        else:
+            deadline = deadline.astimezone(tz)
+        
+        now = datetime.now(tz)
+        if deadline <= now:
+            flash("Deadline voor deze stemming is verstreken.", "error")
+            return redirect(url_for("main.voting"))
+        
+        # Check if user already voted
+        user_id = g.user.member_id
+        existing_vote = db.session.query(Vote).filter(
+            Vote.proposal_id == proposal_id,
+            Vote.member_id == user_id
+        ).first()
+        
+        if existing_vote:
+            # Update existing vote
+            existing_vote.vote_option = vote_option
+            flash("Je stem is bijgewerkt.", "success")
+        else:
+            # Create new vote
+            vote = Vote(
+                proposal_id=proposal_id,
+                member_id=user_id,
+                vote_option=vote_option
+            )
+            db.session.add(vote)
+            flash("Je stem is opgeslagen.", "success")
+        
+        db.session.commit()
+    except Exception as exc:
+        print(f"WARNING: Vote submission failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij opslaan van stem.", "error")
+        db.session.rollback()
     
     return redirect(url_for("main.voting"))
 

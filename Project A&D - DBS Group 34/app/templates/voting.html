@@ -1,59 +1,483 @@
 {% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/voting.css') }}">
+{% endblock %}
 
 {% block sub_content %}
-<div class="card">
+<div class="voting-container">
+  <!-- Openstaande Stemmingen (Links) -->
+  <div class="voting-section">
     <div class="section-head">
-      <h3>Stemmingen</h3>
-      <button class="add-transaction-btn" onclick="document.getElementById('addVotingForm').style.display='block'">+ Stemming Toevoegen</button>
+      <h3>Openstaande Stemmingen</h3>
+      <button class="add-vote-btn" type="button" onclick="openAddVotingModal()">
+        + Vote toevoegen
+      </button>
     </div>
 
-    <div id="addVotingForm" style="display:none; margin-top:20px; padding:20px; background:#f5f5f5; border-radius:8px;">
-      <h3 style="margin-bottom:15px;">Nieuwe Stemming Toevoegen</h3>
-      <form method="POST" action="{{ url_for('main.add_voting_proposal') }}" class="inline-form">
+    <div class="voting-cards">
+      {% for vote in open_votes %}
+      <div class="voting-card">
+        <div class="voting-card-header">
+          <div>
+            <h4>{{ vote.title }}</h4>
+            <p class="deadline">Deadline: {{ vote.deadline }}</p>
+          </div>
+          <div class="card-actions">
+            <button class="edit-btn" onclick="openEditVotingModal({{ vote.proposal_id }})" title="Wijzigen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+            <button class="delete-btn" onclick="openDeleteVotingModal({{ vote.proposal_id }})" title="Verwijderen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="voting-card-body">
+          <div class="stock-info">
+            <span class="label">Aandeel</span>
+            <span class="value">{{ vote.stock_name }}</span>
+          </div>
+          
+          {% if vote.user_voted %}
+          <div class="voted-indicator">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#246F59" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Je hebt al gestemd</span>
+          </div>
+          {% else %}
+          <form method="POST" action="{{ url_for('main.submit_vote') }}" class="vote-form">
+            <input type="hidden" name="proposal_id" value="{{ vote.proposal_id }}">
+            <div class="vote-options">
+              <label class="vote-option">
+                <input type="radio" name="vote_option" value="voor" required>
+                <span>Voor</span>
+              </label>
+              <label class="vote-option">
+                <input type="radio" name="vote_option" value="tegen" required>
+                <span>Tegen</span>
+              </label>
+              <label class="vote-option">
+                <input type="radio" name="vote_option" value="onthouding" required>
+                <span>Onthouding</span>
+              </label>
+            </div>
+            <button type="submit" class="submit-vote-btn">Indienen</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">Geen openstaande stemmingen</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Resultaten (Rechts) -->
+  <div class="results-section">
+    <div class="section-head">
+      <h3>Resultaten</h3>
+    </div>
+
+    <div class="results-cards">
+      {% for result in results %}
+      <div class="result-card">
+        <div class="result-header">
+          <h4>{{ result.deadline }}</h4>
+          <p class="result-stock">{{ result.stock_name }}</p>
+        </div>
+        <div class="result-body">
+          <div class="pie-chart-container">
+            <canvas id="pieChart{{ result.proposal_id }}" width="200" height="200"></canvas>
+          </div>
+          <div class="result-stats">
+            <div class="stat-item">
+              <div class="stat-bar stat-bar-for" style="width: {{ (result.for_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <span class="stat-label">Voor</span>
+              <span class="stat-value">{{ result.for_votes }} votes</span>
+            </div>
+            <div class="stat-item">
+              <div class="stat-bar stat-bar-against" style="width: {{ (result.against_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <span class="stat-label">Tegen</span>
+              <span class="stat-value">{{ result.against_votes }} votes</span>
+            </div>
+            {% if result.abstain_votes > 0 %}
+            <div class="stat-item">
+              <div class="stat-bar stat-bar-abstain" style="width: {{ (result.abstain_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <span class="stat-label">Onthouding</span>
+              <span class="stat-value">{{ result.abstain_votes }} votes</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">Geen resultaten beschikbaar</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Add Voting Modal -->
+<div id="addVotingModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Vote Toevoegen</h2>
+      <span class="modal-close" onclick="closeAddVotingModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form method="POST" action="{{ url_for('main.add_voting_proposal') }}">
         <div class="form-group">
           <label>Type *</label>
-          <input type="text" name="proposal_type" placeholder="Bijv. Algemene Vergadering 3" required>
+          <input type="text" name="proposal_type" placeholder="Bijv. Algemene Vergadering 2" required>
         </div>
         <div class="form-group">
-          <label>Minimum Vereisten</label>
-          <textarea name="minimum_requirements" placeholder="Beschrijving van minimum vereisten"></textarea>
+          <label>Aandeel *</label>
+          <input type="text" name="stock_name" placeholder="Bijv. Stock XYZ" required>
+        </div>
+        <div class="form-group">
+          <label>Deadline *</label>
+          <input type="text" name="deadline_date" placeholder="dd/mm/yyyy" required>
+          <small style="color: #666; font-size: 12px;">Formaat: dd/mm/yyyy (bijv. 20/11/2025)</small>
+        </div>
+        <div class="form-group">
+          <label>Minimum Vereisten (optioneel)</label>
+          <textarea name="minimum_requirements" rows="3" placeholder="Beschrijving van minimum vereisten"></textarea>
         </div>
         <div class="form-actions">
+          <button type="button" class="btn ghost" onclick="closeAddVotingModal()">Annuleren</button>
           <button type="submit" class="btn">Toevoegen</button>
-          <button type="button" class="btn ghost" onclick="document.getElementById('addVotingForm').style.display='none'">Annuleren</button>
         </div>
       </form>
     </div>
-
-    <div class="voting-list space-y-4">
-        {% for vote in votes %}
-        <article class="announcement" style="background:rgba(36,111,89,0.05); border-radius:10px; padding:14px;">
-            <div class="section-head">
-                <h4>{{ vote.title }} ({{ vote.stockName }})</h4>
-                {% if vote.isPending %}
-                    <span style="background:#ffdd00; color:#4a4a4a; padding:4px 8px; border-radius:4px; font-weight:700;">OPEN</span>
-                {% else %}
-                    <span style="background:#e8f2ed; color:#246F59; padding:4px 8px; border-radius:4px; font-weight:700;">GESLOTEN</span>
-                {% endif %}
-            </div>
-            
-            <p>Deadline: {{ vote.deadline }}</p>
-            
-            {% if vote.isPending and not vote.userVoted %}
-                <div style="margin-top:10px;">
-                    <button class="btn small" style="margin-right:8px;">Stem Voor</button>
-                    <button class="btn small ghost" style="margin-right:8px;">Stem Tegen</button>
-                    <button class="btn small ghost">Onthouding</button>
-                </div>
-            {% elif vote.isPending and vote.userVoted %}
-                <p style="color:#246F59; margin-top:10px; font-weight:600;">✅ Je hebt gestemd.</p>
-            {% else %}
-                <div style="margin-top:10px;">
-                    <p class="muted">Resultaten: Voor: {{ vote.forVotes }} | Tegen: {{ vote.againstVotes }} | Onthouding: {{ vote.abstainVotes }} (Totaal: {{ vote.totalVotes }})</p>
-                </div>
-            {% endif %}
-        </article>
-        {% endfor %}
-    </div>
+  </div>
 </div>
+
+<!-- Edit Voting Modal (stap 1: dropdown) -->
+<div id="editVotingModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Vote Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditVotingModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="editVotingForm" onsubmit="fetchVotingForEditing(event)">
+        <div class="form-group">
+          <label>Selecteer Vote *</label>
+          <select name="proposal_id" id="editVotingSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeEditVotingModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Voting Form Modal (stap 2: formulier) -->
+<div id="editVotingFormModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Vote Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditVotingFormModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="editVotingFormSubmit" method="POST" action="{{ url_for('main.update_voting_proposal') }}">
+        <input type="hidden" name="proposal_id" id="editProposalId">
+        <div class="form-group">
+          <label>Type *</label>
+          <input type="text" name="proposal_type" id="editProposalType" required>
+        </div>
+        <div class="form-group">
+          <label>Aandeel *</label>
+          <input type="text" name="stock_name" id="editStockName" required>
+        </div>
+        <div class="form-group">
+          <label>Deadline *</label>
+          <input type="text" name="deadline_date" id="editDeadlineDate" required placeholder="dd/mm/yyyy">
+        </div>
+        <div class="form-group">
+          <label>Minimum Vereisten (optioneel)</label>
+          <textarea name="minimum_requirements" id="editMinimumRequirements" rows="3"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn ghost" onclick="closeEditVotingFormModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #ff9800;">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Voting Modal (stap 1: dropdown) -->
+<div id="deleteVotingModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Vote Verwijderen</h2>
+      <span class="modal-close" onclick="closeDeleteVotingModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="deleteVotingForm" onsubmit="fetchVotingForDeletion(event)">
+        <div class="form-group">
+          <label>Selecteer Vote *</label>
+          <select name="proposal_id" id="deleteVotingSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeDeleteVotingModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Voting Confirmation Modal (stap 2: bevestiging) -->
+<div id="deleteVotingConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2>Vote Verwijderen Bevestigen</h2>
+      <span class="modal-close" onclick="closeDeleteVotingConfirmModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px;">Weet je zeker dat je deze vote wilt verwijderen?</p>
+      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <strong id="deleteVotingNameDisplay"></strong>
+      </div>
+      <form id="deleteVotingConfirmForm" method="POST" action="{{ url_for('main.delete_voting_proposal') }}">
+        <input type="hidden" name="proposal_id" id="deleteProposalId">
+        <div class="form-actions">
+          <button type="button" class="btn ghost" onclick="closeDeleteVotingConfirmModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #f44336; color: white;">Verwijderen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Modal functions
+function openAddVotingModal() {
+    document.getElementById('addVotingModal').style.display = 'flex';
+}
+
+function closeAddVotingModal() {
+    document.getElementById('addVotingModal').style.display = 'none';
+}
+
+function openEditVotingModal(proposalId) {
+    const modal = document.getElementById('editVotingModal');
+    const select = document.getElementById('editVotingSelect');
+    modal.style.display = 'flex';
+    
+    fetch('/voting/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een vote...</option>';
+            if (data.proposals && data.proposals.length > 0) {
+                data.proposals.forEach(proposal => {
+                    const option = document.createElement('option');
+                    option.value = proposal.proposal_id;
+                    option.textContent = proposal.display;
+                    if (proposal.proposal_id === proposalId) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading proposals:', error);
+            select.innerHTML = '<option value="">Fout bij laden</option>';
+        });
+}
+
+function closeEditVotingModal() {
+    document.getElementById('editVotingModal').style.display = 'none';
+}
+
+function closeEditVotingFormModal() {
+    document.getElementById('editVotingFormModal').style.display = 'none';
+    closeEditVotingModal();
+}
+
+function fetchVotingForEditing(event) {
+    event.preventDefault();
+    const proposalId = document.getElementById('editVotingSelect').value;
+    
+    if (!proposalId) {
+        alert('Selecteer eerst een vote.');
+        return;
+    }
+    
+    fetch(`/voting/get-details/${proposalId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            document.getElementById('editProposalId').value = data.proposal_id;
+            document.getElementById('editProposalType').value = data.proposal_type;
+            document.getElementById('editStockName').value = data.stock_name;
+            document.getElementById('editDeadlineDate').value = data.deadline;
+            document.getElementById('editMinimumRequirements').value = data.minimum_requirements || '';
+            
+            closeEditVotingModal();
+            document.getElementById('editVotingFormModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching proposal details:', error);
+            alert('Fout bij ophalen van vote details.');
+        });
+}
+
+function openDeleteVotingModal(proposalId) {
+    const modal = document.getElementById('deleteVotingModal');
+    const select = document.getElementById('deleteVotingSelect');
+    modal.style.display = 'flex';
+    
+    fetch('/voting/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een vote...</option>';
+            if (data.proposals && data.proposals.length > 0) {
+                data.proposals.forEach(proposal => {
+                    const option = document.createElement('option');
+                    option.value = proposal.proposal_id;
+                    option.textContent = proposal.display;
+                    if (proposal.proposal_id === proposalId) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading proposals:', error);
+            select.innerHTML = '<option value="">Fout bij laden</option>';
+        });
+}
+
+function closeDeleteVotingModal() {
+    document.getElementById('deleteVotingModal').style.display = 'none';
+}
+
+function closeDeleteVotingConfirmModal() {
+    document.getElementById('deleteVotingConfirmModal').style.display = 'none';
+    closeDeleteVotingModal();
+}
+
+function fetchVotingForDeletion(event) {
+    event.preventDefault();
+    const proposalId = document.getElementById('deleteVotingSelect').value;
+    
+    if (!proposalId) {
+        alert('Selecteer eerst een vote.');
+        return;
+    }
+    
+    fetch(`/voting/get-details/${proposalId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            document.getElementById('deleteProposalId').value = data.proposal_id;
+            document.getElementById('deleteVotingNameDisplay').textContent = `${data.proposal_type} - ${data.stock_name}`;
+            
+            closeDeleteVotingModal();
+            document.getElementById('deleteVotingConfirmModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching proposal details:', error);
+            alert('Fout bij ophalen van vote details.');
+        });
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = ['addVotingModal', 'editVotingModal', 'editVotingFormModal', 'deleteVotingModal', 'deleteVotingConfirmModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+// Draw pie charts for results
+document.addEventListener('DOMContentLoaded', function() {
+    {% for result in results %}
+    (function() {
+        const canvasId = 'pieChart{{ result.proposal_id }}';
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const total = {{ result.total_votes }} || 1;
+        const forVotes = {{ result.for_votes }};
+        const againstVotes = {{ result.against_votes }};
+        const abstainVotes = {{ result.abstain_votes }};
+        
+        const forPct = (forVotes / total) * 100;
+        const againstPct = (againstVotes / total) * 100;
+        const abstainPct = (abstainVotes / total) * 100;
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(canvas.width, canvas.height) / 2 - 10;
+        
+        let currentAngle = -Math.PI / 2; // Start at top
+        
+        // Draw "Voor" (blue)
+        if (forPct > 0) {
+            const sliceAngle = (forPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#1976d2';
+            ctx.fill();
+            currentAngle += sliceAngle;
+        }
+        
+        // Draw "Tegen" (red)
+        if (againstPct > 0) {
+            const sliceAngle = (againstPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#f44336';
+            ctx.fill();
+            currentAngle += sliceAngle;
+        }
+        
+        // Draw "Onthouding" (orange)
+        if (abstainPct > 0) {
+            const sliceAngle = (abstainPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#ff9800';
+            ctx.fill();
+        }
+    })();
+    {% endfor %}
+});
+</script>
 {% endblock %}
