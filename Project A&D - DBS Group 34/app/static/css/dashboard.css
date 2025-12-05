@@ -89,15 +89,109 @@
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Agenda action buttons - alleen iconen */
+.agenda-add-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--cta, #1976d2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.agenda-add-btn:hover {
+    background: #1565c0;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.agenda-add-btn:active {
+    transform: scale(0.95);
+}
+
+.agenda-edit-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #ff9800;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.agenda-edit-btn:hover {
+    background: #f57c00;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.agenda-edit-btn:active {
+    transform: scale(0.95);
+}
+
+.agenda-delete-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #d32f2f;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.agenda-delete-btn:hover {
+    background: #b71c1c;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.agenda-delete-btn:active {
+    transform: scale(0.95);
 }
 
 .agenda-ical-btn {
-    text-decoration: none;
-    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #66bb6a;
+    border: none;
+    cursor: pointer;
+    display: flex;
     align-items: center;
-    padding: 8px 12px !important; /* Kleinere padding dan de standaard add-transaction-btn */
-    font-size: 13px !important; /* Kleinere tekst */
-    white-space: nowrap; /* Voorkom tekst wrapping */
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+    text-decoration: none;
+}
+
+.agenda-ical-btn:hover {
+    background: #4caf50;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.agenda-ical-btn:active {
+    transform: scale(0.95);
 }
 
 .agenda-section {

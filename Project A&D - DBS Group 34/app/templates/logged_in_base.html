@@ -26,7 +26,7 @@
     <a href="{{ url_for('main.portfolio') }}" class="tab {% if active_endpoint == 'main.portfolio' %}active{% endif %}">Portfolio</a>
     <a href="{{ url_for('main.transactions') }}" class="tab {% if active_endpoint == 'main.transactions' %}active{% endif %}">Transactions</a>
     <a href="{{ url_for('main.voting') }}" class="tab {% if active_endpoint == 'main.voting' %}active{% endif %}">Voting</a>
-    <a href="#" class="tab">Bestanden</a>
+    <a href="{{ url_for('main.bestanden') }}" class="tab {% if active_endpoint == 'main.bestanden' %}active{% endif %}">Bestanden</a>
     <a href="{{ url_for('main.deelnemers') }}" class="tab {% if active_endpoint == 'main.deelnemers' %}active{% endif %}">Deelnemers</a>
   </nav>
 

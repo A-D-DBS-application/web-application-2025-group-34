@@ -1,0 +1,446 @@
+/* Bestanden Page Styles */
+
+.bestanden-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.bestanden-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+    flex-wrap: wrap;
+    gap: 15px;
+    border: 1px solid var(--border);
+    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    box-shadow: var(--shadow);
+}
+
+.bestanden-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+}
+
+.bestanden-actions {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 12px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--cta, #1976d2);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1565c0;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Stijl overeenkomstig met transactiespagina */
+.add-transaction-btn {
+    background: var(--cta);
+    color: white;
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+    font-size: 14px;
+}
+
+.add-transaction-btn:hover {
+    background: #1565c0;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #d32f2f;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #b71c1c;
+}
+
+.btn-icon {
+    font-size: 18px;
+}
+
+.breadcrumbs {
+    background: white;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border, #e0e0e0);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-link {
+    color: var(--green, #255b48);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+    color: var(--green-dark, #1a4638);
+    text-decoration: underline;
+}
+
+.breadcrumb-current {
+    color: var(--text, #333);
+    font-weight: 600;
+}
+
+.breadcrumb-separator {
+    color: #999;
+    margin: 0 4px;
+}
+
+.bestanden-content {
+    background: white;
+    border-radius: 0 0 8px 8px;
+    padding: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border, #e0e0e0);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.file-item:hover {
+    background: #f8f9fa;
+}
+
+.folder-item {
+    background: white;
+}
+
+.folder-item:hover {
+    background: #f8f9fa;
+}
+
+.file-item-file {
+    cursor: default;
+    position: relative;
+}
+
+.file-item-file:hover {
+    background: #f8f9fa;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-actions {
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-left: auto;
+}
+
+.file-item-file:hover .file-actions {
+    opacity: 1;
+}
+
+.action-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.action-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+.action-download {
+    background: var(--cta, #1976d2);
+    color: white;
+}
+
+.action-download:hover {
+    background: #1565c0;
+}
+
+.action-edit {
+    background: #ff9800;
+    color: white;
+}
+
+.action-edit:hover {
+    background: #f57c00;
+}
+
+.action-delete {
+    background: #d32f2f;
+    color: white;
+}
+
+.action-delete:hover {
+    background: #b71c1c;
+}
+
+/* Zorg dat buttons zichtbaar zijn op donkere achtergrond en donkergroen zijn */
+.bestanden-header .btn-primary {
+    background: var(--green, #255b48) !important;
+    color: white !important;
+    border: none !important;
+}
+
+.bestanden-header .btn-primary:hover {
+    background: var(--green-dark, #1a4638) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.file-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-icon svg {
+    width: 100%;
+    height: 100%;
+    max-width: 40px;
+    max-height: 40px;
+}
+
+.folder-icon {
+    font-size: 32px;
+}
+
+.file-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text, #333);
+    margin-bottom: 5px;
+    word-wrap: break-word;
+}
+
+.file-meta {
+    font-size: 13px;
+    color: #666;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.empty-state p {
+    font-size: 16px;
+    margin: 0;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    overflow: auto;
+}
+
+.modal-content {
+    background-color: white;
+    margin: 10% auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border, #e0e0e0);
+    background: var(--green, #255b48);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.close {
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+    opacity: 0.7;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px;
+    border-top: 1px solid var(--border, #e0e0e0);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text, #333);
+}
+
+.form-group input[type="text"],
+.form-group input[type="file"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--green, #255b48);
+    box-shadow: 0 0 0 3px rgba(37,91,72,0.1);
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+    background: white;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--green, #255b48);
+    box-shadow: 0 0 0 3px rgba(37,91,72,0.1);
+}
+
+.form-group input[type="file"] {
+    padding: 8px;
+    cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .bestanden-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .bestanden-actions {
+        width: 100%;
+    }
+
+    .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .bestanden-content {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 5% auto;
+    }
+}
+

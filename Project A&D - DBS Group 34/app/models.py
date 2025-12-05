@@ -36,6 +36,21 @@ class File(db.Model):
     file_date = db.Column(db.DateTime(timezone=True), nullable=False)
     template = db.Column(db.Text)
     post_analyses = db.Column(db.Text)
+
+# --- file_items Table (voor folders en bestanden) ---
+class FileItem(db.Model):
+    __tablename__ = 'file_items'
+    item_id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(255), nullable=False)
+    item_type = db.Column(db.String(20), nullable=False)  # 'folder' of 'file'
+    parent_id = db.Column(db.BigInteger, db.ForeignKey('file_items.item_id'), nullable=True)  # NULL = root level
+    file_path = db.Column(db.Text, nullable=True)  # Voor files: pad naar bestand
+    file_size = db.Column(db.BigInteger, nullable=True)  # Voor files: grootte in bytes
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
+    created_by = db.Column(db.BigInteger, db.ForeignKey('members.id'), nullable=True)
+    
+    # Self-referential relationship voor folder structuur
+    parent = db.relationship('FileItem', remote_side=[item_id], backref='children')
     
 # --- Unified members Table (Includes all roles: board, analist, lid, kapitaalverschaffers, oud) ---
 class Member(UserMixin, db.Model):
@@ -377,6 +392,11 @@ class Transaction(db.Model):
     transaction_amount = db.Column(db.Float)
     transaction_quantity = db.Column(db.Float)
     transaction_type = db.Column(db.Text)
+    transaction_ticker = db.Column(db.String(50))  # Ticker symbol
+    transaction_currency = db.Column(db.String(10))  # Currency (EUR, USD, etc.)
+    transaction_share_price = db.Column(db.Float)  # Price per share
+    asset_name = db.Column(db.Text)  # Asset name
+    asset_type = db.Column(db.Text)  # Voor backward compatibility (same as asset_class)
     sector = db.Column(db.String(100))  # Sector van het asset
     asset_class = db.Column(db.String(100))  # Asset class (bijv. Stock, Bond, etc.)
     

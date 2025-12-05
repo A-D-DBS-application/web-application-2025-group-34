@@ -1,12 +1,15 @@
-from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response  # Added: Response for iCal downloads
+from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response, current_app, send_from_directory, send_file, abort  # Added: Response for iCal downloads, send_file for downloads
 from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime, timedelta
 import yfinance as yf  # Added: for company info and financial ratios
 import pytz  # Added: for Europe/Brussels timezone handling
+import zipfile
+import os
+from pathlib import Path
 from . import supabase, db
 from .models import (
-    Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio,
+    Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio, FileItem,
     generate_board_member_id, generate_analist_id, generate_lid_id, 
     generate_kapitaalverschaffer_id, convert_to_oud_id, get_next_available_id
 )
@@ -2781,3 +2784,669 @@ def logout():
     session.pop('user_id', None) 
     flash("Je bent succesvol uitgelogd.", "info")
     return redirect(url_for('main.home'))
+
+# Helper functie om bestandstype icoon te bepalen
+def _get_file_icon(file_name):
+    """Bepaal het icoon voor een bestand op basis van extensie"""
+    if not file_name:
+        return '📄'
+    
+    ext = file_name.lower().split('.')[-1] if '.' in file_name else ''
+    
+    icon_map = {
+        'doc': 'word',
+        'docx': 'word',
+        'xls': 'excel',
+        'xlsx': 'excel',
+        'ppt': 'powerpoint',
+        'pptx': 'powerpoint',
+        'pdf': 'pdf',
+        'txt': 'text',
+        'zip': 'zip',
+        'rar': 'zip',
+        'png': 'image',
+        'jpg': 'image',
+        'jpeg': 'image',
+        'gif': 'image',
+    }
+    
+    return icon_map.get(ext, 'default')
+
+# Helper functie om alle folders recursief op te halen voor dropdown
+def _get_all_folders(exclude_folder_id=None):
+    """Haal alle folders recursief op en retourneer met pad informatie (skip VIC Leden)"""
+    def is_vic_leden_folder(folder_name):
+        """Check of een folder een 'VIC Leden' folder is die geskipt moet worden"""
+        folder_name_lower = folder_name.lower()
+        # Check voor "VIC Leden", "VIC leden", "C Leden", etc.
+        return ('vic' in folder_name_lower and 'leden' in folder_name_lower) or folder_name_lower.startswith('c leden') or folder_name_lower == 'leden'
+    
+    def build_folder_tree(parent_id=None, prefix=""):
+        folders = db.session.query(FileItem).filter(
+            FileItem.item_type == 'folder',
+            FileItem.parent_id == parent_id
+        ).order_by(FileItem.name.asc()).all()
+        
+        result = []
+        for folder in folders:
+            if exclude_folder_id and folder.item_id == exclude_folder_id:
+                continue
+            
+            # Check of dit een VIC Leden folder is
+            is_vic_folder = is_vic_leden_folder(folder.name)
+            
+            # Als dit een VIC Leden folder is, skip de naam maar toon wel subfolders
+            if is_vic_folder:
+                # Skip deze folder - toon alleen subfolders zonder VIC Leden in pad
+                subfolder_prefix = prefix  # Behoud huidige prefix (zonder VIC Leden)
+            else:
+                # Normale folder - voeg toe aan pad en lijst
+                if prefix:
+                    display_name = f"{prefix}{folder.name}"
+                else:
+                    display_name = folder.name
+                
+                result.append({
+                    'id': folder.item_id,
+                    'name': folder.name,
+                    'display_name': display_name,
+                    'parent_id': folder.parent_id
+                })
+                
+                subfolder_prefix = f"{display_name} / " if display_name else ""
+            
+            # Recursief ophalen van subfolders (met of zonder VIC Leden prefix)
+            if is_vic_folder:
+                subfolders = build_folder_tree(folder.item_id, subfolder_prefix)
+            else:
+                subfolders = build_folder_tree(folder.item_id, subfolder_prefix)
+            result.extend(subfolders)
+        
+        return result
+    
+    return build_folder_tree()
+
+# Bestanden pagina
+@main.route("/bestanden")
+@login_required
+def bestanden():
+    """Toon bestanden pagina met folders en files"""
+    try:
+        # Haal alle root-level items op (geen parent)
+        root_items = db.session.query(FileItem).filter(FileItem.parent_id == None).order_by(FileItem.item_type.desc(), FileItem.name.asc()).all()
+        
+        # Check of er precies één root folder is met een naam zoals "VIC leden" of "C Leden"
+        # In dat geval, toon direct de subfolders
+        root_folders = [item for item in root_items if item.item_type == 'folder']
+        
+        if len(root_folders) == 1:
+            root_folder = root_folders[0]
+            folder_name_lower = root_folder.name.lower()
+            # Check of de folder naam iets bevat zoals "leden" of "vic"
+            if 'leden' in folder_name_lower or 'vic' in folder_name_lower or folder_name_lower.startswith('c '):
+                # Skip deze root folder en toon direct de subfolders
+                items_to_display = db.session.query(FileItem).filter(FileItem.parent_id == root_folder.item_id).order_by(FileItem.item_type.desc(), FileItem.name.asc()).all()
+            else:
+                items_to_display = root_items
+        else:
+            items_to_display = root_items
+        
+        # Organiseer items in folders en files
+        folders = []
+        files = []
+        
+        for item in items_to_display:
+            if item.item_type == 'folder':
+                # Tel aantal bestanden en mappen in deze folder
+                children = db.session.query(FileItem).filter(FileItem.parent_id == item.item_id).all()
+                file_count = sum(1 for c in children if c.item_type == 'file')
+                folder_count = sum(1 for c in children if c.item_type == 'folder')
+                folders.append({
+                    'item': item,
+                    'file_count': file_count,
+                    'folder_count': folder_count
+                })
+            else:
+                files.append(item)
+        
+        # Bepaal breadcrumbs (voor nu alleen root)
+        breadcrumbs = []
+        current_folder = None
+        
+        # Haal alle folders op voor dropdown selector
+        all_folders = _get_all_folders()
+        
+        return render_template("bestanden.html", folders=folders, files=files, current_folder=current_folder, breadcrumbs=breadcrumbs, all_folders=all_folders)
+    except Exception as exc:
+        print(f"ERROR: Fout bij ophalen van bestanden: {exc}")
+        import traceback
+        traceback.print_exc()
+        return render_template("bestanden.html", folders=[], files=[], current_folder=None, breadcrumbs=[])
+
+@main.route("/bestanden/folder/<int:folder_id>")
+@login_required
+def bestanden_folder(folder_id):
+    """Toon inhoud van een specifieke folder"""
+    try:
+        # Haal folder op
+        folder = db.session.query(FileItem).filter(FileItem.item_id == folder_id, FileItem.item_type == 'folder').first()
+        
+        if not folder:
+            flash("Folder niet gevonden.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        # Haal items in deze folder op
+        items = db.session.query(FileItem).filter(FileItem.parent_id == folder_id).order_by(FileItem.item_type.desc(), FileItem.name.asc()).all()
+        
+        # Organiseer items in folders en files
+        folders = []
+        files = []
+        
+        for item in items:
+            if item.item_type == 'folder':
+                # Tel aantal bestanden en mappen in deze folder
+                children = db.session.query(FileItem).filter(FileItem.parent_id == item.item_id).all()
+                file_count = sum(1 for c in children if c.item_type == 'file')
+                folder_count = sum(1 for c in children if c.item_type == 'folder')
+                folders.append({
+                    'item': item,
+                    'file_count': file_count,
+                    'folder_count': folder_count
+                })
+            else:
+                files.append(item)
+        
+        # Bouw breadcrumbs (pad naar deze folder)
+        breadcrumbs = []
+        
+        # Start altijd met "Bestanden"
+        breadcrumbs.append({'name': 'Bestanden', 'id': None, 'url': url_for('main.bestanden')})
+        
+        # Bouw pad naar deze folder (skip "VIC leden" folder)
+        path_items = []
+        temp = folder
+        while temp.parent_id:
+            path_items.insert(0, temp)
+            temp = db.session.query(FileItem).filter(FileItem.item_id == temp.parent_id).first()
+            if not temp:
+                break
+        
+        # Voeg pad items toe (skip "VIC leden" folder)
+        for path_item in path_items:
+            folder_name_lower = path_item.name.lower()
+            # Skip de "VIC leden" folder
+            if not ('leden' in folder_name_lower or 'vic' in folder_name_lower or folder_name_lower.startswith('c ')):
+                breadcrumbs.append({
+                    'name': path_item.name,
+                    'id': path_item.item_id,
+                    'url': url_for('main.bestanden_folder', folder_id=path_item.item_id)
+                })
+        
+        # Voeg huidige folder toe
+        breadcrumbs.append({'name': folder.name, 'id': folder.item_id, 'url': None})
+        
+        # Haal alle folders op voor dropdown selector
+        all_folders = _get_all_folders(exclude_folder_id=folder.item_id)
+        
+        return render_template("bestanden.html", folders=folders, files=files, current_folder=folder, breadcrumbs=breadcrumbs, all_folders=all_folders)
+    except Exception as exc:
+        print(f"ERROR: Fout bij ophalen van folder inhoud: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij ophalen van folder inhoud.", "error")
+        return redirect(url_for("main.bestanden"))
+
+@main.route("/bestanden/create-folder", methods=["POST"])
+@login_required
+def create_folder():
+    """Maak een nieuwe folder aan"""
+    try:
+        folder_name = request.form.get("folder_name", "").strip()
+        parent_id = request.form.get("parent_id", "").strip()
+        
+        parent_id_int = int(parent_id) if parent_id else None
+        
+        if not folder_name:
+            flash("Mapnaam is verplicht.", "error")
+            if parent_id_int:
+                return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+            return redirect(url_for("main.bestanden"))
+        
+        # Check of folder al bestaat
+        existing = db.session.query(FileItem).filter(
+            FileItem.name == folder_name,
+            FileItem.item_type == 'folder',
+            FileItem.parent_id == parent_id_int
+        ).first()
+        
+        if existing:
+            flash(f"Een map met de naam '{folder_name}' bestaat al.", "error")
+            if parent_id_int:
+                return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+            return redirect(url_for("main.bestanden"))
+        
+        new_folder = FileItem(
+            name=folder_name,
+            item_type='folder',
+            parent_id=parent_id_int,
+            created_by=g.user.member_id if g.user else None
+        )
+        
+        db.session.add(new_folder)
+        db.session.commit()
+        
+        flash(f"Map '{folder_name}' is succesvol aangemaakt.", "success")
+    except Exception as exc:
+        print(f"ERROR: Fout bij aanmaken van folder: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij aanmaken van map.", "error")
+    
+    # Redirect naar parent folder als die bestaat, anders naar root
+    parent_id_int = int(parent_id) if parent_id else None
+    if parent_id_int:
+        return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+    return redirect(url_for("main.bestanden"))
+
+@main.route("/bestanden/upload-file", methods=["POST"])
+@login_required
+def upload_file():
+    """Upload een bestand"""
+    try:
+        if 'file' not in request.files:
+            flash("Geen bestand geselecteerd.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash("Geen bestand geselecteerd.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        parent_id = request.form.get("parent_id", "").strip()
+        parent_id_int = int(parent_id) if parent_id else None
+        
+        # Haal upload folder op uit config
+        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+        upload_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Bepaal waar bestand opgeslagen moet worden
+        if parent_id_int:
+            # Maak folder structuur gebaseerd op parent folder
+            parent_folder = db.session.query(FileItem).filter(FileItem.item_id == parent_id_int).first()
+            if parent_folder:
+                folder_parts = []
+                current_folder = parent_folder
+                while current_folder:
+                    folder_parts.insert(0, current_folder.name)
+                    if current_folder.parent_id:
+                        current_folder = db.session.query(FileItem).filter(
+                            FileItem.item_id == current_folder.parent_id
+                        ).first()
+                    else:
+                        current_folder = None
+                
+                file_upload_dir = upload_folder / Path(*folder_parts)
+            else:
+                file_upload_dir = upload_folder
+        else:
+            file_upload_dir = upload_folder
+        
+        file_upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Genereer unieke bestandsnaam als bestand al bestaat
+        file_name = file.filename
+        file_dest = file_upload_dir / file_name
+        counter = 1
+        while file_dest.exists():
+            name_parts = file_name.rsplit('.', 1)
+            if len(name_parts) == 2:
+                file_name = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+            else:
+                file_name = f"{file_name}_{counter}"
+            file_dest = file_upload_dir / file_name
+            counter += 1
+        
+        # Sla bestand op
+        file.save(str(file_dest))
+        file_size = file_dest.stat().st_size
+        
+        # Sla file path relatief op ten opzichte van upload folder
+        relative_file_path = file_dest.relative_to(upload_folder)
+        
+        # Maak FileItem record aan
+        new_file = FileItem(
+            name=file_name,
+            item_type='file',
+            parent_id=parent_id_int,
+            file_path=str(relative_file_path),
+            file_size=file_size,
+            created_by=g.user.member_id if g.user else None
+        )
+        
+        db.session.add(new_file)
+        db.session.commit()
+        
+        flash(f"Bestand '{file_name}' is succesvol geüpload.", "success")
+    except Exception as exc:
+        print(f"ERROR: Fout bij uploaden van bestand: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij uploaden van bestand.", "error")
+    
+    # Redirect naar parent folder als die bestaat, anders naar root
+    parent_id_int = int(parent_id) if parent_id else None
+    if parent_id_int:
+        return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+    # Redirect naar parent folder als die bestaat, anders naar root
+    parent_id_int = int(parent_id) if parent_id else None
+    if parent_id_int:
+        return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+    return redirect(url_for("main.bestanden"))
+
+@main.route("/bestanden/import-zip", methods=["POST"])
+@login_required
+def import_zip():
+    """Importeer een zip bestand met folders en files"""
+    try:
+        if 'zip_file' not in request.files:
+            flash("Geen zip bestand geselecteerd.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        zip_file = request.files['zip_file']
+        if zip_file.filename == '' or not zip_file.filename.lower().endswith('.zip'):
+            flash("Selecteer een geldig zip bestand.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        # Haal upload folder op uit config
+        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+        upload_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Sla zip tijdelijk op
+        import tempfile
+        import shutil
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            zip_path = temp_path / zip_file.filename
+            zip_file.save(str(zip_path))
+            
+            # Extraheer zip
+            extract_path = temp_path / 'extracted'
+            extract_path.mkdir(exist_ok=True)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
+            
+            # Dictionary om parent folders bij te houden tijdens import
+            folder_map = {}  # {relative_path: FileItem}
+            
+            def process_path(file_path, parent_db_id=None):
+                """Recursieve functie om folders en files te verwerken"""
+                relative_path = file_path.relative_to(extract_path)
+                
+                if file_path.is_dir():
+                    # Maak folder aan in database
+                    folder_name = file_path.name
+                    
+                    # Check of folder al bestaat
+                    existing_folder = db.session.query(FileItem).filter(
+                        FileItem.name == folder_name,
+                        FileItem.item_type == 'folder',
+                        FileItem.parent_id == parent_db_id
+                    ).first()
+                    
+                    if existing_folder:
+                        folder_item = existing_folder
+                    else:
+                        folder_item = FileItem(
+                            name=folder_name,
+                            item_type='folder',
+                            parent_id=parent_db_id,
+                            created_by=g.user.member_id if g.user else None
+                        )
+                        db.session.add(folder_item)
+                        db.session.flush()  # Flush om ID te krijgen
+                    
+                    folder_map[str(relative_path)] = folder_item
+                    
+                    # Verwerk kinderen
+                    for child in sorted(file_path.iterdir()):
+                        process_path(child, folder_item.item_id)
+                        
+                elif file_path.is_file():
+                    # Maak file aan in database en kopieer naar upload folder
+                    file_name = file_path.name
+                    file_size = file_path.stat().st_size
+                    
+                    # Bepaal waar bestand opgeslagen moet worden
+                    relative_path_str = str(relative_path.parent)
+                    parent_folder = folder_map.get(relative_path_str)
+                    parent_db_id = parent_folder.item_id if parent_folder else parent_db_id
+                    
+                    # Kopieer bestand naar upload folder
+                    # Maak folder structuur in upload folder
+                    if parent_folder:
+                        # Recreëer folder structuur in upload folder
+                        folder_parts = []
+                        current_folder = parent_folder
+                        while current_folder:
+                            folder_parts.insert(0, current_folder.name)
+                            if current_folder.parent_id:
+                                current_folder = db.session.query(FileItem).filter(
+                                    FileItem.item_id == current_folder.parent_id
+                                ).first()
+                            else:
+                                current_folder = None
+                        
+                        file_upload_dir = upload_folder / Path(*folder_parts)
+                    else:
+                        file_upload_dir = upload_folder
+                    
+                    file_upload_dir.mkdir(parents=True, exist_ok=True)
+                    file_dest = file_upload_dir / file_name
+                    
+                    # Kopieer bestand
+                    shutil.copy2(file_path, file_dest)
+                    
+                    # Sla file path relatief op ten opzichte van upload folder
+                    relative_file_path = file_dest.relative_to(upload_folder)
+                    
+                    # Check of file al bestaat
+                    existing_file = db.session.query(FileItem).filter(
+                        FileItem.name == file_name,
+                        FileItem.item_type == 'file',
+                        FileItem.parent_id == parent_db_id
+                    ).first()
+                    
+                    if not existing_file:
+                        file_item = FileItem(
+                            name=file_name,
+                            item_type='file',
+                            parent_id=parent_db_id,
+                            file_path=str(relative_file_path),
+                            file_size=file_size,
+                            created_by=g.user.member_id if g.user else None
+                        )
+                        db.session.add(file_item)
+            
+            # Verwerk alle items in de geëxtraheerde zip
+            for item in sorted(extract_path.iterdir()):
+                process_path(item, None)
+            
+            db.session.commit()
+            
+            flash(f"Zip bestand succesvol geïmporteerd! Folders en bestanden zijn toegevoegd.", "success")
+            
+    except zipfile.BadZipFile:
+        flash("Ongeldig zip bestand.", "error")
+    except Exception as exc:
+        print(f"ERROR: Fout bij importeren van zip bestand: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash(f"Fout bij importeren van zip bestand: {str(exc)}", "error")
+    
+    return redirect(url_for("main.bestanden"))
+
+@main.route("/bestanden/download/<int:file_id>")
+@login_required
+def download_file(file_id):
+    """Download een bestand"""
+    try:
+        # Haal file item op
+        file_item = db.session.query(FileItem).filter(
+            FileItem.item_id == file_id,
+            FileItem.item_type == 'file'
+        ).first()
+        
+        if not file_item:
+            flash("Bestand niet gevonden.", "error")
+            abort(404)
+        
+        # Controleer of bestand een file_path heeft
+        if not file_item.file_path:
+            flash("Bestand pad niet gevonden.", "error")
+            abort(404)
+        
+        # Haal upload folder op uit config
+        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+        file_path = upload_folder / file_item.file_path
+        
+        # Controleer of bestand bestaat
+        if not file_path.exists() or not file_path.is_file():
+            flash("Bestand niet gevonden op de server.", "error")
+            abort(404)
+        
+        # Serveer bestand voor download
+        return send_file(
+            str(file_path),
+            as_attachment=True,
+            download_name=file_item.name,
+            mimetype=None  # Laat Flask MIME-type automatisch detecteren
+        )
+        
+    except Exception as exc:
+        print(f"ERROR: Fout bij downloaden van bestand: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij downloaden van bestand.", "error")
+        abort(500)
+
+@main.route("/bestanden/edit/<int:file_id>", methods=["POST"])
+@login_required
+def edit_file(file_id):
+    """Bewerk een bestand (naam wijzigen)"""
+    try:
+        file_item = db.session.query(FileItem).filter(
+            FileItem.item_id == file_id,
+            FileItem.item_type == 'file'
+        ).first()
+        
+        if not file_item:
+            flash("Bestand niet gevonden.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        new_name = request.form.get("file_name", "").strip()
+        if not new_name:
+            flash("Bestandsnaam is verplicht.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        # Check of bestand met nieuwe naam al bestaat in dezelfde folder
+        existing = db.session.query(FileItem).filter(
+            FileItem.name == new_name,
+            FileItem.item_type == 'file',
+            FileItem.parent_id == file_item.parent_id,
+            FileItem.item_id != file_id
+        ).first()
+        
+        if existing:
+            flash(f"Een bestand met de naam '{new_name}' bestaat al in deze map.", "error")
+            if file_item.parent_id:
+                return redirect(url_for("main.bestanden_folder", folder_id=file_item.parent_id))
+            return redirect(url_for("main.bestanden"))
+        
+        # Update bestandsnaam
+        old_name = file_item.name
+        file_item.name = new_name
+        
+        # Als bestand fysiek bestaat, hernoem het ook
+        if file_item.file_path:
+            upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+            old_file_path = upload_folder / file_item.file_path
+            
+            if old_file_path.exists() and old_file_path.is_file():
+                # Bepaal nieuwe pad
+                new_file_path = old_file_path.parent / new_name
+                try:
+                    old_file_path.rename(new_file_path)
+                    # Update file_path in database
+                    relative_new_path = new_file_path.relative_to(upload_folder)
+                    file_item.file_path = str(relative_new_path)
+                except Exception as rename_exc:
+                    print(f"WARNING: Kon bestand niet hernoemen: {rename_exc}")
+                    # Ga door met database update ook al is fysieke rename mislukt
+        
+        db.session.commit()
+        flash(f"Bestand '{old_name}' is hernoemd naar '{new_name}'.", "success")
+        
+    except Exception as exc:
+        print(f"ERROR: Fout bij bewerken van bestand: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij bewerken van bestand.", "error")
+    
+    # Redirect terug naar folder of root
+    file_item = db.session.query(FileItem).filter(FileItem.item_id == file_id).first()
+    if file_item and file_item.parent_id:
+        return redirect(url_for("main.bestanden_folder", folder_id=file_item.parent_id))
+    return redirect(url_for("main.bestanden"))
+
+@main.route("/bestanden/delete/<int:file_id>")
+@login_required
+def delete_file(file_id):
+    """Verwijder een bestand"""
+    try:
+        file_item = db.session.query(FileItem).filter(
+            FileItem.item_id == file_id,
+            FileItem.item_type == 'file'
+        ).first()
+        
+        if not file_item:
+            flash("Bestand niet gevonden.", "error")
+            return redirect(url_for("main.bestanden"))
+        
+        file_name = file_item.name
+        parent_id = file_item.parent_id
+        
+        # Verwijder fysiek bestand als het bestaat
+        if file_item.file_path:
+            upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+            file_path = upload_folder / file_item.file_path
+            
+            if file_path.exists() and file_path.is_file():
+                try:
+                    file_path.unlink()
+                except Exception as delete_exc:
+                    print(f"WARNING: Kon fysiek bestand niet verwijderen: {delete_exc}")
+                    # Ga door met database verwijdering ook al is fysieke delete mislukt
+        
+        # Verwijder uit database
+        db.session.delete(file_item)
+        db.session.commit()
+        
+        flash(f"Bestand '{file_name}' is succesvol verwijderd.", "success")
+        
+    except Exception as exc:
+        print(f"ERROR: Fout bij verwijderen van bestand: {exc}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash("Fout bij verwijderen van bestand.", "error")
+    
+    # Redirect terug naar folder of root
+    if parent_id:
+        return redirect(url_for("main.bestanden_folder", folder_id=parent_id))
+    return redirect(url_for("main.bestanden"))

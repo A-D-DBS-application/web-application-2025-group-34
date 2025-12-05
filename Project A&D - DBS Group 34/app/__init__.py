@@ -68,6 +68,12 @@ def create_app():
             # Fallback als database niet beschikbaar is
             member_count = 0
         return dict(member_count=member_count)
+    
+    @app.context_processor
+    def inject_file_icon():
+        """Maakt file icon functie beschikbaar in templates."""
+        from .routes import _get_file_icon
+        return dict(get_file_icon=_get_file_icon)
 
     @app.cli.command("create-member")
     @click.option("--name", prompt=True, help="Full name for the member.")

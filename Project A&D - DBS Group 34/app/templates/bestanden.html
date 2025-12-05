@@ -1,0 +1,335 @@
+{% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/bestanden.css') }}">
+{% endblock %}
+
+{% block sub_content %}
+<div class="bestanden-container">
+    <div class="card">
+        <div class="bestanden-header">
+            <h2 class="bestanden-title">Bestanden</h2>
+            <div class="bestanden-actions">
+                <button type="button" class="add-transaction-btn" onclick="openNewFolderModal()">
+                    + Nieuwe map
+                </button>
+                <button type="button" class="add-transaction-btn" onclick="openUploadFileModal()">
+                    Bestand toevoegen
+                </button>
+            </div>
+        </div>
+
+        {% if breadcrumbs and breadcrumbs|length > 1 %}
+        <div class="breadcrumbs">
+            {% for crumb in breadcrumbs %}
+                {% if crumb.url %}
+                    <a href="{{ crumb.url }}" class="breadcrumb-link">{{ crumb.name }}</a>
+                {% else %}
+                    <span class="breadcrumb-current">{{ crumb.name }}</span>
+                {% endif %}
+                {% if not loop.last %}
+                    <span class="breadcrumb-separator">›</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="bestanden-content">
+            {% if folders or files %}
+                {% for folder_data in folders %}
+                <div class="file-item folder-item" onclick="openFolder({{ folder_data.item.item_id }})">
+                    <div class="file-icon folder-icon">📁</div>
+                    <div class="file-info">
+                        <div class="file-name">{{ folder_data.item.name }}</div>
+                        <div class="file-meta">
+                            {% if folder_data.folder_count > 0 and folder_data.file_count > 0 %}
+                                {{ folder_data.folder_count }} mappen, {{ folder_data.file_count }} bestanden
+                            {% elif folder_data.folder_count > 0 %}
+                                {{ folder_data.folder_count }} mappen
+                            {% elif folder_data.file_count > 0 %}
+                                {{ folder_data.file_count }} bestanden
+                            {% else %}
+                                Lege map
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                {% for file_data in files %}
+                    {% if file_data is mapping %}
+                        {% set file_item = file_data.item %}
+                    {% else %}
+                        {% set file_item = file_data %}
+                    {% endif %}
+                <div class="file-item file-item-file">
+                    <div class="file-icon">
+                        {% set file_type = get_file_icon(file_item.name) %}
+                        {% if file_type == 'word' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#2B579A"/>
+                                <text x="16" y="22" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">W</text>
+                            </svg>
+                        {% elif file_type == 'excel' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#217346"/>
+                                <text x="16" y="22" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">X</text>
+                            </svg>
+                        {% elif file_type == 'powerpoint' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#D04423"/>
+                                <text x="16" y="22" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle">P</text>
+                            </svg>
+                        {% elif file_type == 'pdf' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#E53E3E"/>
+                                <text x="16" y="22" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">PDF</text>
+                            </svg>
+                        {% elif file_type == 'image' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#4A90E2"/>
+                                <path d="M10 12C11.1046 12 12 11.1046 12 10C12 8.89543 11.1046 8 10 8C8.89543 8 8 8.89543 8 10C8 11.1046 8.89543 12 10 12Z" fill="white"/>
+                                <path d="M8 20L12 16L16 20L24 12V22H8V20Z" fill="white"/>
+                            </svg>
+                        {% elif file_type == 'zip' %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#FFA500"/>
+                                <text x="16" y="22" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">ZIP</text>
+                            </svg>
+                        {% else %}
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="32" height="32" rx="2" fill="#6B7280"/>
+                                <path d="M10 10H22V22H10V10Z" fill="white" fill-opacity="0.3"/>
+                                <path d="M12 12H20V14H12V12Z" fill="white"/>
+                                <path d="M12 16H20V18H12V16Z" fill="white"/>
+                            </svg>
+                        {% endif %}
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">{{ file_item.name }}</div>
+                        <div class="file-meta">
+                            {% if file_item.file_size %}
+                                {{ "%.2f"|format(file_item.file_size / 1024) }} KB
+                            {% else %}
+                                Bestand
+                            {% endif %}
+                            {% if file_item.created_at %}
+                                • Geüpload op {{ file_item.created_at.strftime('%d-%m-%Y') if file_item.created_at else '' }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn action-download" onclick="event.stopPropagation(); downloadFile({{ file_item.item_id }})" title="Downloaden">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 10L4 6H6V2H10V6H12L8 10Z" fill="currentColor"/>
+                                <path d="M2 12V13H14V12H2Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn action-edit" onclick="event.stopPropagation(); openEditFileModal({{ file_item.item_id }}, '{{ file_item.name }}', {{ file_item.file_size or 0 }})" title="Bewerken">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11.5 1.5L14.5 4.5L5.5 13.5H2.5V10.5L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn action-delete" onclick="event.stopPropagation(); openDeleteFileModal({{ file_item.item_id }}, '{{ file_item.name }}')" title="Verwijderen">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2 4H14M6 4V2C6 1.44772 6.44772 1 7 1H9C9.55228 1 10 1.44772 10 2V4M12.5 4V13C12.5 13.5523 12.0523 14 11.5 14H4.5C3.94772 14 3.5 13.5523 3.5 13V4H12.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>Deze map is leeg. Voeg een nieuwe map of bestand toe.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal voor nieuwe map -->
+<div id="newFolderModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Nieuwe map aanmaken</h3>
+            <span class="close" onclick="closeNewFolderModal()">&times;</span>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_folder') }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="folder_parent_id">Locatie</label>
+                    <select id="folder_parent_id" name="parent_id" class="form-control">
+                        <option value="">Root (bovenaan)</option>
+                        {% for folder in all_folders %}
+                        <option value="{{ folder.id }}" {% if current_folder and folder.id == current_folder.item_id %}selected{% endif %}>{{ folder.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="folder_name">Mapnaam *</label>
+                    <input type="text" id="folder_name" name="folder_name" required placeholder="Bijv. Templates">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeNewFolderModal()">Annuleren</button>
+                <button type="submit" class="btn btn-primary">Aanmaken</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal voor bestand uploaden -->
+<div id="uploadFileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bestand toevoegen</h3>
+            <span class="close" onclick="closeUploadFileModal()">&times;</span>
+        </div>
+        <form method="POST" action="{{ url_for('main.upload_file') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="file_parent_id">Locatie</label>
+                    <select id="file_parent_id" name="parent_id" class="form-control">
+                        <option value="">Root (bovenaan)</option>
+                        {% for folder in all_folders %}
+                        <option value="{{ folder.id }}" {% if current_folder and folder.id == current_folder.item_id %}selected{% endif %}>{{ folder.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="file">Selecteer bestand *</label>
+                    <input type="file" id="file" name="file" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeUploadFileModal()">Annuleren</button>
+                <button type="submit" class="btn btn-primary">Uploaden</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal voor bestand bewerken -->
+<div id="editFileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bestand bewerken</h3>
+            <span class="close" onclick="closeEditFileModal()">&times;</span>
+        </div>
+        <form method="POST" action="" id="editFileForm">
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: #666;">Wijzig de naam of grootte van dit bestand</p>
+                <input type="hidden" id="edit_file_id" name="file_id">
+                <div class="form-group">
+                    <label for="edit_file_name">Bestandsnaam *</label>
+                    <input type="text" id="edit_file_name" name="file_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_file_size">Bestandsgrootte</label>
+                    <input type="text" id="edit_file_size" name="file_size" readonly style="background: #f5f5f5; cursor: not-allowed;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditFileModal()">Annuleren</button>
+                <button type="submit" class="btn btn-primary">Opslaan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal voor bestand verwijderen -->
+<div id="deleteFileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Bestand verwijderen</h3>
+            <span class="close" onclick="closeDeleteFileModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px; color: #333;">Weet je zeker dat je dit item wil verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.</p>
+            <input type="hidden" id="delete_file_id" name="file_id">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeDeleteFileModal()">Annuleren</button>
+            <button type="button" class="btn btn-danger" onclick="confirmDeleteFile()">Bevestigen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openNewFolderModal() {
+    document.getElementById('newFolderModal').style.display = 'block';
+}
+
+function closeNewFolderModal() {
+    document.getElementById('newFolderModal').style.display = 'none';
+    document.getElementById('folder_name').value = '';
+}
+
+function openUploadFileModal() {
+    document.getElementById('uploadFileModal').style.display = 'block';
+}
+
+function closeUploadFileModal() {
+    document.getElementById('uploadFileModal').style.display = 'none';
+    document.getElementById('file').value = '';
+}
+
+function openFolder(folderId) {
+    // Navigeer naar folder inhoud
+    window.location.href = "{{ url_for('main.bestanden_folder', folder_id=0) }}".replace('0', folderId);
+}
+
+function downloadFile(fileId) {
+    // Open download link
+    window.location.href = "{{ url_for('main.download_file', file_id=0) }}".replace('0', fileId);
+}
+
+function openEditFileModal(fileId, fileName, fileSize) {
+    document.getElementById('edit_file_id').value = fileId;
+    document.getElementById('edit_file_name').value = fileName;
+    document.getElementById('edit_file_size').value = (fileSize / 1024).toFixed(2) + ' KB';
+    document.getElementById('editFileForm').action = "{{ url_for('main.edit_file', file_id=0) }}".replace('0', fileId);
+    document.getElementById('editFileModal').style.display = 'block';
+}
+
+function closeEditFileModal() {
+    document.getElementById('editFileModal').style.display = 'none';
+    document.getElementById('edit_file_name').value = '';
+}
+
+function openDeleteFileModal(fileId, fileName) {
+    document.getElementById('delete_file_id').value = fileId;
+    document.getElementById('deleteFileModal').style.display = 'block';
+}
+
+function closeDeleteFileModal() {
+    document.getElementById('deleteFileModal').style.display = 'none';
+}
+
+function confirmDeleteFile() {
+    const fileId = document.getElementById('delete_file_id').value;
+    window.location.href = "{{ url_for('main.delete_file', file_id=0) }}".replace('0', fileId);
+}
+
+// Sluit modal als je erbuiten klikt
+window.onclick = function(event) {
+    const newFolderModal = document.getElementById('newFolderModal');
+    const uploadFileModal = document.getElementById('uploadFileModal');
+    const editFileModal = document.getElementById('editFileModal');
+    const deleteFileModal = document.getElementById('deleteFileModal');
+    
+    if (event.target == newFolderModal) {
+        closeNewFolderModal();
+    }
+    if (event.target == uploadFileModal) {
+        closeUploadFileModal();
+    }
+    if (event.target == editFileModal) {
+        closeEditFileModal();
+    }
+    if (event.target == deleteFileModal) {
+        closeDeleteFileModal();
+    }
+}
+</script>
+{% endblock %}
+
