@@ -28,6 +28,12 @@
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .add-vote-btn {
   background: #1976d2;
   color: white;
@@ -44,6 +50,39 @@
 
 .add-vote-btn:hover {
   background: #1565c0;
+}
+
+.edit-vote-btn,
+.delete-vote-btn,
+.delete-result-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.edit-vote-btn {
+  background: #ff9800;
+}
+
+.edit-vote-btn:hover {
+  background: #f57c00;
+}
+
+.delete-vote-btn,
+.delete-result-btn {
+  background: #f44336;
+}
+
+.delete-vote-btn:hover,
+.delete-result-btn:hover {
+  background: #d32f2f;
 }
 
 .voting-cards,
@@ -220,29 +259,35 @@
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  padding: 20px;
+  overflow: hidden;
 }
 
 .result-header {
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #e0e0e0;
+  background: #246F59;
+  color: white;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0;
 }
 
 .result-header h4 {
   margin: 0 0 5px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: white;
 }
 
 .result-stock {
   margin: 0;
-  font-size: 14px;
-  color: #666;
+  font-size: 13px;
+  opacity: 0.9;
+  color: white;
 }
 
 .result-body {
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -429,5 +474,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+
 
 

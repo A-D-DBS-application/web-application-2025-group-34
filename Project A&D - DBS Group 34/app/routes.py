@@ -2510,11 +2510,15 @@ def add_voting_proposal():
 @main.route("/voting/get-all")
 @login_required
 def get_all_voting_proposals():
-    """Haal alle voting proposals op voor dropdown selectie"""
+    """Haal voting proposals op voor dropdown selectie"""
     try:
+        include_closed = request.args.get('include_closed', 'false').lower() == 'true'
+        only_closed = request.args.get('only_closed', 'false').lower() == 'true'  # Alleen resultaten
+        tz = pytz.timezone("Europe/Brussels")
+        now = datetime.now(tz)
+        
         proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
         proposals_list = []
-        tz = pytz.timezone("Europe/Brussels")
         
         for prop in proposals:
             deadline = prop.deadline
@@ -2522,6 +2526,18 @@ def get_all_voting_proposals():
                 deadline = tz.localize(deadline)
             else:
                 deadline = deadline.astimezone(tz)
+            
+            is_pending = deadline > now
+            
+            # Alleen resultaten (deadline verstreken)
+            if only_closed:
+                if is_pending:
+                    continue  # Skip openstaande votingen
+            # Alleen openstaande (deadline nog niet verstreken)
+            elif not include_closed:
+                if not is_pending:
+                    continue  # Skip resultaten
+            # include_closed=true: toon alles (zowel openstaande als resultaten)
             
             proposals_list.append({
                 "proposal_id": prop.proposal_id,

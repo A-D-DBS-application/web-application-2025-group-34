@@ -14,6 +14,50 @@
       {% if g.user %} 
       <div><strong>Naam:</strong> {{ g.user.member_name }}</div>
       <div><strong>ID:</strong> {{ g.user.member_id }}</div>
+      <div><strong>Functie:</strong> 
+        {% if g.user.get_role() == 'board' %}
+          {{ g.user.get_board_function_name() or 'Bestuurslid' }}
+        {% elif g.user.get_role() == 'analist' %}
+          {% set sector_num = g.user.get_analist_sector() %}
+          {% if sector_num == 1 %}
+            Analist (Cons. & Health)
+          {% elif sector_num == 2 %}
+            Analist (Ind., E. & R.M.)
+          {% elif sector_num == 3 %}
+            Analist (RE, F. & Hold.)
+          {% elif sector_num == 4 %}
+            Analist (Tech)
+          {% else %}
+            Analist (Sector {{ sector_num }})
+          {% endif %}
+        {% elif g.user.get_role() == 'lid' %}
+          Lid
+        {% elif g.user.get_role() == 'kapitaalverschaffers' %}
+          Kapitaalverschaffer
+        {% elif g.user.get_role() == 'oud_bestuur_analisten' %}
+          {% if g.user.get_board_function_name() %}
+            Oud-{{ g.user.get_board_function_name() }}
+          {% elif g.user.get_analist_sector() %}
+            {% set oud_sector_num = g.user.get_analist_sector() %}
+            {% if oud_sector_num == 1 %}
+              Oud-Analist (Cons. & Health)
+            {% elif oud_sector_num == 2 %}
+              Oud-Analist (Ind., E. & R.M.)
+            {% elif oud_sector_num == 3 %}
+              Oud-Analist (RE, F. & Hold.)
+            {% elif oud_sector_num == 4 %}
+              Oud-Analist (Tech)
+            {% else %}
+              Oud-Analist (Sector {{ oud_sector_num }})
+            {% endif %}
+          {% else %}
+            Oud-Bestuurslid/Analist
+          {% endif %}
+        {% else %}
+          {{ g.user.voting_right or 'Onbekend' }}
+        {% endif %}
+      </div>
+      <div><strong>Startjaar:</strong> {{ g.user.join_date or g.user.get_year() or '2025' }}</div>
       <div><strong>Email:</strong> {{ g.user.email }}</div>
       <div><a href="{{ url_for('main.logout') }}" style="color:var(--green); font-weight:700;">Uitloggen</a></div> 
       {% endif %}

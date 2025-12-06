@@ -9,9 +9,23 @@
   <div class="voting-section">
     <div class="section-head">
       <h3>Openstaande Stemmingen</h3>
-      <button class="add-vote-btn" type="button" onclick="openAddVotingModal()">
-        + Vote toevoegen
-      </button>
+      <div class="header-actions">
+        <button class="add-vote-btn" type="button" onclick="openAddVotingModal()">
+          + Vote toevoegen
+        </button>
+        <button class="edit-vote-btn" type="button" onclick="openEditVotingModal()" title="Vote wijzigen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button class="delete-vote-btn" type="button" onclick="openDeleteOpenVotingModal()" title="Vote verwijderen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="voting-cards">
@@ -21,20 +35,6 @@
           <div>
             <h4>{{ vote.title }}</h4>
             <p class="deadline">Deadline: {{ vote.deadline }}</p>
-          </div>
-          <div class="card-actions">
-            <button class="edit-btn" onclick="openEditVotingModal({{ vote.proposal_id }})" title="Wijzigen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-            </button>
-            <button class="delete-btn" onclick="openDeleteVotingModal({{ vote.proposal_id }})" title="Verwijderen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
           </div>
         </div>
         <div class="voting-card-body">
@@ -82,14 +82,24 @@
   <div class="results-section">
     <div class="section-head">
       <h3>Resultaten</h3>
+      <div class="header-actions">
+        <button class="delete-result-btn" type="button" onclick="openDeleteResultModal()" title="Resultaat verwijderen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="results-cards">
       {% for result in results %}
       <div class="result-card">
         <div class="result-header">
-          <h4>{{ result.deadline }}</h4>
-          <p class="result-stock">{{ result.stock_name }}</p>
+          <div>
+            <h4>{{ result.deadline }}</h4>
+            <p class="result-stock">{{ result.stock_name }}</p>
+          </div>
         </div>
         <div class="result-body">
           <div class="pie-chart-container">
@@ -274,12 +284,13 @@ function closeAddVotingModal() {
     document.getElementById('addVotingModal').style.display = 'none';
 }
 
-function openEditVotingModal(proposalId) {
+function openEditVotingModal() {
+    // Toon dropdown modal om vote te selecteren
     const modal = document.getElementById('editVotingModal');
     const select = document.getElementById('editVotingSelect');
     modal.style.display = 'flex';
     
-    fetch('/voting/get-all')
+    fetch('/voting/get-all?include_closed=false')
         .then(response => response.json())
         .then(data => {
             select.innerHTML = '<option value="">Selecteer een vote...</option>';
@@ -288,11 +299,10 @@ function openEditVotingModal(proposalId) {
                     const option = document.createElement('option');
                     option.value = proposal.proposal_id;
                     option.textContent = proposal.display;
-                    if (proposal.proposal_id === proposalId) {
-                        option.selected = true;
-                    }
                     select.appendChild(option);
                 });
+            } else {
+                select.innerHTML = '<option value="">Geen openstaande votes beschikbaar</option>';
             }
         })
         .catch(error => {
@@ -342,12 +352,13 @@ function fetchVotingForEditing(event) {
         });
 }
 
-function openDeleteVotingModal(proposalId) {
+function openDeleteOpenVotingModal() {
+    // Toon dropdown modal om openstaande vote te selecteren (alleen deadline nog niet verstreken)
     const modal = document.getElementById('deleteVotingModal');
     const select = document.getElementById('deleteVotingSelect');
     modal.style.display = 'flex';
     
-    fetch('/voting/get-all')
+    fetch('/voting/get-all?include_closed=false')
         .then(response => response.json())
         .then(data => {
             select.innerHTML = '<option value="">Selecteer een vote...</option>';
@@ -356,11 +367,37 @@ function openDeleteVotingModal(proposalId) {
                     const option = document.createElement('option');
                     option.value = proposal.proposal_id;
                     option.textContent = proposal.display;
-                    if (proposal.proposal_id === proposalId) {
-                        option.selected = true;
-                    }
                     select.appendChild(option);
                 });
+            } else {
+                select.innerHTML = '<option value="">Geen openstaande votes beschikbaar</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading proposals:', error);
+            select.innerHTML = '<option value="">Fout bij laden</option>';
+        });
+}
+
+function openDeleteResultModal() {
+    // Toon dropdown modal om resultaat te selecteren (alleen deadline verstreken)
+    const modal = document.getElementById('deleteVotingModal');
+    const select = document.getElementById('deleteVotingSelect');
+    modal.style.display = 'flex';
+    
+    fetch('/voting/get-all?only_closed=true')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een resultaat...</option>';
+            if (data.proposals && data.proposals.length > 0) {
+                data.proposals.forEach(proposal => {
+                    const option = document.createElement('option');
+                    option.value = proposal.proposal_id;
+                    option.textContent = proposal.display;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Geen resultaten beschikbaar</option>';
             }
         })
         .catch(error => {
