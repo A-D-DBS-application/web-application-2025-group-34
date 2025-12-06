@@ -28,13 +28,33 @@
       </div>
     </div>
 
-    {% for post in announcements %}
-    <article class="announcement">
-      <h4>{{ post.title }}</h4>
-      <p>{{ post.body }}</p>
-      <div class="meta">{{ post.date }} • {{ post.author }}</div>
-    </article>
-    {% endfor %}
+    <div id="announcements-container">
+      {% for post in announcements[:5] %}
+      <article class="announcement" data-announcement-id="{{ loop.index0 }}">
+        <h4>{{ post.title }}</h4>
+        <p>{{ post.body }}</p>
+        <div class="meta">{{ post.date }} • {{ post.author }}</div>
+      </article>
+      {% endfor %}
+    </div>
+    
+    {% if announcements|length > 5 %}
+    <div id="load-more-container">
+      <button id="load-more-announcements" class="btn" onclick="loadMoreAnnouncements()">
+        Meer aankondigingen laden
+      </button>
+    </div>
+    {% endif %}
+    
+    <div id="hidden-announcements" style="display: none;">
+      {% for post in announcements[5:] %}
+      <article class="announcement" data-announcement-id="{{ loop.index0 + 5 }}">
+        <h4>{{ post.title }}</h4>
+        <p>{{ post.body }}</p>
+        <div class="meta">{{ post.date }} • {{ post.author }}</div>
+      </article>
+      {% endfor %}
+    </div>
   </section>
 
   <aside class="rightcol card">
@@ -105,13 +125,33 @@
     <section class="agenda-section">
       <div class="agenda-section-title">Voorbije Events</div>
       {% if past_events %}
-        {% for ev in past_events %}
-        <div class="agenda-event-card agenda-event-past">
-          <strong>{{ ev.title }}</strong>
-          <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
-          <div class="muted">{{ ev.location }}</div>
+        <div id="past-events-container">
+          {% for ev in past_events[:5] %}
+          <div class="agenda-event-card agenda-event-past" data-event-index="{{ loop.index0 }}">
+            <strong>{{ ev.title }}</strong>
+            <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+            <div class="muted">{{ ev.location }}</div>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
+        
+        {% if past_events|length > 5 %}
+        <div id="load-more-past-events-container">
+          <button id="load-more-past-events" class="btn" onclick="loadMorePastEvents()">
+            Meer voorbije events laden
+          </button>
+        </div>
+        {% endif %}
+        
+        <div id="hidden-past-events" style="display: none;">
+          {% for ev in past_events[5:] %}
+          <div class="agenda-event-card agenda-event-past" data-event-index="{{ loop.index0 + 5 }}">
+            <strong>{{ ev.title }}</strong>
+            <div class="muted">{{ ev.date }} • {{ ev.time }}</div>
+            <div class="muted">{{ ev.location }}</div>
+          </div>
+          {% endfor %}
+        </div>
       {% else %}
         <div class="agenda-empty muted">Geen voorbije events</div>
       {% endif %}
@@ -762,6 +802,86 @@ function fetchAnnouncementForDeletion(event) {
             console.error('Error fetching announcement details:', error);
             alert('Fout bij ophalen van aankondiging details.');
         });
+}
+
+// Load More Announcements Function
+function loadMoreAnnouncements() {
+    const hiddenContainer = document.getElementById('hidden-announcements');
+    const visibleContainer = document.getElementById('announcements-container');
+    const loadMoreBtn = document.getElementById('load-more-announcements');
+    
+    if (!hiddenContainer || !visibleContainer) {
+        return;
+    }
+    
+    // Get all hidden announcements
+    const hiddenAnnouncements = Array.from(hiddenContainer.querySelectorAll('.announcement'));
+    
+    if (hiddenAnnouncements.length === 0) {
+        // No more announcements to load
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'none';
+        }
+        return;
+    }
+    
+    // Show all hidden announcements by appending them to visible container
+    hiddenAnnouncements.forEach(ann => {
+        const clonedAnn = ann.cloneNode(true);
+        visibleContainer.appendChild(clonedAnn);
+    });
+    
+    // Hide the load more button and container
+    if (loadMoreBtn) {
+        loadMoreBtn.style.display = 'none';
+    }
+    const loadMoreContainer = document.getElementById('load-more-container');
+    if (loadMoreContainer) {
+        loadMoreContainer.style.display = 'none';
+    }
+    
+    // Clear hidden container
+    hiddenContainer.innerHTML = '';
+}
+
+// Load More Past Events Function
+function loadMorePastEvents() {
+    const hiddenContainer = document.getElementById('hidden-past-events');
+    const visibleContainer = document.getElementById('past-events-container');
+    const loadMoreBtn = document.getElementById('load-more-past-events');
+    
+    if (!hiddenContainer || !visibleContainer) {
+        return;
+    }
+    
+    // Get all hidden past events
+    const hiddenEvents = Array.from(hiddenContainer.querySelectorAll('.agenda-event-card'));
+    
+    if (hiddenEvents.length === 0) {
+        // No more events to load
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'none';
+        }
+        return;
+    }
+    
+    // Show all hidden events by appending them to visible container
+    hiddenEvents.forEach(event => {
+        const clonedEvent = event.cloneNode(true);
+        visibleContainer.appendChild(clonedEvent);
+    });
+    
+    // Hide the load more button and container
+    if (loadMoreBtn) {
+        loadMoreBtn.style.display = 'none';
+    }
+    const loadMoreContainer = document.getElementById('load-more-past-events-container');
+    if (loadMoreContainer) {
+        loadMoreContainer.style.display = 'none';
+    }
+    
+    // Clear hidden container
+    hiddenContainer.innerHTML = '';
 }
 </script>
 {% endblock %}

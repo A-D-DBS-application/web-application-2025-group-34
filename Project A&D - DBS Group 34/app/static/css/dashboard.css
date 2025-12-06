@@ -338,3 +338,38 @@
     justify-content: flex-end;
     margin-top: 20px;
 }
+
+/* Load More Buttons - Styling voor beide knoppen */
+#load-more-announcements,
+#load-more-past-events {
+    background: #246F59;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(37,91,72,0.2);
+}
+
+#load-more-announcements:hover,
+#load-more-past-events:hover {
+    background: #1d5a48;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(37,91,72,0.3);
+}
+
+#load-more-announcements:active,
+#load-more-past-events:active {
+    transform: translateY(0);
+}
+
+/* Load More Containers */
+#load-more-container,
+#load-more-past-events-container {
+    margin-top: 16px;
+    margin-bottom: 8px;
+    text-align: center;
+}
