@@ -1,0 +1,79 @@
+/* ============================================================================ */
+/* GESTANDAARDISEERDE ADD BUTTONS - TOEVOEG KNOPPEN */
+/* Deze CSS wordt gebruikt voor alle toevoeg knoppen in de applicatie */
+/* Wijzigingen aan deze file worden automatisch toegepast op alle toevoeg knoppen */
+/* ============================================================================ */
+
+/* Basis styling voor alle add buttons met tekst */
+.action-btn-add,
+.add-transaction-btn,
+.add-vote-btn {
+    background: var(--cta, #1976d2) !important;
+    color: white !important;
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    font-family: var(--font, "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial) !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+    text-decoration: none;
+}
+
+.action-btn-add:hover,
+.add-transaction-btn:hover,
+.add-vote-btn:hover {
+    background: #1565c0 !important;
+}
+
+.action-btn-add:active,
+.add-transaction-btn:active,
+.add-vote-btn:active {
+    transform: scale(0.98);
+}
+
+/* Icon-only add button (zoals agenda-add-btn) */
+.agenda-add-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--cta, #1976d2) !important;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+    font-family: var(--font, "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial) !important;
+}
+
+.agenda-add-btn:hover {
+    background: #1565c0 !important;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.agenda-add-btn:active {
+    transform: scale(0.95);
+}
+
+/* SVG iconen binnen add buttons */
+.action-btn-add svg,
+.add-transaction-btn svg,
+.add-vote-btn svg,
+.agenda-add-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: white;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+

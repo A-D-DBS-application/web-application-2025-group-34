@@ -20,7 +20,7 @@
       <div class="muted">Position Value</div>
       <div class="big">€ {{ position_value }}</div>
     </div>
-    {{ action_buttons("Positie", "addPositionForm", "openEditPositionModal", "openDeletePositionModal", "+ Positie Toevoegen") }}
+    {{ action_buttons("Positie", "addPositionForm", "openEditPositionModal", "openDeletePositionModal", "+ Positie") }}
   </div>
 
   <!-- CASH BAR (direct onder portfolio header) -->
@@ -28,7 +28,7 @@
     <div class="cash-label">CASH</div>
     <div class="cash-amount-wrapper">
       <span class="cash-amount" id="cashAmountDisplay">€ {{ cash_amount }}</span>
-      <button class="cash-edit-btn" onclick="openCashEditModal()" title="Cash bedrag aanpassen">
+      <button class="action-btn-edit round small" onclick="openCashEditModal()" title="Cash bedrag aanpassen">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>

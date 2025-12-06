@@ -1,4 +1,4 @@
-.dashboard-grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+.dashboard-grid{display:grid;grid-template-columns:1fr 420px;gap:18px}
 .leftcol .announcement{border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 2px 4px rgba(37,91,72,0.05)}
 .leftcol .announcement:nth-child(odd){background:white}
 .leftcol .announcement:nth-child(even){background:#f7faf8}
@@ -88,7 +88,7 @@
 .agenda-actions {
     display: flex;
     gap: 10px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
 }
 

@@ -1,0 +1,213 @@
+/* ============================================================================ */
+/* GESTANDAARDISEERDE ACTION BUTTONS - EDIT & DELETE */
+/* Deze CSS wordt gebruikt voor alle edit en delete knoppen in de applicatie */
+/* Wijzigingen aan deze file worden automatisch toegepast op alle knoppen */
+/* ============================================================================ */
+
+/* Basis styling voor alle action buttons (edit en delete) */
+.action-btn-edit,
+.action-btn-delete {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+/* Edit button - Oranje */
+.action-btn-edit {
+    background: #ff9800;
+    color: white;
+}
+
+.action-btn-edit:hover {
+    background: #f57c00;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.action-btn-edit:active {
+    transform: scale(0.95);
+}
+
+/* Delete button - Rood */
+.action-btn-delete {
+    background: #f44336;
+    color: white;
+}
+
+.action-btn-delete:hover {
+    background: #d32f2f;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.action-btn-delete:active {
+    transform: scale(0.95);
+}
+
+/* SVG iconen binnen de buttons */
+.action-btn-edit svg,
+.action-btn-delete svg {
+    width: 18px;
+    height: 18px;
+    stroke: white;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+/* Alternatieve grootte voor kleinere knoppen (optioneel) */
+.action-btn-edit.small,
+.action-btn-delete.small {
+    width: 32px;
+    height: 32px;
+}
+
+.action-btn-edit.small svg,
+.action-btn-delete.small svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Alternatieve grootte voor grotere knoppen (optioneel) */
+.action-btn-edit.large,
+.action-btn-delete.large {
+    width: 48px;
+    height: 48px;
+}
+
+.action-btn-edit.large svg,
+.action-btn-delete.large svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Rond voor speciale gevallen (zoals cash-edit) */
+.action-btn-edit.round,
+.action-btn-delete.round {
+    border-radius: 50%;
+}
+
+/* ============================================================================ */
+/* BACKWARD COMPATIBILITY - Oude klassen worden automatisch gemapped */
+/* Deze kunnen later worden verwijderd zodra alle templates zijn geüpdatet */
+/* ============================================================================ */
+
+/* Oude edit button klassen */
+.edit-position-btn,
+.edit-vote-btn,
+.agenda-edit-btn,
+.cash-edit-btn,
+.action-edit {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #ff9800;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+    color: white;
+}
+
+.edit-position-btn:hover,
+.edit-vote-btn:hover,
+.agenda-edit-btn:hover,
+.cash-edit-btn:hover,
+.action-edit:hover {
+    background: #f57c00;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.edit-position-btn:active,
+.edit-vote-btn:active,
+.agenda-edit-btn:active,
+.cash-edit-btn:active,
+.action-edit:active {
+    transform: scale(0.95);
+}
+
+/* Special case voor cash-edit (rond) */
+.cash-edit-btn {
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+}
+
+/* Oude delete button klassen */
+.delete-position-btn,
+.delete-vote-btn,
+.delete-result-btn,
+.agenda-delete-btn,
+.action-delete {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #f44336;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    padding: 0;
+    color: white;
+}
+
+.delete-position-btn:hover,
+.delete-vote-btn:hover,
+.delete-result-btn:hover,
+.agenda-delete-btn:hover,
+.action-delete:hover {
+    background: #d32f2f;
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.delete-position-btn:active,
+.delete-vote-btn:active,
+.delete-result-btn:active,
+.agenda-delete-btn:active,
+.action-delete:active {
+    transform: scale(0.95);
+}
+
+/* SVG styling voor oude klassen */
+.edit-position-btn svg,
+.edit-vote-btn svg,
+.agenda-edit-btn svg,
+.cash-edit-btn svg,
+.action-edit svg,
+.delete-position-btn svg,
+.delete-vote-btn svg,
+.delete-result-btn svg,
+.agenda-delete-btn svg,
+.action-delete svg {
+    width: 18px;
+    height: 18px;
+    stroke: white;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+.cash-edit-btn svg {
+    width: 16px;
+    height: 16px;
+}
+

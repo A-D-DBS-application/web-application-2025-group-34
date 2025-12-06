@@ -9,19 +9,16 @@
     <div class="section-head">
       <h3>Aankondigingen</h3>
       <div class="agenda-actions">
-        <button class="agenda-add-btn" type="button" onclick="openAnnouncementModal()" title="Bericht toevoegen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
+        <button class="add-transaction-btn" type="button" onclick="openAnnouncementModal()">
+          + Bericht
         </button>
-        <button class="agenda-edit-btn" type="button" onclick="openEditAnnouncementModal()" title="Bericht wijzigen">
+        <button class="action-btn-edit" type="button" onclick="openEditAnnouncementModal()" title="Aankondiging wijzigen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
         </button>
-        <button class="agenda-delete-btn" type="button" onclick="openDeleteAnnouncementModal()" title="Bericht verwijderen">
+        <button class="action-btn-delete" type="button" onclick="openDeleteAnnouncementModal()" title="Aankondiging verwijderen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"></path>
             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
@@ -45,19 +42,16 @@
     <div class="section-head">
       <h3>Agenda</h3>
       <div class="agenda-actions">
-        <button class="agenda-add-btn" type="button" onclick="openEventModal()" title="Event toevoegen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
+        <button class="add-transaction-btn" type="button" onclick="openEventModal()">
+          + Event
         </button>
-        <button class="agenda-edit-btn" type="button" onclick="openEditEventModal()" title="Event wijzigen">
+        <button class="action-btn-edit" type="button" onclick="openEditEventModal()" title="Event wijzigen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
         </button>
-        <button class="agenda-delete-btn" type="button" onclick="openDeleteEventModal()" title="Event verwijderen">
+        <button class="action-btn-delete" type="button" onclick="openDeleteEventModal()" title="Event verwijderen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"></path>
             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
@@ -154,7 +148,7 @@
         </div>
         <div class="form-actions" style="margin-top: 20px;">
           <button type="button" class="btn ghost" onclick="closeAnnouncementModal()">Annuleren</button>
-          <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+          <button type="submit" class="add-transaction-btn">Toevoegen</button>
         </div>
       </form>
     </div>
@@ -165,17 +159,17 @@
 <div id="editAnnouncementModal" class="modal" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <div class="modal-header">
-      <h2>Bericht Wijzigen</h2>
+      <h2>Aankondiging Wijzigen</h2>
       <span class="modal-close" onclick="closeEditAnnouncementModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form id="editAnnouncementForm" onsubmit="fetchAnnouncementForEditing(event)">
         <div class="form-group">
-          <label>Selecteer Bericht *</label>
+          <label>Selecteer Aankondiging *</label>
           <select name="announcement_id" id="editAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer het bericht dat je wilt wijzigen</small>
+          <small style="color: #666; font-size: 12px;">Selecteer de aankondiging die je wilt wijzigen</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn">Volgende</button>
@@ -190,11 +184,11 @@
 <div id="editAnnouncementFormModal" class="modal" style="display:none;">
   <div class="modal-content" style="max-width:600px;">
     <div class="modal-header">
-      <h2>Bericht Wijzigen</h2>
+      <h2>Aankondiging Wijzigen</h2>
       <span class="modal-close" onclick="closeEditAnnouncementFormModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas het bericht aan.</p>
+      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas de aankondiging aan.</p>
       <form id="editAnnouncementFormSubmit" method="POST" action="{{ url_for('main.update_announcement') }}">
         <input type="hidden" name="announcement_id" id="editAnnouncementId">
         <div class="form-group">
@@ -218,17 +212,17 @@
 <div id="deleteAnnouncementModal" class="modal" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <div class="modal-header">
-      <h2>Bericht Verwijderen</h2>
+      <h2>Aankondiging Verwijderen</h2>
       <span class="modal-close" onclick="closeDeleteAnnouncementModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form id="deleteAnnouncementForm" onsubmit="fetchAnnouncementForDeletion(event)">
         <div class="form-group">
-          <label>Selecteer Bericht *</label>
+          <label>Selecteer Aankondiging *</label>
           <select name="announcement_id" id="deleteAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer het bericht dat je wilt verwijderen</small>
+          <small style="color: #666; font-size: 12px;">Selecteer de aankondiging die je wilt verwijderen</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
@@ -243,13 +237,14 @@
 <div id="deleteAnnouncementConfirmModal" class="modal" style="display:none;">
   <div class="modal-content" style="max-width:500px;">
     <div class="modal-header">
-      <h2>Bericht Verwijderen Bevestigen</h2>
+      <h2>Aankondiging Verwijderen Bevestigen</h2>
       <span class="modal-close" onclick="closeDeleteAnnouncementConfirmModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je dit bericht wilt verwijderen?</p>
-      <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-        <strong id="deleteAnnouncementNameDisplay"></strong>
+      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je deze aankondiging wilt verwijderen?</p>
+      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+        <strong id="deleteAnnouncementTitleDisplay"></strong>
+        <div style="margin-top: 5px; font-size: 14px; color: #666;" id="deleteAnnouncementDetailsDisplay"></div>
       </div>
       <form id="deleteAnnouncementConfirmForm" method="POST" action="{{ url_for('main.delete_announcement') }}">
         <input type="hidden" name="announcement_id" id="deleteAnnouncementId">
@@ -294,7 +289,7 @@
         </div>
         <div class="form-actions" style="margin-top: 20px;">
           <button type="button" class="btn ghost" onclick="closeEventModal()">Annuleren</button>
-          <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+          <button type="submit" class="add-transaction-btn">Toevoegen</button>
         </div>
       </form>
     </div>
@@ -445,30 +440,18 @@ function closeEventModal() {
 // Close modal when clicking outside
 window.onclick = function(event) {
     const announcementModal = document.getElementById('announcementModal');
-    const editAnnouncementModal = document.getElementById('editAnnouncementModal');
-    const editAnnouncementFormModal = document.getElementById('editAnnouncementFormModal');
-    const deleteAnnouncementModal = document.getElementById('deleteAnnouncementModal');
-    const deleteAnnouncementConfirmModal = document.getElementById('deleteAnnouncementConfirmModal');
     const eventModal = document.getElementById('eventModal');
     const editEventModal = document.getElementById('editEventModal');
     const editEventFormModal = document.getElementById('editEventFormModal');
     const deleteEventModal = document.getElementById('deleteEventModal');
     const deleteEventConfirmModal = document.getElementById('deleteEventConfirmModal');
+    const editAnnouncementModal = document.getElementById('editAnnouncementModal');
+    const editAnnouncementFormModal = document.getElementById('editAnnouncementFormModal');
+    const deleteAnnouncementModal = document.getElementById('deleteAnnouncementModal');
+    const deleteAnnouncementConfirmModal = document.getElementById('deleteAnnouncementConfirmModal');
     
     if (event.target == announcementModal) {
         closeAnnouncementModal();
-    }
-    if (event.target == editAnnouncementModal) {
-        closeEditAnnouncementModal();
-    }
-    if (event.target == editAnnouncementFormModal) {
-        closeEditAnnouncementFormModal();
-    }
-    if (event.target == deleteAnnouncementModal) {
-        closeDeleteAnnouncementModal();
-    }
-    if (event.target == deleteAnnouncementConfirmModal) {
-        closeDeleteAnnouncementConfirmModal();
     }
     if (event.target == eventModal) {
         closeEventModal();
@@ -484,6 +467,18 @@ window.onclick = function(event) {
     }
     if (event.target == deleteEventConfirmModal) {
         closeDeleteEventConfirmModal();
+    }
+    if (event.target == editAnnouncementModal) {
+        closeEditAnnouncementModal();
+    }
+    if (event.target == editAnnouncementFormModal) {
+        closeEditAnnouncementFormModal();
+    }
+    if (event.target == deleteAnnouncementModal) {
+        closeDeleteAnnouncementModal();
+    }
+    if (event.target == deleteAnnouncementConfirmModal) {
+        closeDeleteAnnouncementConfirmModal();
     }
 }
 
@@ -639,7 +634,7 @@ function openEditAnnouncementModal() {
     fetch('/announcements/get-all')
         .then(response => response.json())
         .then(data => {
-            select.innerHTML = '<option value="">Selecteer een bericht...</option>';
+            select.innerHTML = '<option value="">Selecteer een aankondiging...</option>';
             if (data.announcements && data.announcements.length > 0) {
                 data.announcements.forEach(announcement => {
                     const option = document.createElement('option');
@@ -648,12 +643,12 @@ function openEditAnnouncementModal() {
                     select.appendChild(option);
                 });
             } else {
-                select.innerHTML = '<option value="">Geen berichten beschikbaar</option>';
+                select.innerHTML = '<option value="">Geen aankondigingen beschikbaar</option>';
             }
         })
         .catch(error => {
             console.error('Error loading announcements:', error);
-            select.innerHTML = '<option value="">Fout bij laden van berichten</option>';
+            select.innerHTML = '<option value="">Fout bij laden van aankondigingen</option>';
         });
 }
 
@@ -672,7 +667,7 @@ function fetchAnnouncementForEditing(event) {
     const announcementId = document.getElementById('editAnnouncementSelect').value;
     
     if (!announcementId) {
-        alert('Selecteer eerst een bericht.');
+        alert('Selecteer eerst een aankondiging.');
         return;
     }
     
@@ -695,7 +690,7 @@ function fetchAnnouncementForEditing(event) {
         })
         .catch(error => {
             console.error('Error fetching announcement details:', error);
-            alert('Fout bij ophalen van bericht details.');
+            alert('Fout bij ophalen van aankondiging details.');
         });
 }
 
@@ -709,7 +704,7 @@ function openDeleteAnnouncementModal() {
     fetch('/announcements/get-all')
         .then(response => response.json())
         .then(data => {
-            select.innerHTML = '<option value="">Selecteer een bericht...</option>';
+            select.innerHTML = '<option value="">Selecteer een aankondiging...</option>';
             if (data.announcements && data.announcements.length > 0) {
                 data.announcements.forEach(announcement => {
                     const option = document.createElement('option');
@@ -718,12 +713,12 @@ function openDeleteAnnouncementModal() {
                     select.appendChild(option);
                 });
             } else {
-                select.innerHTML = '<option value="">Geen berichten beschikbaar</option>';
+                select.innerHTML = '<option value="">Geen aankondigingen beschikbaar</option>';
             }
         })
         .catch(error => {
             console.error('Error loading announcements:', error);
-            select.innerHTML = '<option value="">Fout bij laden van berichten</option>';
+            select.innerHTML = '<option value="">Fout bij laden van aankondigingen</option>';
         });
 }
 
@@ -742,7 +737,7 @@ function fetchAnnouncementForDeletion(event) {
     const announcementId = document.getElementById('deleteAnnouncementSelect').value;
     
     if (!announcementId) {
-        alert('Selecteer eerst een bericht.');
+        alert('Selecteer eerst een aankondiging.');
         return;
     }
     
@@ -756,7 +751,8 @@ function fetchAnnouncementForDeletion(event) {
             
             // Fill confirmation modal with announcement data
             document.getElementById('deleteAnnouncementId').value = data.id;
-            document.getElementById('deleteAnnouncementNameDisplay').textContent = data.title;
+            document.getElementById('deleteAnnouncementTitleDisplay').textContent = data.title;
+            document.getElementById('deleteAnnouncementDetailsDisplay').textContent = `${data.date} • ${data.author || 'Onbekend'}`;
             
             // Close first modal and open confirmation modal
             closeDeleteAnnouncementModal();
@@ -764,7 +760,7 @@ function fetchAnnouncementForDeletion(event) {
         })
         .catch(error => {
             console.error('Error fetching announcement details:', error);
-            alert('Fout bij ophalen van bericht details.');
+            alert('Fout bij ophalen van aankondiging details.');
         });
 }
 </script>

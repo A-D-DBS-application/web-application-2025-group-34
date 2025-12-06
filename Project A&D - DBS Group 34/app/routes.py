@@ -731,7 +731,6 @@ def add_announcement():
     flash("Bericht toegevoegd.", "success")
     return redirect(url_for("main.dashboard"))
 
-# Announcements: Get all for dropdown
 @main.route("/announcements/get-all")
 @login_required
 def get_all_announcements():
@@ -741,95 +740,144 @@ def get_all_announcements():
         announcements_list = []
         
         for ann in announcements:
+            created_at = ann.created_at
+            if created_at.tzinfo is None:
+                tz = pytz.timezone("Europe/Brussels")
+                created_at = tz.localize(created_at)
+            else:
+                created_at = created_at.astimezone(pytz.timezone("Europe/Brussels"))
+            
             announcements_list.append({
                 "id": ann.id,
-                "title": ann.title,
-                "display": f"{ann.title} - {ann.created_at.strftime('%d/%m/%Y') if ann.created_at else 'Onbekend'}"
+                "title": ann.title or 'Onbekend',
+                "date": created_at.strftime("%d/%m/%Y"),
+                "display": f"{ann.title or 'Onbekend'} - {created_at.strftime('%d/%m/%Y')}"
             })
         return jsonify({"announcements": announcements_list})
     except Exception as e:
         print(f"Error fetching all announcements: {e}")
         return jsonify({"error": "Fout bij ophalen van announcements."}), 500
 
-# Announcements: Get details
 @main.route("/announcements/get-details/<int:announcement_id>")
 @login_required
 def get_announcement_details(announcement_id):
-    """Haal details van een specifieke announcement op"""
+    """Haal announcement details op voor editing"""
     try:
-        announcement = db.session.get(Announcement, announcement_id)
+        announcement = db.session.query(Announcement).filter(Announcement.id == announcement_id).first()
+        
         if not announcement:
-            return jsonify({"error": "Announcement niet gevonden."}), 404
+            return jsonify({'error': 'Announcement niet gevonden.'}), 404
+        
+        created_at = announcement.created_at or datetime.now()
+        if created_at.tzinfo is None:
+            tz = pytz.timezone("Europe/Brussels")
+            created_at = tz.localize(created_at)
+        else:
+            created_at = created_at.astimezone(pytz.timezone("Europe/Brussels"))
         
         return jsonify({
-            "id": announcement.id,
-            "title": announcement.title,
-            "body": announcement.body,
-            "author": announcement.author or "Onbekend",
-            "created_at": announcement.created_at.strftime("%d/%m/%Y") if announcement.created_at else "Onbekend"
+            'id': announcement.id,
+            'title': announcement.title or '',
+            'body': announcement.body or '',
+            'author': announcement.author or '',
+            'date': created_at.strftime("%d/%m/%Y")
         })
     except Exception as e:
         print(f"Error fetching announcement details: {e}")
-        return jsonify({"error": "Fout bij ophalen van announcement details."}), 500
+        return jsonify({'error': 'Fout bij ophalen van announcement details.'}), 500
 
-# Announcements: Update
 @main.route("/announcements/update", methods=["POST"])
 @login_required
 def update_announcement():
     """Update een announcement"""
     try:
-        announcement_id = request.form.get("announcement_id")
-        title = request.form.get("title", "").strip()
-        body = request.form.get("body", "").strip()
+        announcement_id = request.form.get("announcement_id", "").strip()
         
-        if not announcement_id or not title or not body:
-            flash("Alle velden zijn verplicht.", "error")
+        if not announcement_id:
+            flash("Announcement ID ontbreekt.", "error")
             return redirect(url_for("main.dashboard"))
         
-        announcement = db.session.get(Announcement, announcement_id)
+        try:
+            announcement_id = int(announcement_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig announcement ID.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Find announcement
+        announcement = db.session.query(Announcement).filter(Announcement.id == announcement_id).first()
+        
         if not announcement:
             flash("Announcement niet gevonden.", "error")
             return redirect(url_for("main.dashboard"))
         
+        # Get form data
+        title = request.form.get("title", "").strip()
+        body = request.form.get("body", "").strip()
+        
+        # Validate required fields
+        if not title:
+            flash("Titel is verplicht.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        if not body:
+            flash("Bericht is verplicht.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Update announcement
         announcement.title = title
         announcement.body = body
+        
         db.session.commit()
         
-        flash("Bericht bijgewerkt.", "success")
-        return redirect(url_for("main.dashboard"))
-    except Exception as e:
-        print(f"Error updating announcement: {e}")
+        flash(f"Announcement '{title}' is succesvol bijgewerkt.", "success")
+    except Exception as exc:
+        print(f"WARNING: Announcement update failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij bijwerken van announcement.", "error")
         db.session.rollback()
-        flash("Fout bij bijwerken van bericht.", "error")
-        return redirect(url_for("main.dashboard"))
+    
+    return redirect(url_for("main.dashboard"))
 
-# Announcements: Delete
 @main.route("/announcements/delete", methods=["POST"])
 @login_required
 def delete_announcement():
     """Verwijder een announcement"""
     try:
-        announcement_id = request.form.get("announcement_id")
+        announcement_id = request.form.get("announcement_id", "").strip()
         
         if not announcement_id:
-            flash("Announcement ID is verplicht.", "error")
+            flash("Announcement ID ontbreekt.", "error")
             return redirect(url_for("main.dashboard"))
         
-        announcement = db.session.get(Announcement, announcement_id)
+        try:
+            announcement_id = int(announcement_id)
+        except (ValueError, TypeError):
+            flash("Ongeldig announcement ID.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Find announcement
+        announcement = db.session.query(Announcement).filter(Announcement.id == announcement_id).first()
+        
         if not announcement:
             flash("Announcement niet gevonden.", "error")
             return redirect(url_for("main.dashboard"))
         
+        title = announcement.title
+        
+        # Delete announcement
         db.session.delete(announcement)
         db.session.commit()
         
-        flash("Bericht verwijderd.", "success")
-        return redirect(url_for("main.dashboard"))
-    except Exception as e:
-        print(f"Error deleting announcement: {e}")
+        flash(f"Announcement '{title}' is succesvol verwijderd.", "success")
+    except Exception as exc:
+        print(f"WARNING: Announcement delete failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        flash("Fout bij verwijderen van announcement.", "error")
         db.session.rollback()
-        flash("Fout bij verwijderen van bericht.", "error")
-        return redirect(url_for("main.dashboard"))
+    
+    return redirect(url_for("main.dashboard"))
 
 @main.route("/dashboard/events", methods=["POST"])
 @login_required
