@@ -913,9 +913,10 @@ function calculateSectorBreakdown() {
         };
     }
     
-    // Process positions from table
-    const rows = document.querySelectorAll('.portfolio-table tbody tr');
-    rows.forEach(row => {
+    // Process positions from allPortfolioPositions array (not filtered table rows)
+    // This ensures breakdown is independent of sector filter
+    allPortfolioPositions.forEach(position => {
+        const row = position.element;
         const sector = row.getAttribute('data-sector') || 'Other';
         const marketValueText = row.querySelector('td:nth-child(8)')?.textContent || '€ 0';
         // Parse European format: "€ 1.234,56" -> 1234.56
