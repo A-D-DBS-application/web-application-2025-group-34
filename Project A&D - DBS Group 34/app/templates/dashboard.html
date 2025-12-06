@@ -8,9 +8,27 @@
   <section class="leftcol card">
     <div class="section-head">
       <h3>Aankondigingen</h3>
-      <button class="add-transaction-btn" type="button" onclick="openAnnouncementModal()">
-        + Bericht toevoegen
-      </button>
+      <div class="agenda-actions">
+        <button class="agenda-add-btn" type="button" onclick="openAnnouncementModal()" title="Bericht toevoegen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <button class="agenda-edit-btn" type="button" onclick="openEditAnnouncementModal()" title="Bericht wijzigen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button class="agenda-delete-btn" type="button" onclick="openDeleteAnnouncementModal()" title="Bericht verwijderen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     {% for post in announcements %}
@@ -137,6 +155,107 @@
         <div class="form-actions" style="margin-top: 20px;">
           <button type="button" class="btn ghost" onclick="closeAnnouncementModal()">Annuleren</button>
           <button type="submit" class="btn add-transaction-btn" style="background: var(--cta); color: white; border: none;">Toevoegen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Announcement Modal (stap 1: dropdown selecteren) -->
+<div id="editAnnouncementModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Bericht Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditAnnouncementModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="editAnnouncementForm" onsubmit="fetchAnnouncementForEditing(event)">
+        <div class="form-group">
+          <label>Selecteer Bericht *</label>
+          <select name="announcement_id" id="editAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+          <small style="color: #666; font-size: 12px;">Selecteer het bericht dat je wilt wijzigen</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeEditAnnouncementModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Announcement Form Modal (stap 2: formulier) -->
+<div id="editAnnouncementFormModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>Bericht Wijzigen</h2>
+      <span class="modal-close" onclick="closeEditAnnouncementFormModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas het bericht aan.</p>
+      <form id="editAnnouncementFormSubmit" method="POST" action="{{ url_for('main.update_announcement') }}">
+        <input type="hidden" name="announcement_id" id="editAnnouncementId">
+        <div class="form-group">
+          <label>Titel *</label>
+          <input type="text" name="title" id="editAnnouncementTitle" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+        </div>
+        <div class="form-group">
+          <label>Bericht *</label>
+          <textarea name="body" id="editAnnouncementBody" rows="4" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;"></textarea>
+        </div>
+        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+          <button type="button" class="btn ghost" onclick="closeEditAnnouncementFormModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Announcement Modal (stap 1: dropdown selecteren) -->
+<div id="deleteAnnouncementModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Bericht Verwijderen</h2>
+      <span class="modal-close" onclick="closeDeleteAnnouncementModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="deleteAnnouncementForm" onsubmit="fetchAnnouncementForDeletion(event)">
+        <div class="form-group">
+          <label>Selecteer Bericht *</label>
+          <select name="announcement_id" id="deleteAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+            <option value="">Laden...</option>
+          </select>
+          <small style="color: #666; font-size: 12px;">Selecteer het bericht dat je wilt verwijderen</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="button" class="btn ghost" onclick="closeDeleteAnnouncementModal()">Annuleren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Announcement Confirmation Modal (stap 2: bevestiging) -->
+<div id="deleteAnnouncementConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2>Bericht Verwijderen Bevestigen</h2>
+      <span class="modal-close" onclick="closeDeleteAnnouncementConfirmModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je dit bericht wilt verwijderen?</p>
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <strong id="deleteAnnouncementNameDisplay"></strong>
+      </div>
+      <form id="deleteAnnouncementConfirmForm" method="POST" action="{{ url_for('main.delete_announcement') }}">
+        <input type="hidden" name="announcement_id" id="deleteAnnouncementId">
+        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn ghost" onclick="closeDeleteAnnouncementConfirmModal()">Annuleren</button>
+          <button type="submit" class="btn" style="background: #f44336; color: white; padding: 10px 20px;">Verwijderen</button>
         </div>
       </form>
     </div>
@@ -326,6 +445,10 @@ function closeEventModal() {
 // Close modal when clicking outside
 window.onclick = function(event) {
     const announcementModal = document.getElementById('announcementModal');
+    const editAnnouncementModal = document.getElementById('editAnnouncementModal');
+    const editAnnouncementFormModal = document.getElementById('editAnnouncementFormModal');
+    const deleteAnnouncementModal = document.getElementById('deleteAnnouncementModal');
+    const deleteAnnouncementConfirmModal = document.getElementById('deleteAnnouncementConfirmModal');
     const eventModal = document.getElementById('eventModal');
     const editEventModal = document.getElementById('editEventModal');
     const editEventFormModal = document.getElementById('editEventFormModal');
@@ -334,6 +457,18 @@ window.onclick = function(event) {
     
     if (event.target == announcementModal) {
         closeAnnouncementModal();
+    }
+    if (event.target == editAnnouncementModal) {
+        closeEditAnnouncementModal();
+    }
+    if (event.target == editAnnouncementFormModal) {
+        closeEditAnnouncementFormModal();
+    }
+    if (event.target == deleteAnnouncementModal) {
+        closeDeleteAnnouncementModal();
+    }
+    if (event.target == deleteAnnouncementConfirmModal) {
+        closeDeleteAnnouncementConfirmModal();
     }
     if (event.target == eventModal) {
         closeEventModal();
@@ -491,6 +626,145 @@ function fetchEventForDeletion(event) {
         .catch(error => {
             console.error('Error fetching event details:', error);
             alert('Fout bij ophalen van event details.');
+        });
+}
+
+// Edit Announcement Modal Functions
+function openEditAnnouncementModal() {
+    const modal = document.getElementById('editAnnouncementModal');
+    const select = document.getElementById('editAnnouncementSelect');
+    modal.style.display = 'flex';
+    
+    // Load announcements into dropdown
+    fetch('/announcements/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een bericht...</option>';
+            if (data.announcements && data.announcements.length > 0) {
+                data.announcements.forEach(announcement => {
+                    const option = document.createElement('option');
+                    option.value = announcement.id;
+                    option.textContent = announcement.display;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Geen berichten beschikbaar</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading announcements:', error);
+            select.innerHTML = '<option value="">Fout bij laden van berichten</option>';
+        });
+}
+
+function closeEditAnnouncementModal() {
+    document.getElementById('editAnnouncementModal').style.display = 'none';
+    document.getElementById('editAnnouncementSelect').value = '';
+}
+
+function closeEditAnnouncementFormModal() {
+    document.getElementById('editAnnouncementFormModal').style.display = 'none';
+    closeEditAnnouncementModal(); // Also close the first modal
+}
+
+function fetchAnnouncementForEditing(event) {
+    event.preventDefault();
+    const announcementId = document.getElementById('editAnnouncementSelect').value;
+    
+    if (!announcementId) {
+        alert('Selecteer eerst een bericht.');
+        return;
+    }
+    
+    fetch(`/announcements/get-details/${announcementId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Fill form with announcement data
+            document.getElementById('editAnnouncementId').value = data.id;
+            document.getElementById('editAnnouncementTitle').value = data.title;
+            document.getElementById('editAnnouncementBody').value = data.body;
+            
+            // Close first modal and open form modal
+            closeEditAnnouncementModal();
+            document.getElementById('editAnnouncementFormModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching announcement details:', error);
+            alert('Fout bij ophalen van bericht details.');
+        });
+}
+
+// Delete Announcement Modal Functions
+function openDeleteAnnouncementModal() {
+    const modal = document.getElementById('deleteAnnouncementModal');
+    const select = document.getElementById('deleteAnnouncementSelect');
+    modal.style.display = 'flex';
+    
+    // Load announcements into dropdown
+    fetch('/announcements/get-all')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Selecteer een bericht...</option>';
+            if (data.announcements && data.announcements.length > 0) {
+                data.announcements.forEach(announcement => {
+                    const option = document.createElement('option');
+                    option.value = announcement.id;
+                    option.textContent = announcement.display;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Geen berichten beschikbaar</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading announcements:', error);
+            select.innerHTML = '<option value="">Fout bij laden van berichten</option>';
+        });
+}
+
+function closeDeleteAnnouncementModal() {
+    document.getElementById('deleteAnnouncementModal').style.display = 'none';
+    document.getElementById('deleteAnnouncementSelect').value = '';
+}
+
+function closeDeleteAnnouncementConfirmModal() {
+    document.getElementById('deleteAnnouncementConfirmModal').style.display = 'none';
+    closeDeleteAnnouncementModal(); // Also close the first modal
+}
+
+function fetchAnnouncementForDeletion(event) {
+    event.preventDefault();
+    const announcementId = document.getElementById('deleteAnnouncementSelect').value;
+    
+    if (!announcementId) {
+        alert('Selecteer eerst een bericht.');
+        return;
+    }
+    
+    fetch(`/announcements/get-details/${announcementId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Fill confirmation modal with announcement data
+            document.getElementById('deleteAnnouncementId').value = data.id;
+            document.getElementById('deleteAnnouncementNameDisplay').textContent = data.title;
+            
+            // Close first modal and open confirmation modal
+            closeDeleteAnnouncementModal();
+            document.getElementById('deleteAnnouncementConfirmModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching announcement details:', error);
+            alert('Fout bij ophalen van bericht details.');
         });
 }
 </script>
