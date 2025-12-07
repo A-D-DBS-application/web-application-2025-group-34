@@ -5,8 +5,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Config: 
-    SECRET_KEY = 'gr8t3rth4nth3s3cur3k3y'
-    SQLALCHEMY_DATABASE_URI = 'postgresql://postgres.reexofzxklgbyxkwaonu:4JSSUixyNlY51wWw@aws-1-eu-north-1.pooler.supabase.com:6543/postgres'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'gr8t3rth4nth3s3cur3k3y'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or os.environ.get('SQLALCHEMY_DATABASE_URI') or 'postgresql://postgres.reexofzxklgbyxkwaonu:4JSSUixyNlY51wWw@aws-1-eu-north-1.pooler.supabase.com:6543/postgres'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Supabase credentials (haal uit environment variabelen of zet hier direct)
