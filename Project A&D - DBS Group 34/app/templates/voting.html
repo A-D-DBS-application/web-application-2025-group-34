@@ -107,18 +107,18 @@
           </div>
           <div class="result-stats">
             <div class="stat-item">
-              <div class="stat-bar stat-bar-for" style="width: {{ (result.for_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <div class="stat-bar stat-bar-for" data-width="{{ (result.for_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
               <span class="stat-label">Voor</span>
               <span class="stat-value">{{ result.for_votes }} votes</span>
             </div>
             <div class="stat-item">
-              <div class="stat-bar stat-bar-against" style="width: {{ (result.against_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <div class="stat-bar stat-bar-against" data-width="{{ (result.against_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
               <span class="stat-label">Tegen</span>
               <span class="stat-value">{{ result.against_votes }} votes</span>
             </div>
             {% if result.abstain_votes > 0 %}
             <div class="stat-item">
-              <div class="stat-bar stat-bar-abstain" style="width: {{ (result.abstain_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}%"></div>
+              <div class="stat-bar stat-bar-abstain" data-width="{{ (result.abstain_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
               <span class="stat-label">Onthouding</span>
               <span class="stat-value">{{ result.abstain_votes }} votes</span>
             </div>
@@ -134,8 +134,8 @@
 </div>
 
 <!-- Add Voting Modal -->
-<div id="addVotingModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="addVotingModal" class="modal">
+  <div class="modal-content">
     <div class="modal-header">
       <h2>Vote Toevoegen</h2>
       <span class="modal-close" onclick="closeAddVotingModal()">&times;</span>
@@ -153,7 +153,7 @@
         <div class="form-group">
           <label>Deadline *</label>
           <input type="text" name="deadline_date" placeholder="dd/mm/yyyy" required>
-          <small style="color: #666; font-size: 12px;">Formaat: dd/mm/yyyy (bijv. 20/11/2025)</small>
+          <small class="form-help-text">Formaat: dd/mm/yyyy (bijv. 20/11/2025)</small>
         </div>
         <div class="form-group">
           <label>Minimum Vereisten (optioneel)</label>
@@ -169,8 +169,8 @@
 </div>
 
 <!-- Edit Voting Modal (stap 1: dropdown) -->
-<div id="editVotingModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="editVotingModal" class="modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Wijzigen</h2>
       <span class="modal-close" onclick="closeEditVotingModal()">&times;</span>
@@ -179,7 +179,7 @@
       <form id="editVotingForm" onsubmit="fetchVotingForEditing(event)">
         <div class="form-group">
           <label>Selecteer Vote *</label>
-          <select name="proposal_id" id="editVotingSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="proposal_id" id="editVotingSelect" required>
             <option value="">Laden...</option>
           </select>
         </div>
@@ -193,8 +193,8 @@
 </div>
 
 <!-- Edit Voting Form Modal (stap 2: formulier) -->
-<div id="editVotingFormModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="editVotingFormModal" class="modal">
+  <div class="modal-content">
     <div class="modal-header">
       <h2>Vote Wijzigen</h2>
       <span class="modal-close" onclick="closeEditVotingFormModal()">&times;</span>
@@ -220,7 +220,7 @@
         </div>
         <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeEditVotingFormModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #ff9800;">Opslaan</button>
+          <button type="submit" class="btn btn-warning">Opslaan</button>
         </div>
       </form>
     </div>
@@ -228,8 +228,8 @@
 </div>
 
 <!-- Delete Voting Modal (stap 1: dropdown) -->
-<div id="deleteVotingModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="deleteVotingModal" class="modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Verwijderen</h2>
       <span class="modal-close" onclick="closeDeleteVotingModal()">&times;</span>
@@ -238,12 +238,12 @@
       <form id="deleteVotingForm" onsubmit="fetchVotingForDeletion(event)">
         <div class="form-group">
           <label>Selecteer Vote *</label>
-          <select name="proposal_id" id="deleteVotingSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="proposal_id" id="deleteVotingSelect" required>
             <option value="">Laden...</option>
           </select>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="submit" class="btn btn-danger">Volgende</button>
           <button type="button" class="btn ghost" onclick="closeDeleteVotingModal()">Annuleren</button>
         </div>
       </form>
@@ -252,22 +252,22 @@
 </div>
 
 <!-- Delete Voting Confirmation Modal (stap 2: bevestiging) -->
-<div id="deleteVotingConfirmModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:500px;">
+<div id="deleteVotingConfirmModal" class="modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Verwijderen Bevestigen</h2>
       <span class="modal-close" onclick="closeDeleteVotingConfirmModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px;">Weet je zeker dat je deze vote wilt verwijderen?</p>
-      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p>Weet je zeker dat je deze vote wilt verwijderen?</p>
+      <div class="alert-warning">
         <strong id="deleteVotingNameDisplay"></strong>
       </div>
       <form id="deleteVotingConfirmForm" method="POST" action="{{ url_for('main.delete_voting_proposal') }}">
         <input type="hidden" name="proposal_id" id="deleteProposalId">
         <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeDeleteVotingConfirmModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #f44336; color: white;">Verwijderen</button>
+          <button type="submit" class="btn btn-danger">Verwijderen</button>
         </div>
       </form>
     </div>
@@ -277,18 +277,18 @@
 <script>
 // Modal functions
 function openAddVotingModal() {
-    document.getElementById('addVotingModal').style.display = 'flex';
+    document.getElementById('addVotingModal').classList.add('show');
 }
 
 function closeAddVotingModal() {
-    document.getElementById('addVotingModal').style.display = 'none';
+    document.getElementById('addVotingModal').classList.remove('show');
 }
 
 function openEditVotingModal() {
     // Toon dropdown modal om vote te selecteren
     const modal = document.getElementById('editVotingModal');
     const select = document.getElementById('editVotingSelect');
-    modal.style.display = 'flex';
+    modal.classList.add('show');
     
     fetch('/voting/get-all?include_closed=false')
         .then(response => response.json())
@@ -312,11 +312,11 @@ function openEditVotingModal() {
 }
 
 function closeEditVotingModal() {
-    document.getElementById('editVotingModal').style.display = 'none';
+    document.getElementById('editVotingModal').classList.remove('show');
 }
 
 function closeEditVotingFormModal() {
-    document.getElementById('editVotingFormModal').style.display = 'none';
+    document.getElementById('editVotingFormModal').classList.remove('show');
     closeEditVotingModal();
 }
 
@@ -344,7 +344,7 @@ function fetchVotingForEditing(event) {
             document.getElementById('editMinimumRequirements').value = data.minimum_requirements || '';
             
             closeEditVotingModal();
-            document.getElementById('editVotingFormModal').style.display = 'block';
+            document.getElementById('editVotingFormModal').classList.add('show');
         })
         .catch(error => {
             console.error('Error fetching proposal details:', error);
@@ -356,7 +356,7 @@ function openDeleteOpenVotingModal() {
     // Toon dropdown modal om openstaande vote te selecteren (alleen deadline nog niet verstreken)
     const modal = document.getElementById('deleteVotingModal');
     const select = document.getElementById('deleteVotingSelect');
-    modal.style.display = 'flex';
+    modal.classList.add('show');
     
     fetch('/voting/get-all?include_closed=false')
         .then(response => response.json())
@@ -407,11 +407,11 @@ function openDeleteResultModal() {
 }
 
 function closeDeleteVotingModal() {
-    document.getElementById('deleteVotingModal').style.display = 'none';
+    document.getElementById('deleteVotingModal').classList.remove('show');
 }
 
 function closeDeleteVotingConfirmModal() {
-    document.getElementById('deleteVotingConfirmModal').style.display = 'none';
+    document.getElementById('deleteVotingConfirmModal').classList.remove('show');
     closeDeleteVotingModal();
 }
 
@@ -436,7 +436,7 @@ function fetchVotingForDeletion(event) {
             document.getElementById('deleteVotingNameDisplay').textContent = `${data.proposal_type} - ${data.stock_name}`;
             
             closeDeleteVotingModal();
-            document.getElementById('deleteVotingConfirmModal').style.display = 'block';
+            document.getElementById('deleteVotingConfirmModal').classList.add('show');
         })
         .catch(error => {
             console.error('Error fetching proposal details:', error);
@@ -450,7 +450,7 @@ window.onclick = function(event) {
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (event.target == modal) {
-            modal.style.display = 'none';
+            modal.classList.remove('show');
         }
     });
 }

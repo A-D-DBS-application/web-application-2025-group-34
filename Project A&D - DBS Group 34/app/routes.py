@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response, current_app, send_from_directory, send_file, abort  # Added: Response for iCal downloads, send_file for downloads
+from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response, current_app, send_file  # Response for iCal downloads, send_file for file downloads
 from functools import wraps
 from sqlalchemy import or_
 from datetime import datetime, timedelta
@@ -60,6 +60,53 @@ MOCK_VOTES = [
 
 # --- HELPER FUNCTIES ---
 
+# Timezone constant
+TZ_BRUSSELS = pytz.timezone("Europe/Brussels")
+
+def parse_deadline_date(date_str):
+    """
+    Parse deadline datum string naar datetime object met timezone
+    Format: dd/mm/yyyy
+    Returns: datetime object met timezone (Europe/Brussels), of None bij error
+    """
+    if not date_str or not date_str.strip():
+        return None
+    
+    try:
+        deadline_dt = datetime.strptime(date_str.strip(), "%d/%m/%Y")
+        deadline_dt = deadline_dt.replace(hour=23, minute=59, second=59)
+        deadline_dt = TZ_BRUSSELS.localize(deadline_dt)
+        return deadline_dt
+    except ValueError:
+        return None
+
+def ensure_timezone(dt):
+    """
+    Zorg dat datetime object timezone-aware is (Europe/Brussels)
+    Returns: datetime object met timezone
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return TZ_BRUSSELS.localize(dt)
+    else:
+        return dt.astimezone(TZ_BRUSSELS)
+
+def get_vote_counts(proposal_id):
+    """
+    Haal vote counts op voor een proposal
+    Returns: dict met total, voor, tegen, onthouding
+    """
+    votes = db.session.query(Vote).filter(Vote.proposal_id == proposal_id).all()
+    
+    counts = {
+        'total': len(votes),
+        'voor': sum(1 for v in votes if v.vote_option.lower() == 'voor'),
+        'tegen': sum(1 for v in votes if v.vote_option.lower() == 'tegen'),
+        'onthouding': sum(1 for v in votes if v.vote_option.lower() == 'onthouding')
+    }
+    return counts
+
 def format_currency(value):
     """Formats a float to a European currency string (e.g., 1.234,56)"""
     return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
@@ -89,6 +136,70 @@ def convert_to_eur(amount, from_currency):
     
     # Converteer naar EUR
     return float(amount) * rate
+
+def parse_id_from_form(form_data, field_name, entity_name, redirect_url):
+    """
+    Parse en valideer ID uit form data
+    Returns: (id_int, error_message) - id_int is None bij error
+    """
+    id_str = form_data.get(field_name, "").strip()
+    
+    if not id_str:
+        return None, f"{entity_name} ID ontbreekt."
+    
+    try:
+        return int(id_str), None
+    except (ValueError, TypeError):
+        return None, f"Ongeldig {entity_name.lower()} ID."
+
+def get_entity_by_id(model_class, id_value, id_field_name, entity_name, redirect_url):
+    """
+    Haal entity op uit database op basis van ID
+    Returns: (entity, error_message) - entity is None bij error
+    """
+    entity = db.session.query(model_class).filter(getattr(model_class, id_field_name) == id_value).first()
+    
+    if not entity:
+        return None, f"{entity_name} niet gevonden."
+    
+    return entity, None
+
+def parse_transaction_date(date_str):
+    """
+    Parse transaction date string naar datetime object
+    Ondersteunt meerdere formaten: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd
+    Returns: datetime object of None bij error
+    """
+    if not date_str or not date_str.strip():
+        return None
+    
+    date_str = date_str.strip()
+    for date_format in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
+        try:
+            return datetime.strptime(date_str, date_format)
+        except ValueError:
+            continue
+    
+    return None
+
+def parse_float_from_form(form_data, field_name, min_value=0, field_label=None):
+    """
+    Parse float uit form data met validatie
+    Returns: (float_value, error_message) - float_value is None bij error
+    """
+    value_str = form_data.get(field_name, "").strip()
+    field_label = field_label or field_name
+    
+    if not value_str:
+        return None, f"{field_label} ontbreekt."
+    
+    try:
+        value = float(value_str)
+        if value <= min_value:
+            return None, f"{field_label} moet groter zijn dan {min_value}."
+        return value, None
+    except (ValueError, TypeError):
+        return None, f"Ongeldige {field_label.lower()}."
 
 def format_transaction_date(date_obj):
     """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022')"""
@@ -321,26 +432,17 @@ def _normalize_transactions(records):
     return normalized
 
 def _get_next_event_number():
-    fallback = len(MOCK_UPCOMING_EVENTS) + 1
-    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    """Haal volgende event nummer op via SQLAlchemy ORM"""
     try:
         latest_event = db.session.query(Event).order_by(Event.event_number.desc()).first()
         if latest_event and latest_event.event_number:
             return latest_event.event_number + 1
         return 1
     except Exception as exc:
-        print(f"WARNING: SQLAlchemy event number fetch failed: {exc}")
-    
-    # Fallback naar Supabase REST API
-    if supabase is None:
-        return fallback
-    try:
-        response = supabase.table("events").select("event_number").order("event_number", desc=True).limit(1).execute()
-        latest = response.data[0]["event_number"] if response.data else 0
-        return (latest or 0) + 1
-    except Exception as exc:
-        print(f"WARNING: Supabase event number fetch failed: {exc}")
-        return fallback
+        print(f"ERROR: SQLAlchemy event number fetch failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        return len(MOCK_UPCOMING_EVENTS) + 1
 
 def _format_event_date(date_str, time_str):
     if not date_str:
@@ -363,7 +465,7 @@ def _format_event_date(date_str, time_str):
     return parsed_date.isoformat()
 
 def _persist_event_supabase(title, event_date_iso, location=None):
-    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    """Persist event via SQLAlchemy ORM (verouderde naam, maar behouden voor backward compatibility)"""
     try:
         from datetime import datetime
         # Parse de ISO date string naar datetime object
@@ -379,6 +481,9 @@ def _persist_event_supabase(title, event_date_iso, location=None):
         except (ValueError, AttributeError):
             event_date = datetime.now()
         
+        # Zorg dat event_date timezone-aware is
+        event_date = ensure_timezone(event_date)
+        
         # event_number wordt automatisch gegenereerd door de database (autoincrement)
         event = Event(
             event_name=title,
@@ -389,26 +494,10 @@ def _persist_event_supabase(title, event_date_iso, location=None):
         db.session.commit()
         return True
     except Exception as exc:
-        print(f"WARNING: SQLAlchemy event insert failed: {exc}")
+        print(f"ERROR: SQLAlchemy event insert failed: {exc}")
         import traceback
         traceback.print_exc()
         db.session.rollback()
-    
-    # Fallback naar Supabase REST API
-    if supabase is None:
-        return False
-    try:
-        # Voor Supabase REST API moeten we event_number wel handmatig bepalen
-        event_number = _get_next_event_number()
-        supabase.table("events").insert({
-            "event_number": event_number,
-            "event_name": title,
-            "event_date": event_date_iso,
-            "location": location
-        }).execute()
-        return True
-    except Exception as exc:
-        print(f"WARNING: Supabase event insert failed: {exc}")
         return False
 
 def _format_supabase_date(ts):
@@ -420,7 +509,7 @@ def _format_supabase_date(ts):
         return ts
 
 def _persist_announcement_supabase(title, body, author):
-    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    """Persist announcement via SQLAlchemy ORM (verouderde naam, maar behouden voor backward compatibility)"""
     try:
         announcement = Announcement(
             title=title,
@@ -431,25 +520,14 @@ def _persist_announcement_supabase(title, body, author):
         db.session.commit()
         return True
     except Exception as exc:
-        print(f"WARNING: SQLAlchemy announcement insert failed: {exc}")
+        print(f"ERROR: SQLAlchemy announcement insert failed: {exc}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
-    
-    # Fallback naar Supabase REST API
-    if supabase is None:
-        return False
-    try:
-        supabase.table("announcements").insert({
-            "title": title,
-            "body": body,
-            "author": author
-        }).execute()
-        return True
-    except Exception as exc:
-        print(f"WARNING: Supabase announcement insert failed: {exc}")
         return False
 
 def _fetch_announcements():
-    # Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    """Haal announcements op via SQLAlchemy ORM"""
     try:
         announcements = db.session.query(Announcement).order_by(Announcement.created_at.desc()).all()
         if announcements:
@@ -463,40 +541,22 @@ def _fetch_announcements():
                 })
             return normalized
     except Exception as exc:
-        print(f"WARNING: SQLAlchemy announcement fetch failed: {exc}")
+        print(f"ERROR: SQLAlchemy announcement fetch failed: {exc}")
+        import traceback
+        traceback.print_exc()
     
-    # Fallback naar Supabase REST API
-    if supabase is None:
-        return MOCK_ANNOUNCEMENTS
-    try:
-        response = supabase.table("announcements").select("*").order("created_at", desc=True).execute()
-        data = response.data or []
-        normalized = []
-        for row in data:
-            normalized.append({
-                "title": row.get("title"),
-                "body": row.get("body"),
-                "author": row.get("author", "Onbekend"),
-                "date": _format_supabase_date(row.get("created_at"))
-            })
-        if normalized:
-            return normalized
-    except Exception as exc:
-        print(f"WARNING: Supabase announcement fetch failed: {exc}")
     return MOCK_ANNOUNCEMENTS
 
 def _fetch_events():
     """
     Haal alle events op en normaliseer naar een rijk formaat met datetime,
     zodat we ze kunnen groeperen in toekomstige, vandaag en voorbije events.
-    Dit verandert niets aan het onderliggende Event-model/Supabase-schema.
+    Gebruikt alleen SQLAlchemy ORM.
     """
-    tz = pytz.timezone("Europe/Brussels")
-
     def _ensure_datetime(date_str, time_str):
         """Helper: parse datum + tijd strings naar timezone-aware datetime."""
         if not date_str:
-            return datetime.now(tz)
+            return datetime.now(TZ_BRUSSELS)
         # Ondersteun dd/mm/YYYY (huidige UI) en ISO formats als fallback
         parsed = None
         for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
@@ -516,26 +576,17 @@ def _fetch_events():
                 parsed = parsed.replace(hour=t.hour, minute=t.minute)
             except ValueError:
                 pass
-        # Zorg dat datetime timezone-aware is in Europe/Brussels
-        if parsed.tzinfo is None:
-            parsed = tz.localize(parsed)
-        else:
-            parsed = parsed.astimezone(tz)
-        return parsed
+        # Zorg dat datetime timezone-aware is
+        return ensure_timezone(parsed)
 
     normalized = []
 
-    # 1) Probeer eerst via SQLAlchemy (PostgreSQL direct)
+    # Gebruik alleen SQLAlchemy ORM
     try:
         events = db.session.query(Event).order_by(Event.event_date.asc()).all()
         if events:
             for evt in events:
-                event_dt = evt.event_date or datetime.now(tz)
-                # Zorg dat event_dt timezone-aware is
-                if event_dt.tzinfo is None:
-                    event_dt = tz.localize(event_dt)
-                else:
-                    event_dt = event_dt.astimezone(tz)
+                event_dt = ensure_timezone(evt.event_date or datetime.now(TZ_BRUSSELS))
 
                 normalized.append({
                     "id": evt.event_number,
@@ -549,28 +600,7 @@ def _fetch_events():
     except Exception as exc:
         print(f"WARNING: SQLAlchemy event fetch failed: {exc}")
 
-    # 2) Fallback naar Supabase REST API
-    if supabase is not None:
-        try:
-            response = supabase.table("events").select("*").order("event_date", desc=False).execute()
-            data = response.data or []
-            for row in data:
-                event_date_str = row.get("event_date")
-                dt = _ensure_datetime(event_date_str, None) if event_date_str else datetime.now(tz)
-                normalized.append({
-                    "id": row.get("event_number"),
-                    "title": row.get("event_name", ""),
-                    "datetime": dt,
-                    "date": dt.strftime("%d/%m/%Y"),
-                    "time": dt.strftime("%H:%M"),
-                    "location": row.get("location", "Onbekende locatie"),
-                })
-            if normalized:
-                return normalized
-        except Exception as exc:
-            print(f"WARNING: Supabase event fetch failed: {exc}")
-
-    # 3) Laatste fallback naar mock-data (gebruikt dezelfde normalisatie)
+    # 2) Laatste fallback naar mock-data (gebruikt dezelfde normalisatie)
     for row in MOCK_UPCOMING_EVENTS:
         dt = _ensure_datetime(row.get("date"), row.get("time"))
         normalized.append({
@@ -591,8 +621,7 @@ def _group_events_by_date(events):
     - Vandaag: zelfde dag als vandaag (asc)
     - Voorbije Events: event_date < vandaag (desc)
     """
-    tz = pytz.timezone("Europe/Brussels")
-    today = datetime.now(tz).date()
+    today = datetime.now(TZ_BRUSSELS).date()
 
     upcoming = []
     today_events = []
@@ -602,7 +631,7 @@ def _group_events_by_date(events):
         dt = ev.get("datetime")
         if not dt:
             # reconstructeer uit strings indien nodig
-            dt = datetime.now(tz)
+            dt = datetime.now(TZ_BRUSSELS)
         ev_date = dt.date()
 
         if ev_date > today:
@@ -693,8 +722,7 @@ def dashboard():
     grouped = _group_events_by_date(events)
 
     # Bouw label "Vandaag: <weekdag> d/m/jjjj" in het Nederlands
-    tz = pytz.timezone("Europe/Brussels")
-    today_dt = datetime.now(tz)
+    today_dt = datetime.now(TZ_BRUSSELS)
     weekday_name = WEEKDAY_NAMES_NL[today_dt.weekday()]
     today_label = f"Vandaag: {weekday_name} {today_dt.day}/{today_dt.month}/{today_dt.year}"
 
@@ -741,11 +769,7 @@ def get_all_announcements():
         
         for ann in announcements:
             created_at = ann.created_at
-            if created_at.tzinfo is None:
-                tz = pytz.timezone("Europe/Brussels")
-                created_at = tz.localize(created_at)
-            else:
-                created_at = created_at.astimezone(pytz.timezone("Europe/Brussels"))
+            created_at = ensure_timezone(created_at)
             
             announcements_list.append({
                 "id": ann.id,
@@ -769,11 +793,7 @@ def get_announcement_details(announcement_id):
             return jsonify({'error': 'Announcement niet gevonden.'}), 404
         
         created_at = announcement.created_at or datetime.now()
-        if created_at.tzinfo is None:
-            tz = pytz.timezone("Europe/Brussels")
-            created_at = tz.localize(created_at)
-        else:
-            created_at = created_at.astimezone(pytz.timezone("Europe/Brussels"))
+        created_at = ensure_timezone(created_at)
         
         return jsonify({
             'id': announcement.id,
@@ -791,23 +811,16 @@ def get_announcement_details(announcement_id):
 def update_announcement():
     """Update een announcement"""
     try:
-        announcement_id = request.form.get("announcement_id", "").strip()
-        
-        if not announcement_id:
-            flash("Announcement ID ontbreekt.", "error")
+        # Parse en valideer announcement ID
+        announcement_id, error = parse_id_from_form(request.form, "announcement_id", "Announcement", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
-        try:
-            announcement_id = int(announcement_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig announcement ID.", "error")
-            return redirect(url_for("main.dashboard"))
-        
-        # Find announcement
-        announcement = db.session.query(Announcement).filter(Announcement.id == announcement_id).first()
-        
-        if not announcement:
-            flash("Announcement niet gevonden.", "error")
+        # Haal announcement op
+        announcement, error = get_entity_by_id(Announcement, announcement_id, "id", "Announcement", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
         # Get form data
@@ -844,23 +857,16 @@ def update_announcement():
 def delete_announcement():
     """Verwijder een announcement"""
     try:
-        announcement_id = request.form.get("announcement_id", "").strip()
-        
-        if not announcement_id:
-            flash("Announcement ID ontbreekt.", "error")
+        # Parse en valideer announcement ID
+        announcement_id, error = parse_id_from_form(request.form, "announcement_id", "Announcement", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
-        try:
-            announcement_id = int(announcement_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig announcement ID.", "error")
-            return redirect(url_for("main.dashboard"))
-        
-        # Find announcement
-        announcement = db.session.query(Announcement).filter(Announcement.id == announcement_id).first()
-        
-        if not announcement:
-            flash("Announcement niet gevonden.", "error")
+        # Haal announcement op
+        announcement, error = get_entity_by_id(Announcement, announcement_id, "id", "Announcement", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
         title = announcement.title
@@ -922,12 +928,7 @@ def get_all_events():
         events = db.session.query(Event).order_by(Event.event_date.asc()).all()
         events_list = []
         for evt in events:
-            event_dt = evt.event_date or datetime.now()
-            if event_dt.tzinfo is None:
-                tz = pytz.timezone("Europe/Brussels")
-                event_dt = tz.localize(event_dt)
-            else:
-                event_dt = event_dt.astimezone(pytz.timezone("Europe/Brussels"))
+            event_dt = ensure_timezone(evt.event_date or datetime.now(TZ_BRUSSELS))
             
             events_list.append({
                 "event_number": evt.event_number,
@@ -952,12 +953,7 @@ def get_event_details(event_number):
         if not event:
             return jsonify({'error': 'Event niet gevonden.'}), 404
         
-        event_dt = event.event_date or datetime.now()
-        if event_dt.tzinfo is None:
-            tz = pytz.timezone("Europe/Brussels")
-            event_dt = tz.localize(event_dt)
-        else:
-            event_dt = event_dt.astimezone(pytz.timezone("Europe/Brussels"))
+        event_dt = ensure_timezone(event.event_date or datetime.now(TZ_BRUSSELS))
         
         return jsonify({
             'event_number': event.event_number,
@@ -975,23 +971,16 @@ def get_event_details(event_number):
 def update_event():
     """Update een event"""
     try:
-        event_number = request.form.get("event_number", "").strip()
-        
-        if not event_number:
-            flash("Event nummer ontbreekt.", "error")
+        # Parse en valideer event number
+        event_number, error = parse_id_from_form(request.form, "event_number", "Event", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
-        try:
-            event_number = int(event_number)
-        except (ValueError, TypeError):
-            flash("Ongeldig event nummer.", "error")
-            return redirect(url_for("main.dashboard"))
-        
-        # Find event
-        event = db.session.query(Event).filter(Event.event_number == event_number).first()
-        
-        if not event:
-            flash("Event niet gevonden.", "error")
+        # Haal event op
+        event, error = get_entity_by_id(Event, event_number, "event_number", "Event", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
         # Get form data
@@ -1037,23 +1026,16 @@ def update_event():
 def delete_event():
     """Verwijder een event"""
     try:
-        event_number = request.form.get("event_number", "").strip()
-        
-        if not event_number:
-            flash("Event nummer ontbreekt.", "error")
+        # Parse en valideer event number
+        event_number, error = parse_id_from_form(request.form, "event_number", "Event", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
-        try:
-            event_number = int(event_number)
-        except (ValueError, TypeError):
-            flash("Ongeldig event nummer.", "error")
-            return redirect(url_for("main.dashboard"))
-        
-        # Find and delete event
-        event = db.session.query(Event).filter(Event.event_number == event_number).first()
-        
-        if not event:
-            flash("Event niet gevonden.", "error")
+        # Haal event op
+        event, error = get_entity_by_id(Event, event_number, "event_number", "Event", url_for("main.dashboard"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.dashboard"))
         
         event_name = event.event_name or 'Onbekend'
@@ -1084,18 +1066,12 @@ def export_single_event_ical(event_id):
     """
     from icalendar import Calendar, Event as ICalEvent
 
-    tz = pytz.timezone("Europe/Brussels")
-
     event = db.session.get(Event, event_id)
     if not event:
         flash("Event niet gevonden voor iCal-export.", "error")
         return redirect(url_for("main.dashboard"))
 
-    event_dt = event.event_date or datetime.now(tz)
-    if event_dt.tzinfo is None:
-        event_dt = tz.localize(event_dt)
-    else:
-        event_dt = event_dt.astimezone(tz)
+    event_dt = ensure_timezone(event.event_date or datetime.now(TZ_BRUSSELS))
 
     cal = Calendar()
     cal.add("prodid", "-//VIC Agenda//NL")
@@ -1126,8 +1102,6 @@ def export_all_events_ical():
     """
     from icalendar import Calendar, Event as ICalEvent
 
-    tz = pytz.timezone("Europe/Brussels")
-
     cal = Calendar()
     cal.add("prodid", "-//VIC Agenda Alle Events//NL")
     cal.add("version", "2.0")
@@ -1135,55 +1109,18 @@ def export_all_events_ical():
     # Gebruik primair de Event-tabel
     events = db.session.query(Event).order_by(Event.event_date.asc()).all()
 
-    # Als er geen events zijn, kunnen we optioneel mock/Supabase gebruiken,
-    # maar meestal zal de tabel gevuld zijn via add_event().
-    if not events and supabase is not None:
-        try:
-            response = supabase.table("events").select("*").order("event_date", desc=False).execute()
-            for row in (response.data or []):
-                name = row.get("event_name", "Onbekend event")
-                event_date_str = row.get("event_date")
-                location = row.get("location", "Onbekende locatie")
+    # Gebruik alleen SQLAlchemy ORM
+    for event in events:
+        event_dt = ensure_timezone(event.event_date or datetime.now(TZ_BRUSSELS))
 
-                if event_date_str:
-                    try:
-                        dt = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
-                    except Exception:
-                        dt = datetime.now()
-                else:
-                    dt = datetime.now()
-
-                if dt.tzinfo is None:
-                    dt = tz.localize(dt)
-                else:
-                    dt = dt.astimezone(tz)
-
-                ical_event = ICalEvent()
-                ical_event.add("uid", f"event-supabase-{name}@vic-app")
-                ical_event.add("summary", name)
-                ical_event.add("dtstart", dt)
-                ical_event.add("dtend", dt + timedelta(hours=1))
-                ical_event.add("location", location)
-                ical_event.add("description", "Event gegenereerd via de applicatie (Supabase fallback)")
-                cal.add_component(ical_event)
-        except Exception as exc:
-            print(f"WARNING: Supabase fetch for iCal all-events failed: {exc}")
-    else:
-        for event in events:
-            event_dt = event.event_date or datetime.now(tz)
-            if event_dt.tzinfo is None:
-                event_dt = tz.localize(event_dt)
-            else:
-                event_dt = event_dt.astimezone(tz)
-
-            ical_event = ICalEvent()
-            ical_event.add("uid", f"event-{event.event_number}@vic-app")
-            ical_event.add("summary", event.event_name)
-            ical_event.add("dtstart", event_dt)
-            ical_event.add("dtend", event_dt + timedelta(hours=1))
-            ical_event.add("location", event.location or "Onbekende locatie")
-            ical_event.add("description", "Event gegenereerd via de applicatie")
-            cal.add_component(ical_event)
+        ical_event = ICalEvent()
+        ical_event.add("uid", f"event-{event.event_number}@vic-app")
+        ical_event.add("summary", event.event_name)
+        ical_event.add("dtstart", event_dt)
+        ical_event.add("dtend", event_dt + timedelta(hours=1))
+        ical_event.add("location", event.location or "Onbekende locatie")
+        ical_event.add("description", "Event gegenereerd via de applicatie")
+        cal.add_component(ical_event)
 
     ics_bytes = cal.to_ical()
     resp = Response(ics_bytes, mimetype="text/calendar")
@@ -1575,15 +1512,24 @@ def _fetch_transactions():
 def transactions():
     transactions_data = _fetch_transactions()
     
-    return render_template("transactions.html", transactions=transactions_data)
+    # Haal enum opties op voor dropdowns
+    from .models import TransactionType, AssetClass, Currency, Sector
+    
+    return render_template(
+        "transactions.html", 
+        transactions=transactions_data,
+        transaction_types=TransactionType.get_all_options(),
+        asset_classes=AssetClass.get_all_options(),
+        currencies=Currency.get_all_options(),
+        sectors=Sector.get_all_options()
+    )
     
 # Voting pagina
 @main.route("/voting")
 @login_required
 def voting():
     """Voting pagina met openstaande votingen en resultaten"""
-    tz = pytz.timezone("Europe/Brussels")
-    now = datetime.now(tz)
+    now = datetime.now(TZ_BRUSSELS)
     
     # Haal alle voting proposals op
     proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
@@ -1594,22 +1540,11 @@ def voting():
     
     for proposal in proposals:
         # Check of deadline verstreken is
-        deadline = proposal.deadline
-        if deadline.tzinfo is None:
-            deadline = tz.localize(deadline)
-        else:
-            deadline = deadline.astimezone(tz)
-        
+        deadline = ensure_timezone(proposal.deadline)
         is_pending = deadline > now
         
-        # Haal stemmen op voor dit proposal
-        votes = db.session.query(Vote).filter(Vote.proposal_id == proposal.proposal_id).all()
-        
-        # Tel stemmen
-        for_votes = sum(1 for v in votes if v.vote_option == 'voor')
-        against_votes = sum(1 for v in votes if v.vote_option == 'tegen')
-        abstain_votes = sum(1 for v in votes if v.vote_option == 'onthouding')
-        total_votes = len(votes)
+        # Haal vote counts op via helper functie
+        vote_counts = get_vote_counts(proposal.proposal_id)
         
         # Check of gebruiker al gestemd heeft
         user_voted = False
@@ -1626,10 +1561,10 @@ def voting():
             'stock_name': proposal.stock_name or 'Stock XYZ',
             'deadline': deadline.strftime('%d/%m/%Y'),
             'deadline_datetime': deadline,
-            'for_votes': for_votes,
-            'against_votes': against_votes,
-            'abstain_votes': abstain_votes,
-            'total_votes': total_votes,
+            'for_votes': vote_counts['voor'],
+            'against_votes': vote_counts['tegen'],
+            'abstain_votes': vote_counts['onthouding'],
+            'total_votes': vote_counts['total'],
             'is_pending': is_pending,
             'user_voted': user_voted
         }
@@ -2347,28 +2282,6 @@ def add_transaction():
             traceback.print_exc()
             db.session.rollback()
         
-        # Probeer ook via Supabase REST API (als backup)
-        if supabase is not None:
-            try:
-                supabase_data = {
-                    "transaction_type": transaction_type.upper(),
-                    "transaction_quantity": quantity,
-                    "transaction_amount": final_amount,
-                    "transaction_date": parsed_date.isoformat() + "+00:00",
-                    "transaction_ticker": transaction_ticker,
-                    "transaction_currency": transaction_currency.upper(),
-                    "transaction_share_price": share_price,
-                    "asset_type": asset_class,  # Voor backward compatibility
-                    "asset_class": asset_class,
-                    "sector": sector if sector else None
-                }
-                response = supabase.table("transactions").insert(supabase_data).execute()
-                print(f"DEBUG: Transaction saved to Supabase: {response.data if hasattr(response, 'data') else 'success'}")
-            except Exception as supabase_exc:
-                print(f"WARNING: Supabase insert failed: {supabase_exc}")
-                import traceback
-                traceback.print_exc()
-        
         flash(f"Transactie '{transaction_type}' voor {asset_name} ({transaction_ticker}) toegevoegd.", "success")
     except Exception as exc:
         print(f"ERROR: Transaction insert failed: {exc}")
@@ -2478,23 +2391,16 @@ def get_transaction_details(transaction_id):
 def update_transaction():
     """Update een transactie"""
     try:
-        transaction_id = request.form.get("transaction_id", "").strip()
-        
-        if not transaction_id:
-            flash("Transactie ID ontbreekt.", "error")
+        # Parse en valideer transaction ID
+        transaction_id, error = parse_id_from_form(request.form, "transaction_id", "Transactie", url_for("main.transactions"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
-        try:
-            transaction_id = int(transaction_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig transactie ID.", "error")
-            return redirect(url_for("main.transactions"))
-        
-        # Find transaction
-        transaction = db.session.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
-        
-        if not transaction:
-            flash("Transactie niet gevonden.", "error")
+        # Haal transaction op
+        transaction, error = get_entity_by_id(Transaction, transaction_id, "transaction_id", "Transactie", url_for("main.transactions"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
         # Get form data
@@ -2514,31 +2420,19 @@ def update_transaction():
             return redirect(url_for("main.transactions"))
         
         # Parse date
-        parsed_date = None
-        for date_format in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
-            try:
-                parsed_date = datetime.strptime(transaction_date, date_format)
-                break
-            except ValueError:
-                continue
+        parsed_date = parse_transaction_date(transaction_date)
         if not parsed_date:
             parsed_date = datetime.now()
         
         # Parse quantity and price
-        try:
-            quantity = float(transaction_quantity_str)
-            if quantity <= 0:
-                raise ValueError("Quantity must be positive")
-        except (ValueError, TypeError):
-            flash("Ongeldige hoeveelheid.", "error")
+        quantity, error = parse_float_from_form(request.form, "transaction_quantity", min_value=0, field_label="Hoeveelheid")
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
-        try:
-            share_price = float(transaction_share_price_str)
-            if share_price <= 0:
-                raise ValueError("Price must be positive")
-        except (ValueError, TypeError):
-            flash("Ongeldige prijs per aandeel.", "error")
+        share_price, error = parse_float_from_form(request.form, "transaction_share_price", min_value=0, field_label="Prijs per aandeel")
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
         # Calculate total amount
@@ -2574,23 +2468,16 @@ def update_transaction():
 def delete_transaction():
     """Verwijder een transactie"""
     try:
-        transaction_id = request.form.get("transaction_id", "").strip()
-        
-        if not transaction_id:
-            flash("Transactie ID ontbreekt.", "error")
+        # Parse en valideer transaction ID
+        transaction_id, error = parse_id_from_form(request.form, "transaction_id", "Transactie", url_for("main.transactions"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
-        try:
-            transaction_id = int(transaction_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig transactie ID.", "error")
-            return redirect(url_for("main.transactions"))
-        
-        # Find and delete transaction
-        transaction = db.session.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
-        
-        if not transaction:
-            flash("Transactie niet gevonden.", "error")
+        # Haal transaction op
+        transaction, error = get_entity_by_id(Transaction, transaction_id, "transaction_id", "Transactie", url_for("main.transactions"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.transactions"))
         
         # Delete the transaction
@@ -2628,12 +2515,13 @@ def add_voting_proposal():
         flash("Deadline is verplicht.", "error")
         return redirect(url_for("main.voting"))
     
+    # Parse deadline via helper functie
+    deadline_dt = parse_deadline_date(deadline_date)
+    if deadline_dt is None:
+        flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
+        return redirect(url_for("main.voting"))
+    
     try:
-        # Parse deadline (dd/mm/yyyy format)
-        tz = pytz.timezone("Europe/Brussels")
-        deadline_dt = datetime.strptime(deadline_date, "%d/%m/%Y")
-        deadline_dt = tz.localize(deadline_dt.replace(hour=23, minute=59, second=59))
-        
         proposal = VotingProposal(
             proposal_type=proposal_type,
             stock_name=stock_name,
@@ -2643,8 +2531,6 @@ def add_voting_proposal():
         db.session.add(proposal)
         db.session.commit()
         flash(f"Stemming '{proposal_type}' toegevoegd.", "success")
-    except ValueError:
-        flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
     except Exception as exc:
         print(f"ERROR: Voting proposal insert failed: {exc}")
         import traceback
@@ -2662,19 +2548,13 @@ def get_all_voting_proposals():
     try:
         include_closed = request.args.get('include_closed', 'false').lower() == 'true'
         only_closed = request.args.get('only_closed', 'false').lower() == 'true'  # Alleen resultaten
-        tz = pytz.timezone("Europe/Brussels")
-        now = datetime.now(tz)
+        now = datetime.now(TZ_BRUSSELS)
         
         proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
         proposals_list = []
         
         for prop in proposals:
-            deadline = prop.deadline
-            if deadline.tzinfo is None:
-                deadline = tz.localize(deadline)
-            else:
-                deadline = deadline.astimezone(tz)
-            
+            deadline = ensure_timezone(prop.deadline)
             is_pending = deadline > now
             
             # Alleen resultaten (deadline verstreken)
@@ -2710,12 +2590,7 @@ def get_voting_proposal_details(proposal_id):
         if not proposal:
             return jsonify({'error': 'Voting proposal niet gevonden.'}), 404
         
-        deadline = proposal.deadline
-        tz = pytz.timezone("Europe/Brussels")
-        if deadline.tzinfo is None:
-            deadline = tz.localize(deadline)
-        else:
-            deadline = deadline.astimezone(tz)
+        deadline = ensure_timezone(proposal.deadline)
         
         return jsonify({
             'proposal_id': proposal.proposal_id,
@@ -2734,23 +2609,16 @@ def get_voting_proposal_details(proposal_id):
 def update_voting_proposal():
     """Update een voting proposal"""
     try:
-        proposal_id = request.form.get("proposal_id", "").strip()
-        
-        if not proposal_id:
-            flash("Proposal ID ontbreekt.", "error")
+        # Parse en valideer proposal ID
+        proposal_id, error = parse_id_from_form(request.form, "proposal_id", "Proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.voting"))
         
-        try:
-            proposal_id = int(proposal_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig proposal ID.", "error")
-            return redirect(url_for("main.voting"))
-        
-        # Find proposal
-        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
-        
-        if not proposal:
-            flash("Voting proposal niet gevonden.", "error")
+        # Haal proposal op
+        proposal, error = get_entity_by_id(VotingProposal, proposal_id, "proposal_id", "Voting proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.voting"))
         
         # Get form data
@@ -2772,10 +2640,11 @@ def update_voting_proposal():
             flash("Deadline is verplicht.", "error")
             return redirect(url_for("main.voting"))
         
-        # Parse deadline
-        tz = pytz.timezone("Europe/Brussels")
-        deadline_dt = datetime.strptime(deadline_date, "%d/%m/%Y")
-        deadline_dt = tz.localize(deadline_dt.replace(hour=23, minute=59, second=59))
+        # Parse deadline via helper functie
+        deadline_dt = parse_deadline_date(deadline_date)
+        if deadline_dt is None:
+            flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
+            return redirect(url_for("main.voting"))
         
         # Update proposal
         proposal.proposal_type = proposal_type
@@ -2803,23 +2672,16 @@ def update_voting_proposal():
 def delete_voting_proposal():
     """Verwijder een voting proposal"""
     try:
-        proposal_id = request.form.get("proposal_id", "").strip()
-        
-        if not proposal_id:
-            flash("Proposal ID ontbreekt.", "error")
+        # Parse en valideer proposal ID
+        proposal_id, error = parse_id_from_form(request.form, "proposal_id", "Proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.voting"))
         
-        try:
-            proposal_id = int(proposal_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig proposal ID.", "error")
-            return redirect(url_for("main.voting"))
-        
-        # Find and delete proposal
-        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
-        
-        if not proposal:
-            flash("Voting proposal niet gevonden.", "error")
+        # Haal proposal op
+        proposal, error = get_entity_by_id(VotingProposal, proposal_id, "proposal_id", "Voting proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.voting"))
         
         proposal_type = proposal.proposal_type or 'Onbekend'
@@ -2844,37 +2706,29 @@ def delete_voting_proposal():
 def submit_vote():
     """Stem op een voting proposal"""
     try:
-        proposal_id = request.form.get("proposal_id", "").strip()
-        vote_option = request.form.get("vote_option", "").strip()
+        # Parse en valideer proposal ID
+        proposal_id, error = parse_id_from_form(request.form, "proposal_id", "Proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
+            return redirect(url_for("main.voting"))
         
-        if not proposal_id or not vote_option:
-            flash("Proposal ID en stem optie zijn verplicht.", "error")
+        vote_option = request.form.get("vote_option", "").strip()
+        if not vote_option:
+            flash("Vote optie ontbreekt.", "error")
             return redirect(url_for("main.voting"))
         
         if vote_option not in ['voor', 'tegen', 'onthouding']:
             flash("Ongeldige stem optie.", "error")
             return redirect(url_for("main.voting"))
         
-        try:
-            proposal_id = int(proposal_id)
-        except (ValueError, TypeError):
-            flash("Ongeldig proposal ID.", "error")
-            return redirect(url_for("main.voting"))
-        
         # Check if proposal exists and deadline not passed
-        proposal = db.session.query(VotingProposal).filter(VotingProposal.proposal_id == proposal_id).first()
-        if not proposal:
-            flash("Voting proposal niet gevonden.", "error")
+        proposal, error = get_entity_by_id(VotingProposal, proposal_id, "proposal_id", "Voting proposal", url_for("main.voting"))
+        if error:
+            flash(error, "error")
             return redirect(url_for("main.voting"))
         
-        tz = pytz.timezone("Europe/Brussels")
-        deadline = proposal.deadline
-        if deadline.tzinfo is None:
-            deadline = tz.localize(deadline)
-        else:
-            deadline = deadline.astimezone(tz)
-        
-        now = datetime.now(tz)
+        deadline = ensure_timezone(proposal.deadline)
+        now = datetime.now(TZ_BRUSSELS)
         if deadline <= now:
             flash("Deadline voor deze stemming is verstreken.", "error")
             return redirect(url_for("main.voting"))
@@ -2948,6 +2802,54 @@ def logout():
     session.pop('user_id', None) 
     flash("Je bent succesvol uitgelogd.", "info")
     return redirect(url_for('main.home'))
+
+# --- File Storage Helper Functies ---
+
+def _get_upload_folder():
+    """Haal upload folder path op"""
+    return Path(current_app.config['UPLOAD_FOLDER'])
+
+def _get_file_item_by_id(file_id):
+    """Haal FileItem op basis van ID"""
+    return db.session.query(FileItem).filter(
+        FileItem.item_id == file_id,
+        FileItem.item_type == 'file'
+    ).first()
+
+def _build_local_file_path(storage_path):
+    """
+    Bouw lokaal file path op basis van storage path
+    Returns: Path object naar lokaal bestand
+    """
+    upload_folder = _get_upload_folder()
+    # Converteer forward slashes naar backslashes voor Windows
+    windows_path = storage_path.replace('/', '\\') if storage_path else ''
+    return upload_folder / windows_path if windows_path else upload_folder
+
+def _build_storage_path_from_parent(parent_id_int):
+    """
+    Bouw lokaal storage path op basis van parent folder structuur
+    Returns: storage path string (bijv. "folder1/folder2")
+    """
+    if not parent_id_int:
+        return ""
+    
+    parent_folder = db.session.query(FileItem).filter(FileItem.item_id == parent_id_int).first()
+    if not parent_folder:
+        return ""
+    
+    folder_parts = []
+    current_folder = parent_folder
+    while current_folder:
+        folder_parts.insert(0, current_folder.name)
+        if current_folder.parent_id:
+            current_folder = db.session.query(FileItem).filter(
+                FileItem.item_id == current_folder.parent_id
+            ).first()
+        else:
+            current_folder = None
+    
+    return "/".join(folder_parts)
 
 # Helper functie om bestandstype icoon te bepalen
 def _get_file_icon(file_name):
@@ -3165,16 +3067,18 @@ def bestanden_folder(folder_id):
 def create_folder():
     """Maak een nieuwe folder aan"""
     try:
-        folder_name = request.form.get("folder_name", "").strip()
+        original_folder_name = request.form.get("folder_name", "").strip()
         parent_id = request.form.get("parent_id", "").strip()
         
         parent_id_int = int(parent_id) if parent_id else None
         
-        if not folder_name:
+        if not original_folder_name:
             flash("Mapnaam is verplicht.", "error")
             if parent_id_int:
                 return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
             return redirect(url_for("main.bestanden"))
+        
+        folder_name = original_folder_name
         
         # Check of folder al bestaat
         existing = db.session.query(FileItem).filter(
@@ -3216,7 +3120,7 @@ def create_folder():
 @main.route("/bestanden/upload-file", methods=["POST"])
 @login_required
 def upload_file():
-    """Upload een bestand"""
+    """Upload een bestand naar lokaal filesystem"""
     try:
         if 'file' not in request.files:
             flash("Geen bestand geselecteerd.", "error")
@@ -3230,60 +3134,54 @@ def upload_file():
         parent_id = request.form.get("parent_id", "").strip()
         parent_id_int = int(parent_id) if parent_id else None
         
-        # Haal upload folder op uit config
-        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-        upload_folder.mkdir(parents=True, exist_ok=True)
+        # Bepaal storage path op basis van parent folder
+        storage_path = _build_storage_path_from_parent(parent_id_int)
         
-        # Bepaal waar bestand opgeslagen moet worden
-        if parent_id_int:
-            # Maak folder structuur gebaseerd op parent folder
-            parent_folder = db.session.query(FileItem).filter(FileItem.item_id == parent_id_int).first()
-            if parent_folder:
-                folder_parts = []
-                current_folder = parent_folder
-                while current_folder:
-                    folder_parts.insert(0, current_folder.name)
-                    if current_folder.parent_id:
-                        current_folder = db.session.query(FileItem).filter(
-                            FileItem.item_id == current_folder.parent_id
-                        ).first()
-                    else:
-                        current_folder = None
-                
-                file_upload_dir = upload_folder / Path(*folder_parts)
-            else:
-                file_upload_dir = upload_folder
-        else:
-            file_upload_dir = upload_folder
-        
-        file_upload_dir.mkdir(parents=True, exist_ok=True)
+        # Gebruik originele filename
+        file_name = file.filename
         
         # Genereer unieke bestandsnaam als bestand al bestaat
-        file_name = file.filename
-        file_dest = file_upload_dir / file_name
         counter = 1
-        while file_dest.exists():
+        original_file_name = file_name
+        
+        # Check of file al bestaat in database met zelfde naam in zelfde folder
+        while True:
+            existing = db.session.query(FileItem).filter(
+                FileItem.name == file_name,
+                FileItem.item_type == 'file',
+                FileItem.parent_id == parent_id_int
+            ).first()
+            
+            if not existing:
+                break
+            
             name_parts = file_name.rsplit('.', 1)
             if len(name_parts) == 2:
                 file_name = f"{name_parts[0]}_{counter}.{name_parts[1]}"
             else:
                 file_name = f"{file_name}_{counter}"
-            file_dest = file_upload_dir / file_name
             counter += 1
         
-        # Sla bestand op
-        file.save(str(file_dest))
-        file_size = file_dest.stat().st_size
+        # Bepaal volledige storage path (lokaal filesystem)
+        if storage_path:
+            full_storage_path = f"{storage_path}/{file_name}"
+        else:
+            full_storage_path = file_name
         
-        # Sla file path relatief op ten opzichte van upload folder
-        relative_file_path = file_dest.relative_to(upload_folder)
+        # Bouw lokaal file path en maak folder structuur aan
+        local_file_path = _build_local_file_path(full_storage_path)
+        local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Sla file op lokaal filesystem
+        file.save(str(local_file_path))
+        file_size = local_file_path.stat().st_size
         
         # Maak FileItem record aan
         new_file = FileItem(
             name=file_name,
             item_type='file',
             parent_id=parent_id_int,
-            file_path=str(relative_file_path),
+            file_path=full_storage_path.replace('/', '\\'),  # Gebruik backslashes voor Windows paths in database
             file_size=file_size,
             created_by=g.user.member_id if g.user else None
         )
@@ -3300,10 +3198,7 @@ def upload_file():
         flash("Fout bij uploaden van bestand.", "error")
     
     # Redirect naar parent folder als die bestaat, anders naar root
-    parent_id_int = int(parent_id) if parent_id else None
-    if parent_id_int:
-        return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
-    # Redirect naar parent folder als die bestaat, anders naar root
+    parent_id = request.form.get("parent_id", "").strip()
     parent_id_int = int(parent_id) if parent_id else None
     if parent_id_int:
         return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
@@ -3322,10 +3217,6 @@ def import_zip():
         if zip_file.filename == '' or not zip_file.filename.lower().endswith('.zip'):
             flash("Selecteer een geldig zip bestand.", "error")
             return redirect(url_for("main.bestanden"))
-        
-        # Haal upload folder op uit config
-        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-        upload_folder.mkdir(parents=True, exist_ok=True)
         
         # Sla zip tijdelijk op
         import tempfile
@@ -3380,7 +3271,7 @@ def import_zip():
                         process_path(child, folder_item.item_id)
                         
                 elif file_path.is_file():
-                    # Maak file aan in database en kopieer naar upload folder
+                    # Maak file aan in database en kopieer naar lokaal filesystem
                     file_name = file_path.name
                     file_size = file_path.stat().st_size
                     
@@ -3389,33 +3280,14 @@ def import_zip():
                     parent_folder = folder_map.get(relative_path_str)
                     parent_db_id = parent_folder.item_id if parent_folder else parent_db_id
                     
-                    # Kopieer bestand naar upload folder
-                    # Maak folder structuur in upload folder
-                    if parent_folder:
-                        # Recreëer folder structuur in upload folder
-                        folder_parts = []
-                        current_folder = parent_folder
-                        while current_folder:
-                            folder_parts.insert(0, current_folder.name)
-                            if current_folder.parent_id:
-                                current_folder = db.session.query(FileItem).filter(
-                                    FileItem.item_id == current_folder.parent_id
-                                ).first()
-                            else:
-                                current_folder = None
-                        
-                        file_upload_dir = upload_folder / Path(*folder_parts)
+                    # Bepaal storage path op basis van parent folder
+                    storage_path = _build_storage_path_from_parent(parent_db_id)
+                    
+                    # Bepaal volledige storage path
+                    if storage_path:
+                        full_storage_path = f"{storage_path}/{file_name}"
                     else:
-                        file_upload_dir = upload_folder
-                    
-                    file_upload_dir.mkdir(parents=True, exist_ok=True)
-                    file_dest = file_upload_dir / file_name
-                    
-                    # Kopieer bestand
-                    shutil.copy2(file_path, file_dest)
-                    
-                    # Sla file path relatief op ten opzichte van upload folder
-                    relative_file_path = file_dest.relative_to(upload_folder)
+                        full_storage_path = file_name
                     
                     # Check of file al bestaat
                     existing_file = db.session.query(FileItem).filter(
@@ -3425,11 +3297,26 @@ def import_zip():
                     ).first()
                     
                     if not existing_file:
+                        # Kopieer file naar lokale storage
+                        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
+                        if storage_path:
+                            # Maak folder structuur aan
+                            folder_path = upload_folder / storage_path.replace('/', '\\')
+                            folder_path.mkdir(parents=True, exist_ok=True)
+                            local_file_path = folder_path / file_name
+                        else:
+                            local_file_path = upload_folder / file_name
+                        
+                        # Kopieer file
+                        import shutil
+                        shutil.copy2(file_path, local_file_path)
+                        
+                        # Maak FileItem record aan
                         file_item = FileItem(
                             name=file_name,
                             item_type='file',
                             parent_id=parent_db_id,
-                            file_path=str(relative_file_path),
+                            file_path=full_storage_path.replace('/', '\\'),  # Gebruik backslashes voor Windows paths in database
                             file_size=file_size,
                             created_by=g.user.member_id if g.user else None
                         )
@@ -3457,56 +3344,48 @@ def import_zip():
 @main.route("/bestanden/download/<int:file_id>")
 @login_required
 def download_file(file_id):
-    """Download een bestand"""
+    """Download een bestand van lokaal filesystem"""
     try:
         # Haal file item op
-        file_item = db.session.query(FileItem).filter(
-            FileItem.item_id == file_id,
-            FileItem.item_type == 'file'
-        ).first()
+        file_item = _get_file_item_by_id(file_id)
         
         if not file_item:
-            flash("Bestand niet gevonden.", "error")
-            abort(404)
+            flash("Bestand niet gevonden in database.", "error")
+            return redirect(url_for("main.bestanden"))
         
         # Controleer of bestand een file_path heeft
         if not file_item.file_path:
-            flash("Bestand pad niet gevonden.", "error")
-            abort(404)
+            flash("Bestand pad niet gevonden in database.", "error")
+            return redirect(url_for("main.bestanden"))
         
-        # Haal upload folder op uit config
-        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-        file_path = upload_folder / file_item.file_path
+        # Download van lokaal filesystem
+        local_file_path = _build_local_file_path(file_item.file_path)
         
-        # Controleer of bestand bestaat
-        if not file_path.exists() or not file_path.is_file():
-            flash("Bestand niet gevonden op de server.", "error")
-            abort(404)
-        
-        # Serveer bestand voor download
-        return send_file(
-            str(file_path),
-            as_attachment=True,
-            download_name=file_item.name,
-            mimetype=None  # Laat Flask MIME-type automatisch detecteren
-        )
+        if local_file_path.exists() and local_file_path.is_file():
+            # Serveer lokaal bestand
+            return send_file(
+                str(local_file_path),
+                as_attachment=True,
+                download_name=file_item.name,
+                mimetype=None
+            )
+        else:
+            flash("Bestand niet gevonden op lokaal filesystem.", "error")
+            return redirect(url_for("main.bestanden"))
         
     except Exception as exc:
         print(f"ERROR: Fout bij downloaden van bestand: {exc}")
         import traceback
         traceback.print_exc()
-        flash("Fout bij downloaden van bestand.", "error")
-        abort(500)
+        flash(f"Fout bij downloaden van bestand: {str(exc)}", "error")
+        return redirect(url_for("main.bestanden"))
 
 @main.route("/bestanden/edit/<int:file_id>", methods=["POST"])
 @login_required
 def edit_file(file_id):
     """Bewerk een bestand (naam wijzigen)"""
     try:
-        file_item = db.session.query(FileItem).filter(
-            FileItem.item_id == file_id,
-            FileItem.item_type == 'file'
-        ).first()
+        file_item = _get_file_item_by_id(file_id)
         
         if not file_item:
             flash("Bestand niet gevonden.", "error")
@@ -3533,24 +3412,36 @@ def edit_file(file_id):
         
         # Update bestandsnaam
         old_name = file_item.name
-        file_item.name = new_name
+        old_storage_path = file_item.file_path
         
-        # Als bestand fysiek bestaat, hernoem het ook
-        if file_item.file_path:
-            upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-            old_file_path = upload_folder / file_item.file_path
+        # Bepaal nieuwe storage path
+        if old_storage_path:
+            # Bepaal directory deel van path
+            if '/' in old_storage_path:
+                storage_dir = '/'.join(old_storage_path.split('/')[:-1])
+                new_storage_path = f"{storage_dir}/{new_name}" if storage_dir else new_name
+            else:
+                new_storage_path = new_name
+        else:
+            new_storage_path = new_name
+        
+        # Hernoem lokaal bestand
+        if old_storage_path:
+            old_local_path = _build_local_file_path(old_storage_path)
+            new_local_path = _build_local_file_path(new_storage_path)
             
-            if old_file_path.exists() and old_file_path.is_file():
-                # Bepaal nieuwe pad
-                new_file_path = old_file_path.parent / new_name
+            # Maak parent directory aan als die niet bestaat
+            new_local_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            if old_local_path.exists() and old_local_path.is_file():
                 try:
-                    old_file_path.rename(new_file_path)
-                    # Update file_path in database
-                    relative_new_path = new_file_path.relative_to(upload_folder)
-                    file_item.file_path = str(relative_new_path)
+                    old_local_path.rename(new_local_path)
                 except Exception as rename_exc:
                     print(f"WARNING: Kon bestand niet hernoemen: {rename_exc}")
-                    # Ga door met database update ook al is fysieke rename mislukt
+                    # Ga door met database update ook al is rename mislukt
+        
+        file_item.name = new_name
+        file_item.file_path = new_storage_path
         
         db.session.commit()
         flash(f"Bestand '{old_name}' is hernoemd naar '{new_name}'.", "success")
@@ -3573,10 +3464,7 @@ def edit_file(file_id):
 def delete_file(file_id):
     """Verwijder een bestand"""
     try:
-        file_item = db.session.query(FileItem).filter(
-            FileItem.item_id == file_id,
-            FileItem.item_type == 'file'
-        ).first()
+        file_item = _get_file_item_by_id(file_id)
         
         if not file_item:
             flash("Bestand niet gevonden.", "error")
@@ -3584,18 +3472,18 @@ def delete_file(file_id):
         
         file_name = file_item.name
         parent_id = file_item.parent_id
+        storage_path = file_item.file_path
         
-        # Verwijder fysiek bestand als het bestaat
-        if file_item.file_path:
-            upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-            file_path = upload_folder / file_item.file_path
+        # Verwijder lokaal bestand
+        if storage_path:
+            local_file_path = _build_local_file_path(storage_path)
             
-            if file_path.exists() and file_path.is_file():
+            if local_file_path.exists() and local_file_path.is_file():
                 try:
-                    file_path.unlink()
+                    local_file_path.unlink()
                 except Exception as delete_exc:
-                    print(f"WARNING: Kon fysiek bestand niet verwijderen: {delete_exc}")
-                    # Ga door met database verwijdering ook al is fysieke delete mislukt
+                    print(f"WARNING: Kon bestand niet verwijderen: {delete_exc}")
+                    # Ga door met database verwijdering ook al is delete mislukt
         
         # Verwijder uit database
         db.session.delete(file_item)

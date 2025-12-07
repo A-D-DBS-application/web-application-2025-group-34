@@ -321,6 +321,7 @@
   height: 100%;
   border-radius: 4px;
   min-width: 4px;
+  transition: width 0.3s ease;
 }
 
 .stat-bar-for {
@@ -333,6 +334,12 @@
 
 .stat-bar-abstain {
   background: #ff9800;
+}
+
+/* Dynamic width via data attribute - wordt gezet via JavaScript */
+.stat-bar[data-width] {
+  width: 0%;
+  /* Width wordt gezet via JavaScript in voting.html */
 }
 
 .stat-label {
@@ -472,6 +479,91 @@
 @media (max-width: 1024px) {
   .voting-container {
     grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .voting-container {
+    padding: 12px;
+    gap: 16px;
+  }
+
+  .section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .voting-card-header,
+  .result-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card-actions {
+    align-self: flex-end;
+  }
+
+  .voting-card-body,
+  .result-body {
+    padding: 16px;
+  }
+
+  .vote-form {
+    gap: 12px;
+  }
+
+  .stat-item {
+    height: 28px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    min-width: 70px;
+  }
+
+  .stat-value {
+    font-size: 13px;
+  }
+
+  .modal-content {
+    width: 95%;
+  }
+}
+
+@media (max-width: 576px) {
+  .voting-container {
+    padding: 8px;
+  }
+
+  .section-head h3 {
+    font-size: 16px;
+  }
+
+  .add-vote-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .voting-card-header h4,
+  .result-header h4 {
+    font-size: 14px;
+  }
+
+  .stock-info .value {
+    font-size: 14px;
+  }
+
+  .pie-chart-container canvas {
+    width: 150px !important;
+    height: 150px !important;
   }
 }
 

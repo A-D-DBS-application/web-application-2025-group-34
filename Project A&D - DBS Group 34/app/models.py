@@ -4,10 +4,109 @@ from flask_login import UserMixin
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import text # Needed for text() function for DEFAULT values
 from datetime import datetime
+from enum import Enum
 
 def get_current_year():
     """Helper functie om huidige jaar te krijgen"""
     return datetime.now().year
+
+# --- Enums voor Type Safety ---
+
+class Sector(Enum):
+    """Sector enum voor analisten"""
+    CONSUMER_HEALTH = (1, "Cons. & Health")
+    INDUSTRIAL_ENERGY_RM = (2, "Ind., E. & R.M.")
+    RE_FINANCIAL_HOLDING = (3, "RE, F. & Hold.")
+    TECH = (4, "Tech")
+    
+    def __init__(self, num, display_name):
+        self.num = num
+        self.display_name = display_name
+    
+    @classmethod
+    def get_display_name(cls, sector_num):
+        """Haal display naam op voor sector nummer"""
+        for sector in cls:
+            if sector.num == sector_num:
+                return sector.display_name
+        return f"Sector {sector_num}"
+    
+    @classmethod
+    def get_all_options(cls):
+        """Haal alle opties op voor dropdown"""
+        return [(sector.display_name, sector.display_name) for sector in cls]
+
+class BoardFunction(Enum):
+    """Board functie enum"""
+    VOORZITTER = (1, "Voorzitter")
+    VICE_VOORZITTER = (2, "Vice-voorzitter")
+    PORTFOLIO_MANAGER = (3, "Portfolio Manager")
+    FUND_ADMINISTRATOR = (4, "Fund Administrator")
+    MARKETING = (5, "Marketing")
+    PUBLIC_RELATIONS = (6, "Public Relations")
+    
+    def __init__(self, num, display_name):
+        self.num = num
+        self.display_name = display_name
+    
+    @classmethod
+    def get_display_name(cls, function_code):
+        """Haal display naam op voor functie code"""
+        for func in cls:
+            if func.num == function_code:
+                return func.display_name
+        return f'Functie {function_code}'
+
+class TransactionType(Enum):
+    """Transaction type enum"""
+    BUY = "BUY"
+    SELL = "SELL"
+    
+    @classmethod
+    def is_valid(cls, value):
+        """Check of waarde een geldig transaction type is"""
+        return any(choice.value == value.upper() for choice in cls)
+    
+    @classmethod
+    def get_all_options(cls):
+        """Haal alle opties op voor dropdown"""
+        return [(choice.value, choice.value) for choice in cls]
+
+class AssetClass(Enum):
+    """Asset class enum"""
+    STOCK = "Stock"
+    ETF = "ETF"
+    BOND = "Bond"
+    CASH = "Cash"
+    CRYPTO = "Crypto"
+    OTHER = "Other"
+    
+    @classmethod
+    def is_valid(cls, value):
+        """Check of waarde een geldig asset class is"""
+        return any(choice.value == value for choice in cls)
+    
+    @classmethod
+    def get_all_options(cls):
+        """Haal alle opties op voor dropdown"""
+        return [(choice.value, choice.value) for choice in cls]
+
+class Currency(Enum):
+    """Currency enum"""
+    EUR = "EUR"
+    USD = "USD"
+    CAD = "CAD"
+    DKK = "DKK"
+    
+    @classmethod
+    def is_valid(cls, value):
+        """Check of waarde een geldige currency is"""
+        return any(choice.value == value.upper() for choice in cls)
+    
+    @classmethod
+    def get_all_options(cls):
+        """Haal alle opties op voor dropdown"""
+        return [(choice.value, choice.value) for choice in cls]
 
 # --- Iv_club Table ---
 class IvClub(db.Model):
@@ -139,15 +238,20 @@ class Member(UserMixin, db.Model):
         if function_code is None:
             return None
         
-        function_map = {
-            1: 'Voorzitter',
-            2: 'Vice-voorzitter',
-            3: 'Portfolio Manager',
-            4: 'Fund Administrator',
-            5: 'Marketing',
-            6: 'Public Relations'
-        }
-        return function_map.get(function_code, f'Functie {function_code}')
+        # Gebruik BoardFunction enum indien beschikbaar
+        try:
+            return BoardFunction.get_display_name(function_code)
+        except (NameError, AttributeError):
+            # Fallback naar oude implementatie
+            function_map = {
+                1: 'Voorzitter',
+                2: 'Vice-voorzitter',
+                3: 'Portfolio Manager',
+                4: 'Fund Administrator',
+                5: 'Marketing',
+                6: 'Public Relations'
+            }
+            return function_map.get(function_code, f'Functie {function_code}')
     
     def get_analist_sector(self):
         """Voor analisten: haalt sector nummer (1-4)"""
@@ -205,6 +309,56 @@ class Member(UserMixin, db.Model):
         role = self.get_role()
         # Alle rollen hebben toegang behalve mogelijk bepaalde edge cases
         return role in ['board', 'analist', 'lid', 'kapitaalverschaffers', 'oud_bestuur_analisten']
+    
+    def get_role_display_name(self):
+        """Geeft display naam terug voor rol - gebruikt in templates"""
+        role = self.get_role()
+        
+        if role == 'board':
+            return self.get_board_function_name() or 'Bestuurslid'
+        elif role == 'analist':
+            sector_num = self.get_analist_sector()
+            # Gebruik Sector enum indien beschikbaar
+            try:
+                if sector_num:
+                    return f'Analist ({Sector.get_display_name(sector_num)})'
+            except (NameError, AttributeError):
+                pass
+            # Fallback
+            sector_names = {
+                1: 'Analist (Cons. & Health)',
+                2: 'Analist (Ind., E. & R.M.)',
+                3: 'Analist (RE, F. & Hold.)',
+                4: 'Analist (Tech)'
+            }
+            return sector_names.get(sector_num, f'Analist (Sector {sector_num})') if sector_num else 'Analist'
+        elif role == 'lid':
+            return 'Lid'
+        elif role == 'kapitaalverschaffers':
+            return 'Kapitaalverschaffer'
+        elif role == 'oud_bestuur_analisten':
+            if self.get_board_function_name():
+                return f'Oud-{self.get_board_function_name()}'
+            elif self.get_analist_sector():
+                sector_num = self.get_analist_sector()
+                # Gebruik Sector enum indien beschikbaar
+                try:
+                    if sector_num:
+                        return f'Oud-Analist ({Sector.get_display_name(sector_num)})'
+                except (NameError, AttributeError):
+                    pass
+                # Fallback
+                sector_names = {
+                    1: 'Oud-Analist (Cons. & Health)',
+                    2: 'Oud-Analist (Ind., E. & R.M.)',
+                    3: 'Oud-Analist (RE, F. & Hold.)',
+                    4: 'Oud-Analist (Tech)'
+                }
+                return sector_names.get(sector_num, f'Oud-Analist (Sector {sector_num})') if sector_num else 'Oud-Analist'
+            else:
+                return 'Oud-Bestuurslid/Analist'
+        else:
+            return self.voting_right or 'Onbekend'
 
 
 # --- ID Generatie Functies ---

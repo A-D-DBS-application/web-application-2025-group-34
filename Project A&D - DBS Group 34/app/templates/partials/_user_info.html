@@ -1,0 +1,13 @@
+{% if g.user %}
+<div class="user-info-box">
+  <div><strong>Naam:</strong> {{ g.user.member_name }}</div>
+  <div><strong>ID:</strong> {{ g.user.member_id }}</div>
+  <div><strong>Functie:</strong> {{ g.user.get_role_display_name() }}</div>
+  <div><strong>Startjaar:</strong> {{ g.user.join_date or g.user.get_year() or '2025' }}</div>
+  <div><strong>Email:</strong> {{ g.user.email }}</div>
+</div>
+<div class="logout-box">
+  <a href="{{ url_for('main.logout') }}" class="logout-link">Uitloggen</a>
+</div>
+{% endif %}
+

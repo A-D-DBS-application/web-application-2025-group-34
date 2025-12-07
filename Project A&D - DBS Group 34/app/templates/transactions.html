@@ -26,8 +26,9 @@
                     <label>Transactie Type *</label>
                     <select name="transaction_type" required>
                         <option value="">Selecteer...</option>
-                        <option value="BUY">BUY</option>
-                        <option value="SELL">SELL</option>
+                        {% for value, label in transaction_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
@@ -49,31 +50,26 @@
                 <div class="form-group">
                     <label>Currency *</label>
                     <select name="transaction_currency" required>
-                        <option value="EUR">EUR</option>
-                        <option value="USD">USD</option>
-                        <option value="CAD">CAD</option>
-                        <option value="DKK">DKK</option>
+                        {% for value, label in currencies %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Asset Class *</label>
                     <select name="asset_class" required>
-                        <option value="Stock">Stock</option>
-                        <option value="Bond">Bond</option>
-                        <option value="ETF">ETF</option>
-                        <option value="Crypto">Crypto</option>
-                        <option value="Other">Other</option>
+                        {% for value, label in asset_classes %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Sector</label>
                     <select name="sector">
                         <option value="">Selecteer sector...</option>
-                        <option value="Tech">Tech</option>
-                        <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
-                        <option value="Cons. & Health">Cons. & Health</option>
-                        <option value="RE, F. & Hold.">RE, F. & Hold.</option>
-                        <option value="ETF">ETF</option>
+                        {% for value, label in sectors %}
+                        <option value="{{ label }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
@@ -172,10 +168,11 @@
                         </div>
                         <div class="form-group">
                             <label>Transactie Type *</label>
-                            <select name="transaction_type" id="editTransactionType" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                            <select name="transaction_type" id="editTransactionType" required>
                                 <option value="">Selecteer...</option>
-                                <option value="BUY">BUY</option>
-                                <option value="SELL">SELL</option>
+                                {% for value, label in transaction_types %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
@@ -196,32 +193,27 @@
                         </div>
                         <div class="form-group">
                             <label>Currency *</label>
-                            <select name="transaction_currency" id="editTransactionCurrency" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
-                                <option value="EUR">EUR</option>
-                                <option value="USD">USD</option>
-                                <option value="CAD">CAD</option>
-                                <option value="DKK">DKK</option>
+                            <select name="transaction_currency" id="editTransactionCurrency" required>
+                                {% for value, label in currencies %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Asset Class *</label>
-                            <select name="asset_class" id="editAssetClass" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
-                                <option value="Stock">Stock</option>
-                                <option value="Bond">Bond</option>
-                                <option value="ETF">ETF</option>
-                                <option value="Crypto">Crypto</option>
-                                <option value="Other">Other</option>
+                            <select name="asset_class" id="editAssetClass" required>
+                                {% for value, label in asset_classes %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Sector</label>
-                            <select name="sector" id="editSector" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+                            <select name="sector" id="editSector">
                                 <option value="">Selecteer sector...</option>
-                                <option value="Tech">Tech</option>
-                                <option value="Ind., E. & R.M.">Ind., E. & R.M.</option>
-                                <option value="Cons. & Health">Cons. & Health</option>
-                                <option value="RE, F. & Hold.">RE, F. & Hold.</option>
-                                <option value="ETF">ETF</option>
+                                {% for value, label in sectors %}
+                                <option value="{{ label }}">{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
@@ -296,11 +288,9 @@
                 <button class="filter-btn" data-filter="sector" id="sectorFilterBtn" onclick="toggleSectorDropdown(event)">Sector</button>
                 <div class="sector-dropdown" id="sectorDropdown" style="display: none;">
                     <div class="sector-option" onclick="selectSector('')">Alle sectoren</div>
-                    <div class="sector-option" onclick="selectSector('Tech')">Tech</div>
-                    <div class="sector-option" onclick="selectSector('Ind., E. & R.M.')">Ind., E. & R.M.</div>
-                    <div class="sector-option" onclick="selectSector('Cons. & Health')">Cons. & Health</div>
-                    <div class="sector-option" onclick="selectSector('RE, F. & Hold.')">RE, F. & Hold.</div>
-                    <div class="sector-option" onclick="selectSector('ETF')">ETF</div>
+                    {% for value, label in sectors %}
+                    <div class="sector-option" onclick="selectSector('{{ label }}')">{{ label }}</div>
+                    {% endfor %}
                 </div>
             </div>
             <button class="filter-btn" data-filter="size" onclick="toggleFilter('size')">Transactie grootte</button>

@@ -21,6 +21,8 @@
     background:linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
   }
   .left{display:flex;align-items:center;gap:12px}
+  .logo-link{display:inline-block;cursor:pointer;transition:opacity 0.2s}
+  .logo-link:hover{opacity:0.8}
   .logo{width:56px;height:56px;border-radius:12px;object-fit:contain;border:1px solid var(--border);padding:6px;background:white}
   .brand-title{font-weight:700;font-size:17px}
   .brand-sub{font-size:13px;color:var(--muted)}
@@ -117,4 +119,272 @@
   .form-group{display:flex;flex-direction:column;gap:6px}
   .form-group label{font-size:14px;font-weight:600;color:var(--green)}
   .form-actions{display:flex;gap:10px;margin-top:10px}
+
+  /* Flash Messages */
+  .flash-messages {
+    margin-bottom: 22px;
+  }
+
+  .flash-success,
+  .flash-info,
+  .flash-error {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: rgba(36,111,89,0.05);
+    border: 1px solid rgba(31,90,71,0.06);
+    font-weight: 600;
+  }
+
+  .flash-success {
+    color: #255b48;
+  }
+
+  .flash-info {
+    color: #1976f2;
+  }
+
+  .flash-error {
+    color: #9b2f2f;
+  }
+
+  /* Modal Styles */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal.show {
+    display: flex;
+  }
+
+  .modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-content.modal-small {
+    max-width: 400px;
+  }
+
+  .modal-header {
+    background: var(--green);
+    color: white;
+    padding: 20px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal-close {
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    line-height: 1;
+    transition: opacity 0.2s;
+  }
+
+  .modal-close:hover {
+    opacity: 0.7;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .form-help-text {
+    color: #666;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    background: var(--green);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--green-2);
+  }
+
+  .btn-warning {
+    background: #ff9800;
+    color: white;
+  }
+
+  .btn-warning:hover {
+    background: #f57c00;
+  }
+
+  .btn-danger {
+    background: #f44336;
+    color: white;
+  }
+
+  .btn-danger:hover {
+    background: #d32f2f;
+  }
+
+  /* Alert/Warning boxes */
+  .alert-warning {
+    background: #fff3cd;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #ffc107;
+  }
+
+  .modal-body p {
+    margin-bottom: 20px;
+  }
+
+  /* Responsive Design - Mobile First */
+  @media (max-width: 768px) {
+    /* Topbar responsive */
+    .topbar {
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 16px;
+    }
+
+    .left {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .userbox {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .user-info-box {
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+
+    .user-info-box div {
+      font-size: 12px;
+    }
+
+    .logout-box {
+      width: 100%;
+    }
+
+    /* Tabs responsive */
+    .tabs {
+      padding: 8px 4px;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab {
+      padding: 8px 14px;
+      font-size: 14px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Content responsive */
+    .content {
+      padding: 0 12px;
+      margin: 16px auto;
+    }
+
+    /* Modal responsive */
+    .modal-content {
+      width: 95%;
+      margin: 10% auto;
+      max-height: 85vh;
+    }
+
+    .modal-header {
+      padding: 16px;
+    }
+
+    .modal-header h2 {
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 16px;
+    }
+
+    /* Forms responsive */
+    .form-actions {
+      flex-direction: column;
+    }
+
+    .form-actions .btn {
+      width: 100%;
+    }
+
+    /* Cards responsive */
+    .card {
+      padding: 14px;
+    }
+
+    /* Section head responsive */
+    .section-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    /* Quick links responsive */
+    .quick-link-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 576px) {
+    /* Extra small screens */
+    .brand-title {
+      font-size: 15px;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+    }
+
+    .tab {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    .content {
+      padding: 0 8px;
+    }
+  }
   

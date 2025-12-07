@@ -1,0 +1,15 @@
+<header class="topbar">
+  <div class="left">
+    <a href="{{ url_for('main.dashboard') }}" class="logo-link">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="logo" class="logo">
+    </a>
+    <div class="brand">
+      <div class="brand-title">Vek Investment Club</div>
+      <div class="brand-sub">Gent • {{ member_count }} deelnemers</div>
+    </div>
+  </div>
+  <div class="right userbox">
+    {% include 'partials/_user_info.html' %}
+  </div>
+</header>
+
