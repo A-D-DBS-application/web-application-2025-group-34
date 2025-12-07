@@ -1,2 +1,2 @@
-web: cd "Project A&D - DBS Group 34" && gunicorn run:app
+web: gunicorn --chdir "Project A&D - DBS Group 34" run:app
 
