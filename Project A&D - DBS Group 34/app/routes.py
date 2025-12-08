@@ -224,7 +224,8 @@ def format_transaction_date(date_obj):
                 month = str(int(parts[1]))
                 year = parts[2]
                 return f"{day}-{month}-{year}"
-        except:
+        except Exception:
+            # Date parsing failed, return string representation
             pass
     return str(date_obj)
 
@@ -294,7 +295,8 @@ def _normalize_transactions(records):
                         else:
                             dt = transaction_date
                         date_str = format_transaction_date(dt)
-                    except:
+                    except Exception:
+                        # Fallback to current date if parsing fails
                         date_str = format_transaction_date(datetime.now())
                 else:
                     date_str = format_transaction_date(datetime.now())
@@ -569,6 +571,7 @@ def _fetch_events():
             try:
                 parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
             except Exception:
+                # Fallback to current datetime if ISO format parsing fails
                 parsed = datetime.now()
         if time_str:
             try:
@@ -1063,6 +1066,7 @@ def export_single_event_ical(event_id):
     """
     Genereer een RFC5545-compliant .ics-bestand voor één event.
     SUMMARY, DTSTART, DTEND (+1u), LOCATION en DESCRIPTION worden gevuld.
+    Alleen toekomstige events worden geëxporteerd.
     """
     from icalendar import Calendar, Event as ICalEvent
 
@@ -1072,6 +1076,12 @@ def export_single_event_ical(event_id):
         return redirect(url_for("main.dashboard"))
 
     event_dt = ensure_timezone(event.event_date or datetime.now(TZ_BRUSSELS))
+    
+    # Check of event in de toekomst ligt
+    now = datetime.now(TZ_BRUSSELS)
+    if event_dt < now:
+        flash("Alleen toekomstige events kunnen worden geëxporteerd.", "error")
+        return redirect(url_for("main.dashboard"))
 
     cal = Calendar()
     cal.add("prodid", "-//VIC Agenda//NL")
@@ -1097,7 +1107,8 @@ def export_single_event_ical(event_id):
 @login_required
 def export_all_events_ical():
     """
-    Genereer één .ics-bestand met alle events in de database (of Supabase fallback).
+    Genereer één .ics-bestand met alle toekomstige events in de database.
+    Alleen events die in de toekomst liggen worden geëxporteerd.
     De events worden in een enkele agenda gegroepeerd.
     """
     from icalendar import Calendar, Event as ICalEvent
@@ -1106,8 +1117,11 @@ def export_all_events_ical():
     cal.add("prodid", "-//VIC Agenda Alle Events//NL")
     cal.add("version", "2.0")
 
-    # Gebruik primair de Event-tabel
-    events = db.session.query(Event).order_by(Event.event_date.asc()).all()
+    # Haal alleen toekomstige events op
+    now = datetime.now(TZ_BRUSSELS)
+    events = db.session.query(Event).filter(
+        Event.event_date >= now
+    ).order_by(Event.event_date.asc()).all()
 
     # Gebruik alleen SQLAlchemy ORM
     for event in events:
@@ -1243,11 +1257,8 @@ def portfolio():
         
         total_unrealized_gain = total_market_value - total_cost
         
-        # Haal cash bedrag op uit positions tabel (pos_id = 0)
-        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
-        cash_amount = MOCK_CASH_AMOUNT
-        if cash_position and cash_position.pos_value is not None:
-            cash_amount = float(cash_position.pos_value)
+        # Cash bedrag is al opgehaald bovenaan de functie (regel 1153)
+        # Hergebruik de al opgehaalde cash_amount
         
         portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
         
@@ -1257,13 +1268,15 @@ def portfolio():
             p_data['weight'] = format_currency(weight)
             p_data['market_value'] = format_currency(p_data['market_value'])
         
-    except Exception:
-        # Fallback naar mock data
+    except Exception as e:
+        # Fallback naar mock data bij database fouten
+        print(f"Error fetching portfolio data: {e}")
         # Probeer eerst cash uit database te halen (pos_id = 0)
         try:
             cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
             cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else MOCK_CASH_AMOUNT
-        except:
+        except Exception as cash_error:
+            print(f"Error fetching cash position: {cash_error}")
             cash_amount = MOCK_CASH_AMOUNT
         
         total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
@@ -1307,8 +1320,34 @@ def portfolio():
 def get_company_info(ticker):
     """Haal company info en financial ratios op via yfinance"""
     try:
-        ticker_obj = yf.Ticker(ticker)
-        info = ticker_obj.info
+        # URL decode de ticker
+        import urllib.parse
+        ticker = urllib.parse.unquote(ticker)
+        
+        # Normaliseer ticker voor yfinance
+        # Bijv. "BRK. B" -> "BRK-B" (Berkshire Hathaway B shares)
+        # yfinance verwacht "-" voor class B shares, niet "." of spaties
+        normalized_ticker = ticker.strip().replace(" ", "-").replace(".", "-")
+        # Verwijder dubbele streepjes
+        normalized_ticker = normalized_ticker.replace("--", "-")
+        
+        info = {}
+        tickers_to_try = [normalized_ticker]
+        # Als genormaliseerde ticker anders is, probeer ook origineel
+        if normalized_ticker != ticker:
+            tickers_to_try.append(ticker)
+        
+        # Probeer verschillende ticker formaten
+        for ticker_variant in tickers_to_try:
+            try:
+                ticker_obj = yf.Ticker(ticker_variant)
+                info = ticker_obj.info
+                # Als we geldige data hebben, stop met proberen
+                if info and len(info) > 0 and 'symbol' in info:
+                    break
+            except Exception as yf_error:
+                print(f"yfinance error for {ticker_variant}: {yf_error}")
+                continue
         
         # Check if info is available (yfinance returns empty dict if ticker not found)
         if not info or len(info) == 0:
@@ -1534,26 +1573,51 @@ def voting():
     # Haal alle voting proposals op
     proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
     
+    if not proposals:
+        return render_template("voting.html", open_votes=[], results=[])
+    
+    # Haal alle proposal IDs op
+    proposal_ids = [p.proposal_id for p in proposals]
+    
+    # Haal alle votes in één keer op (voorkomt N+1 query probleem)
+    all_votes = db.session.query(Vote).filter(Vote.proposal_id.in_(proposal_ids)).all()
+    
+    # Groepeer votes per proposal_id
+    votes_by_proposal = {}
+    for vote in all_votes:
+        if vote.proposal_id not in votes_by_proposal:
+            votes_by_proposal[vote.proposal_id] = []
+        votes_by_proposal[vote.proposal_id].append(vote)
+    
+    # Haal user votes in één keer op (als user ingelogd is)
+    user_id = g.user.member_id if g.user else None
+    user_voted_proposals = set()
+    if user_id:
+        user_votes = db.session.query(Vote).filter(
+            Vote.proposal_id.in_(proposal_ids),
+            Vote.member_id == user_id
+        ).all()
+        user_voted_proposals = {vote.proposal_id for vote in user_votes}
+    
     open_votes = []
     results = []
-    user_id = g.user.member_id if g.user else None
     
     for proposal in proposals:
         # Check of deadline verstreken is
         deadline = ensure_timezone(proposal.deadline)
         is_pending = deadline > now
         
-        # Haal vote counts op via helper functie
-        vote_counts = get_vote_counts(proposal.proposal_id)
+        # Bereken vote counts uit de al opgehaalde votes (geen extra query)
+        votes = votes_by_proposal.get(proposal.proposal_id, [])
+        vote_counts = {
+            'total': len(votes),
+            'voor': sum(1 for v in votes if v.vote_option.lower() == 'voor'),
+            'tegen': sum(1 for v in votes if v.vote_option.lower() == 'tegen'),
+            'onthouding': sum(1 for v in votes if v.vote_option.lower() == 'onthouding')
+        }
         
-        # Check of gebruiker al gestemd heeft
-        user_voted = False
-        if user_id:
-            user_vote = db.session.query(Vote).filter(
-                Vote.proposal_id == proposal.proposal_id,
-                Vote.member_id == user_id
-            ).first()
-            user_voted = user_vote is not None
+        # Check of gebruiker al gestemd heeft (uit de al opgehaalde data)
+        user_voted = proposal.proposal_id in user_voted_proposals
         
         proposal_data = {
             'proposal_id': proposal.proposal_id,

@@ -377,9 +377,22 @@ function openCompanyModal(ticker, assetName) {
   modalCompanyName.textContent = assetName || ticker;
   modalBody.innerHTML = '<div class="loading-spinner">Loading...</div>';
   
-  // Fetch company info
-  fetch(`/portfolio/company/${ticker}`)
-    .then(response => response.json())
+  // Fetch company info - encode ticker voor URL
+  const encodedTicker = encodeURIComponent(ticker);
+  fetch(`/portfolio/company/${encodedTicker}`)
+    .then(response => {
+      // Check if response is OK and content-type is JSON
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        return response.text().then(text => {
+          throw new Error(`Expected JSON but got: ${contentType}. Response: ${text.substring(0, 100)}`);
+        });
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.success) {
         modalBody.innerHTML = buildModalContent(data);
@@ -388,8 +401,8 @@ function openCompanyModal(ticker, assetName) {
       }
     })
     .catch(error => {
-      console.error('Error:', error);
-      modalBody.innerHTML = `<div class="error-message">Error loading company information. Please try again later.</div>`;
+      console.error('Error fetching company info:', error);
+      modalBody.innerHTML = `<div class="error-message">Error loading company information: ${error.message || 'Please try again later.'}</div>`;
     });
 }
 

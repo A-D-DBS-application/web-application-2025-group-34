@@ -4,11 +4,26 @@ from .models import db, Position, Portfolio
 import yfinance as yf
 from sqlalchemy import func
 
+def fetch_exchange_rate(currency_pair, currency_name):
+    """Haal exchange rate op voor een valuta paar via yfinance"""
+    try:
+        ticker = yf.Ticker(currency_pair)
+        info = ticker.info
+        price = info.get('regularMarketPrice') or info.get('currentPrice')
+        if price:
+            rate = 1.0 / price  # Converteer naar EUR
+            print(f"{currency_name}/EUR wisselkoers: {rate:.4f}")
+            return rate
+    except Exception as e:
+        print(f"WAARSCHUWING: Kan {currency_name}/EUR wisselkoers niet ophalen: {e}")
+        print(f"{currency_name}-prijzen worden niet geconverteerd naar EUR.")
+    return None
+
 def update_portfolio_prices(app):
     """
     Haalt de live beurskoersen op voor alle unieke assets in het portfolio,
     en werkt de current_price en day_change_pct bij in de Position tabel.
-    Prijzen worden automatisch geconverteerd naar EUR (USD -> EUR conversie).
+    Prijzen worden automatisch geconverteerd naar EUR (USD, SEK, HKD, CNY -> EUR conversie).
     Dit wordt elke 5 minuten uitgevoerd door de scheduler.
     
     Args:
@@ -38,19 +53,14 @@ def update_portfolio_prices(app):
         print(f"Start koersen ophalen voor {len(ticker_list)} tickers...")
         
         try:
-            # 2. Haal USD/EUR wisselkoers op (eenmalig voor alle conversies)
-            usd_eur_rate = None
-            try:
-                eurusd_ticker = yf.Ticker("EURUSD=X")
-                eurusd_info = eurusd_ticker.info
-                # EURUSD=X geeft hoeveel USD = 1 EUR, dus voor USD->EUR conversie: 1 / rate
-                eurusd_price = eurusd_info.get('regularMarketPrice') or eurusd_info.get('currentPrice')
-                if eurusd_price:
-                    usd_eur_rate = 1.0 / eurusd_price  # Converteer USD naar EUR
-                    print(f"USD/EUR wisselkoers: {usd_eur_rate:.4f}")
-            except Exception as e:
-                print(f"WAARSCHUWING: Kan USD/EUR wisselkoers niet ophalen: {e}")
-                print("USD-prijzen worden niet geconverteerd naar EUR.")
+            # 2. Haal wisselkoersen op (eenmalig voor alle conversies)
+            # Haal alle exchange rates op
+            exchange_rates = {
+                'USD': fetch_exchange_rate("EURUSD=X", "USD"),
+                'SEK': fetch_exchange_rate("EURSEK=X", "SEK"),
+                'HKD': fetch_exchange_rate("EURHKD=X", "HKD"),
+                'CNY': fetch_exchange_rate("EURCNY=X", "CNY"),
+            }
             
             # 3. Gebruik yfinance om de live prijzen op te halen
             ticker_objects = yf.Tickers(" ".join(ticker_list))
@@ -82,14 +92,16 @@ def update_portfolio_prices(app):
                         currency = info.get('currency', '').upper()
                         
                         # Converteer naar EUR als nodig
-                        if currency == 'USD' and usd_eur_rate:
-                            current_price_eur = current_price * usd_eur_rate
-                            previous_close_eur = previous_close * usd_eur_rate
-                            print(f"{ticker}: {current_price:.2f} {currency} -> {current_price_eur:.2f} EUR")
-                        elif currency == 'EUR' or currency == '':
+                        if currency == 'EUR' or currency == '':
                             # Al EUR of valuta onbekend (aannemen dat het EUR is)
                             current_price_eur = current_price
                             previous_close_eur = previous_close
+                        elif currency in exchange_rates and exchange_rates[currency]:
+                            # Valuta met beschikbare conversie
+                            rate = exchange_rates[currency]
+                            current_price_eur = current_price * rate
+                            previous_close_eur = previous_close * rate
+                            print(f"{ticker}: {current_price:.2f} {currency} -> {current_price_eur:.2f} EUR")
                         else:
                             # Andere valuta (GBP, CHF, etc.) - waarschuw maar gebruik originele prijs
                             print(f"WAARSCHUWING: {ticker} heeft valuta {currency}, geen conversie beschikbaar. Gebruikt originele prijs.")

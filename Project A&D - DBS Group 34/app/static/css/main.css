@@ -23,7 +23,7 @@
   .left{display:flex;align-items:center;gap:12px}
   .logo-link{display:inline-block;cursor:pointer;transition:opacity 0.2s}
   .logo-link:hover{opacity:0.8}
-  .logo{width:56px;height:56px;border-radius:12px;object-fit:contain;border:1px solid var(--border);padding:6px;background:white}
+  .logo{width:56px;height:56px;border-radius:50%;object-fit:contain;border:1px solid var(--border);padding:6px;background:white}
   .brand-title{font-weight:700;font-size:17px}
   .brand-sub{font-size:13px;color:var(--muted)}
   
@@ -376,6 +376,7 @@
     .logo {
       width: 48px;
       height: 48px;
+      border-radius: 50%;
     }
 
     .tab {
