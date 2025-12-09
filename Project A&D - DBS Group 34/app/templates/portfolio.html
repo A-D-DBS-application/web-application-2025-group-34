@@ -378,8 +378,11 @@ function openCompanyModal(ticker, assetName) {
   modalBody.innerHTML = '<div class="loading-spinner">Loading...</div>';
   
   // Fetch company info - encode ticker voor URL
+  // Gebruik absolute URL voor Render deployment compatibiliteit
   const encodedTicker = encodeURIComponent(ticker);
-  fetch(`/portfolio/company/${encodedTicker}`)
+  const baseUrl = window.location.origin;
+  const companyInfoUrl = `${baseUrl}/portfolio/company/${encodedTicker}`;
+  fetch(companyInfoUrl)
     .then(response => {
       const contentType = response.headers.get("content-type");
       // Probeer altijd JSON te parsen, zelfs bij error status
