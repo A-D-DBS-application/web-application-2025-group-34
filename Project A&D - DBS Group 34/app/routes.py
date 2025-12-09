@@ -1,12 +1,14 @@
 from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response, current_app, send_file  # Response for iCal downloads, send_file for file downloads
 from functools import wraps
 from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 import yfinance as yf  # Added: for company info and financial ratios
 import pytz  # Added: for Europe/Brussels timezone handling
 import zipfile
 import os
 from pathlib import Path
+from io import BytesIO
 from . import supabase, db
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio, FileItem,
@@ -92,20 +94,7 @@ def ensure_timezone(dt):
     else:
         return dt.astimezone(TZ_BRUSSELS)
 
-def get_vote_counts(proposal_id):
-    """
-    Haal vote counts op voor een proposal
-    Returns: dict met total, voor, tegen, onthouding
-    """
-    votes = db.session.query(Vote).filter(Vote.proposal_id == proposal_id).all()
-    
-    counts = {
-        'total': len(votes),
-        'voor': sum(1 for v in votes if v.vote_option.lower() == 'voor'),
-        'tegen': sum(1 for v in votes if v.vote_option.lower() == 'tegen'),
-        'onthouding': sum(1 for v in votes if v.vote_option.lower() == 'onthouding')
-    }
-    return counts
+# Oude get_vote_counts functie verwijderd - gebruik nu VotingProposal.get_vote_counts() method
 
 def format_currency(value):
     """Formats a float to a European currency string (e.g., 1.234,56)"""
@@ -1146,29 +1135,17 @@ def export_all_events_ical():
 @login_required 
 def portfolio():
     try:
-        # Haal centrale portfolio op
-        central_portfolio = db.session.query(Portfolio).first()
-        
-        # Haal cash op uit positions tabel (pos_id = 0)
+        # Haal eerst cash position op uit database (pos_id = 0)
         cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
-        cash_amount = MOCK_CASH_AMOUNT
+        cash_amount = MOCK_CASH_AMOUNT  # Default fallback
+        
         if cash_position and cash_position.pos_value is not None:
             cash_amount = float(cash_position.pos_value)
         
-        # Haal alle positions op (met of zonder portfolio), maar EXCLUDE pos_id = 0 (cash)
-        if central_portfolio:
-            positions = db.session.query(Position).filter(
-                Position.portfolio_id == central_portfolio.portfolio_id,
-                Position.pos_id != 0  # Exclude cash position
-            ).all()
-        else:
-            positions = []
+        # Haal alle positions op uit database (exclude cash)
+        positions = db.session.query(Position).filter(Position.pos_id != 0).all()
         
-        # Als er geen positions zijn gekoppeld, probeer alle positions (exclude cash)
-        if not positions:
-            positions = db.session.query(Position).filter(Position.pos_id != 0).all()
-        
-        # Als er nog steeds geen positions zijn, gebruik mock data als fallback
+        # Als er geen positions zijn, gebruik mock data als fallback
         if not positions:
             total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
             total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
@@ -1257,7 +1234,7 @@ def portfolio():
         
         total_unrealized_gain = total_market_value - total_cost
         
-        # Cash bedrag is al opgehaald bovenaan de functie (regel 1153)
+        # Cash bedrag is al opgehaald bovenaan de functie
         # Hergebruik de al opgehaalde cash_amount
         
         portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
@@ -1267,6 +1244,16 @@ def portfolio():
             weight = (p_data['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
             p_data['weight'] = format_currency(weight)
             p_data['market_value'] = format_currency(p_data['market_value'])
+        
+        return render_template(
+            "portfolio.html",
+            portfolio_value=format_currency(portfolio_value),
+            pnl=format_currency(total_unrealized_gain),
+            position_value=format_currency(total_market_value),
+            cash_amount=format_currency(cash_amount),
+            cash_amount_raw=cash_amount,
+            portfolio=portfolio_data_formatted
+        )
         
     except Exception as e:
         # Fallback naar mock data bij database fouten
@@ -1299,16 +1286,16 @@ def portfolio():
                 'pnl_percent': pnl_percent_str,
                 'pnl_value': format_currency(p['unrealizedGain']),
             })
-
-    return render_template(
-        "portfolio.html",
-        portfolio_value=format_currency(portfolio_value),
-        pnl=format_currency(total_unrealized_gain),
-        position_value=format_currency(total_market_value),
-        cash_amount=format_currency(cash_amount),
-        cash_amount_raw=cash_amount,
-        portfolio=portfolio_data_formatted
-    )
+        
+        return render_template(
+            "portfolio.html",
+            portfolio_value=format_currency(portfolio_value),
+            pnl=format_currency(total_unrealized_gain),
+            position_value=format_currency(total_market_value),
+            cash_amount=format_currency(cash_amount),
+            cash_amount_raw=cash_amount,
+            portfolio=portfolio_data_formatted
+        )
 
 # ============================================================================
 # COMPANY INFO MODAL FEATURE - START
@@ -1569,35 +1556,13 @@ def transactions():
 def voting():
     """Voting pagina met openstaande votingen en resultaten"""
     now = datetime.now(TZ_BRUSSELS)
+    user_id = g.user.member_id if g.user else None
     
     # Haal alle voting proposals op
     proposals = db.session.query(VotingProposal).order_by(VotingProposal.deadline.desc()).all()
     
     if not proposals:
-        return render_template("voting.html", open_votes=[], results=[])
-    
-    # Haal alle proposal IDs op
-    proposal_ids = [p.proposal_id for p in proposals]
-    
-    # Haal alle votes in één keer op (voorkomt N+1 query probleem)
-    all_votes = db.session.query(Vote).filter(Vote.proposal_id.in_(proposal_ids)).all()
-    
-    # Groepeer votes per proposal_id
-    votes_by_proposal = {}
-    for vote in all_votes:
-        if vote.proposal_id not in votes_by_proposal:
-            votes_by_proposal[vote.proposal_id] = []
-        votes_by_proposal[vote.proposal_id].append(vote)
-    
-    # Haal user votes in één keer op (als user ingelogd is)
-    user_id = g.user.member_id if g.user else None
-    user_voted_proposals = set()
-    if user_id:
-        user_votes = db.session.query(Vote).filter(
-            Vote.proposal_id.in_(proposal_ids),
-            Vote.member_id == user_id
-        ).all()
-        user_voted_proposals = {vote.proposal_id for vote in user_votes}
+        return render_template("voting.html", open_votes=[], results=[], older_results=[])
     
     open_votes = []
     results = []
@@ -1607,17 +1572,11 @@ def voting():
         deadline = ensure_timezone(proposal.deadline)
         is_pending = deadline > now
         
-        # Bereken vote counts uit de al opgehaalde votes (geen extra query)
-        votes = votes_by_proposal.get(proposal.proposal_id, [])
-        vote_counts = {
-            'total': len(votes),
-            'voor': sum(1 for v in votes if v.vote_option.lower() == 'voor'),
-            'tegen': sum(1 for v in votes if v.vote_option.lower() == 'tegen'),
-            'onthouding': sum(1 for v in votes if v.vote_option.lower() == 'onthouding')
-        }
+        # Gebruik helper method voor vote counts (gebruikt al geladen votes)
+        vote_counts = proposal.get_vote_counts()
         
-        # Check of gebruiker al gestemd heeft (uit de al opgehaalde data)
-        user_voted = proposal.proposal_id in user_voted_proposals
+        # Gebruik helper method om te checken of user gestemd heeft
+        user_voted = proposal.has_user_voted(user_id) if user_id else False
         
         proposal_data = {
             'proposal_id': proposal.proposal_id,
@@ -1638,7 +1597,87 @@ def voting():
         else:
             results.append(proposal_data)
     
-    return render_template("voting.html", open_votes=open_votes, results=results)
+    # Splits resultaten: eerste 2 recent, rest oudere
+    recent_results = results[:2] if len(results) > 2 else results
+    older_results = results[2:] if len(results) > 2 else []
+    
+    return render_template("voting.html", open_votes=open_votes, results=recent_results, older_results=older_results)
+
+# --- Helper functies voor member categorisering ---
+def categorize_members(members_list):
+    """
+    Categoriseer members op basis van rol
+    Returns: dict met categorized members
+    """
+    def get_first_three_digits(member_id):
+        """Haal eerste 3 cijfers van ID op voor sortering"""
+        id_str = str(member_id).zfill(6)
+        return int(id_str[:3]) if len(id_str) >= 3 else 0
+    
+    def get_last_three_digits(member_id):
+        """Haal laatste 3 cijfers van ID op (jaar) voor sortering"""
+        id_str = str(member_id).zfill(6)
+        return int(id_str[-3:]) if len(id_str) >= 3 else 0
+    
+    def sort_members(members_list):
+        """Sorteer members: eerst op eerste 3 cijfers, dan op laatste 3 cijfers (jaar)"""
+        return sorted(members_list, key=lambda m: (get_first_three_digits(m.member_id), get_last_three_digits(m.member_id)))
+    
+    # Categoriseer members op basis van ID nummer
+    admin_members = []
+    board_members = []
+    analisten = []
+    leden = []
+    kapitaalverschaffers = []
+    oud_bestuur_analisten = []
+    
+    for m in members_list:
+        id_str = str(m.member_id).zfill(6)
+        first_digit = int(id_str[0]) if len(id_str) > 0 else 0
+        first_two_digits = int(id_str[:2]) if len(id_str) >= 2 else 0
+        first_five_digits = int(id_str[:5]) if len(id_str) >= 5 else 0
+        
+        # Admin: begint met 5 nullen (00000x)
+        if first_five_digits == 0 and len(id_str) == 6:
+            admin_members.append(m)
+        # Bestuur: begint met 00 en dan een getal (00xxxx, maar niet 00000x)
+        elif first_two_digits == 0 and first_five_digits != 0:
+            board_members.append(m)
+        # Analist: begint met 1
+        elif first_digit == 1:
+            analisten.append(m)
+        # Leden: begint met 2
+        elif first_digit == 2:
+            leden.append(m)
+        # Kapitaalverschaffer: begint met 3
+        elif first_digit == 3:
+            kapitaalverschaffers.append(m)
+        # Oud bestuur: begint met 4
+        elif first_digit == 4:
+            oud_bestuur_analisten.append(m)
+        # Fallback: gebruik get_role() methode
+        else:
+            role = m.get_role()
+            if role == 'board':
+                board_members.append(m)
+            elif role == 'analist':
+                analisten.append(m)
+            elif role == 'lid':
+                leden.append(m)
+            elif role == 'kapitaalverschaffers':
+                kapitaalverschaffers.append(m)
+            elif role == 'oud_bestuur_analisten':
+                oud_bestuur_analisten.append(m)
+    
+    # Sorteer alle lijsten
+    return {
+        'admin_members': sort_members(admin_members),
+        'board_members': sort_members(board_members),
+        'analisten': sort_members(analisten),
+        'leden': sort_members(leden),
+        'kapitaalverschaffers': sort_members(kapitaalverschaffers),
+        'oud_bestuur_analisten': sort_members(oud_bestuur_analisten)
+    }
 
 # Deelnemers pagina
 @main.route("/deelnemers")
@@ -1648,95 +1687,36 @@ def deelnemers():
     try:
         all_members = db.session.query(Member).all()
         
-        def get_first_three_digits(member_id):
-            """Haal eerste 3 cijfers van ID op voor sortering"""
-            id_str = str(member_id).zfill(6)
-            return int(id_str[:3]) if len(id_str) >= 3 else 0
-        
-        def get_last_three_digits(member_id):
-            """Haal laatste 3 cijfers van ID op (jaar) voor sortering"""
-            id_str = str(member_id).zfill(6)
-            return int(id_str[-3:]) if len(id_str) >= 3 else 0
-        
-        def sort_members(members_list):
-            """Sorteer members: eerst op eerste 3 cijfers, dan op laatste 3 cijfers (jaar)"""
-            return sorted(members_list, key=lambda m: (get_first_three_digits(m.member_id), get_last_three_digits(m.member_id)))
-        
-        # Categoriseer members op basis van ID nummer
-        admin_members = []
-        board_members = []
-        analisten = []
-        leden = []
-        kapitaalverschaffers = []
-        oud_bestuur_analisten = []
-        
-        for m in all_members:
-            id_str = str(m.member_id).zfill(6)
-            first_digit = int(id_str[0]) if len(id_str) > 0 else 0
-            first_two_digits = int(id_str[:2]) if len(id_str) >= 2 else 0
-            first_five_digits = int(id_str[:5]) if len(id_str) >= 5 else 0
-            
-            # Admin: begint met 5 nullen (00000x)
-            if first_five_digits == 0 and len(id_str) == 6:
-                admin_members.append(m)
-            # Bestuur: begint met 00 en dan een getal (00xxxx, maar niet 00000x)
-            elif first_two_digits == 0 and first_five_digits != 0:
-                board_members.append(m)
-            # Analist: begint met 1
-            elif first_digit == 1:
-                analisten.append(m)
-            # Leden: begint met 2
-            elif first_digit == 2:
-                leden.append(m)
-            # Kapitaalverschaffer: begint met 3
-            elif first_digit == 3:
-                kapitaalverschaffers.append(m)
-            # Oud bestuur: begint met 4
-            elif first_digit == 4:
-                oud_bestuur_analisten.append(m)
-            # Fallback: gebruik get_role() methode
-            else:
-                role = m.get_role()
-                if role == 'board':
-                    board_members.append(m)
-                elif role == 'analist':
-                    analisten.append(m)
-                elif role == 'lid':
-                    leden.append(m)
-                elif role == 'kapitaalverschaffers':
-                    kapitaalverschaffers.append(m)
-                elif role == 'oud_bestuur_analisten':
-                    oud_bestuur_analisten.append(m)
-        
-        # Sorteer alle lijsten
-        admin_members = sort_members(admin_members)
-        board_members = sort_members(board_members)
-        analisten = sort_members(analisten)
-        leden = sort_members(leden)
-        kapitaalverschaffers = sort_members(kapitaalverschaffers)
-        oud_bestuur_analisten = sort_members(oud_bestuur_analisten)
+        # Gebruik helper functie voor categorisering
+        categorized = categorize_members(all_members)
         
     except Exception as exc:
         print(f"WARNING: Database fetch failed: {exc}")
         import traceback
         traceback.print_exc()
         all_members = []
-        admin_members = []
-        board_members = []
-        analisten = []
-        leden = []
-        kapitaalverschaffers = []
-        oud_bestuur_analisten = []
+        categorized = {
+            'admin_members': [],
+            'board_members': [],
+            'analisten': [],
+            'leden': [],
+            'kapitaalverschaffers': [],
+            'oud_bestuur_analisten': []
+        }
+    
+    from .models import BoardFunction
     
     return render_template(
         "deelnemers.html",
-        members=leden,  # Leden worden als 'members' doorgegeven voor backward compatibility
-        admin_members=admin_members,  # Admin members voor Site-Admin sectie
-        board_members=board_members,
-        analisten=analisten,
-        kapitaalverschaffers=kapitaalverschaffers,
-        oud_bestuur_analisten=oud_bestuur_analisten,
-        all_members=all_members  # Voor eventuele andere doeleinden
+        members=categorized['leden'],  # Leden worden als 'members' doorgegeven voor backward compatibility
+        admin_members=categorized['admin_members'],  # Admin members voor Site-Admin sectie
+        board_members=categorized['board_members'],
+        analisten=categorized['analisten'],
+        kapitaalverschaffers=categorized['kapitaalverschaffers'],
+        oud_bestuur_analisten=categorized['oud_bestuur_analisten'],
+        all_members=all_members,  # Voor eventuele andere doeleinden
+        board_functions=BoardFunction,  # Voor functie dropdown
+        current_year=datetime.now().year  # Voor default startjaar
     )
 
 @main.route("/deelnemers/add", methods=["POST"])
@@ -1744,24 +1724,38 @@ def deelnemers():
 def add_member():
     """Voeg een nieuwe deelnemer toe"""
     try:
-        member_id = request.form.get("member_id", "").strip()
         member_name = request.form.get("member_name", "").strip()
         password = request.form.get("password", "").strip()
         email = request.form.get("email", "").strip() or None
         voting_right = request.form.get("voting_right", "").strip() or None
         sector = request.form.get("sector", "").strip() or None
         join_date = request.form.get("join_date", "").strip()
+        role = request.form.get("role", "lid").strip()  # Default naar 'lid'
         
-        if not member_id or not member_name or not password:
-            flash("ID nummer, naam en wachtwoord zijn verplicht.", "error")
+        if not member_name or not password:
+            flash("Naam en wachtwoord zijn verplicht.", "error")
             return redirect(url_for("main.deelnemers"))
         
-        member_id_int = int(member_id)
+        join_year = int(join_date) if join_date else datetime.now().year
         
-        # Check of ID al bestaat
-        existing = db.session.query(Member).filter_by(member_id=member_id_int).first()
-        if existing:
-            flash(f"ID nummer {member_id_int:06d} bestaat al. Kies een uniek ID nummer.", "error")
+        # Genereer automatisch ID op basis van rol
+        from .models import get_next_available_id
+        
+        try:
+            if role == "board":
+                # Voor bestuur: gebruik functie code uit voting_right
+                function_code = int(voting_right) if voting_right and voting_right.isdigit() else 1
+                member_id_int = get_next_available_id('board', function_code=function_code, year=join_year)
+            elif role == "analist":
+                # Voor analist: gebruik sector
+                sector_num = int(sector) if sector and sector.isdigit() else 1
+                member_id_int = get_next_available_id('analist', sector=sector_num, year=join_year)
+            elif role == "kapitaalverschaffers":
+                member_id_int = get_next_available_id('kapitaalverschaffers', year=join_year)
+            else:  # Default: lid
+                member_id_int = get_next_available_id('lid', year=join_year)
+        except ValueError as ve:
+            flash(f"Fout bij genereren ID: {str(ve)}", "error")
             return redirect(url_for("main.deelnemers"))
         
         # Check of email al bestaat (als email is opgegeven)
@@ -1778,7 +1772,7 @@ def add_member():
             email=email,
             voting_right=voting_right,
             sector=sector,
-            join_date=int(join_date) if join_date else datetime.now().year
+            join_date=join_year
         )
         member.set_password(password)
         
@@ -1786,11 +1780,13 @@ def add_member():
         db.session.commit()
         
         flash(f"Deelnemer {member_name} (ID: {member_id_int:06d}) is toegevoegd.", "success")
-    except ValueError:
-        flash("Ongeldig ID nummer of startjaar.", "error")
+    except ValueError as ve:
+        flash(f"Ongeldige waarde: {str(ve)}", "error")
     except Exception as exc:
         db.session.rollback()
         print(f"ERROR: Failed to add member: {exc}")
+        import traceback
+        traceback.print_exc()
         flash("Er is een fout opgetreden bij het toevoegen van de deelnemer.", "error")
     
     return redirect(url_for("main.deelnemers"))
@@ -2870,8 +2866,58 @@ def logout():
 # --- File Storage Helper Functies ---
 
 def _get_upload_folder():
-    """Haal upload folder path op"""
+    """Haal upload folder path op (voor backwards compatibility)"""
     return Path(current_app.config['UPLOAD_FOLDER'])
+
+def _get_supabase_bucket():
+    """Haal Supabase bucket naam op"""
+    return current_app.config.get('SUPABASE_BUCKET', 'files')
+
+def _ensure_supabase_bucket_exists():
+    """
+    Zorg dat de Supabase bucket bestaat, maak aan als nodig
+    Returns: True als bucket bestaat of aangemaakt is, False anders
+    """
+    if not supabase:
+        return False
+    
+    try:
+        bucket_name = _get_supabase_bucket()
+        
+        # Probeer bucket te vinden
+        buckets = supabase.storage.list_buckets()
+        
+        # Check of bucket bestaat
+        bucket_exists = False
+        if buckets:
+            for bucket in buckets:
+                if bucket.name == bucket_name:
+                    bucket_exists = True
+                    break
+        
+        # Maak bucket aan als deze niet bestaat
+        if not bucket_exists:
+            try:
+                # Maak bucket aan (public voor downloads)
+                response = supabase.storage.create_bucket(
+                    bucket_name,
+                    options={"public": True}
+                )
+                print(f"INFO: Bucket '{bucket_name}' aangemaakt")
+                return True
+            except Exception as create_error:
+                # Als bucket al bestaat (race condition), is dat ok
+                if "already exists" in str(create_error).lower() or "duplicate" in str(create_error).lower():
+                    print(f"INFO: Bucket '{bucket_name}' bestaat al")
+                    return True
+                print(f"WARNING: Kon bucket niet aanmaken: {create_error}")
+                return False
+        
+        return True
+    except Exception as e:
+        print(f"ERROR: Fout bij controleren bucket: {e}")
+        # Ga door met upload, misschien bestaat bucket al
+        return True
 
 def _get_file_item_by_id(file_id):
     """Haal FileItem op basis van ID"""
@@ -2882,13 +2928,199 @@ def _get_file_item_by_id(file_id):
 
 def _build_local_file_path(storage_path):
     """
-    Bouw lokaal file path op basis van storage path
+    Bouw lokaal file path op basis van storage path (voor backwards compatibility)
     Returns: Path object naar lokaal bestand
     """
     upload_folder = _get_upload_folder()
     # Converteer forward slashes naar backslashes voor Windows
     windows_path = storage_path.replace('/', '\\') if storage_path else ''
     return upload_folder / windows_path if windows_path else upload_folder
+
+def _get_supabase_storage_path(storage_path):
+    """
+    Bouw Supabase storage path op basis van storage path
+    Returns: storage path string voor Supabase (bijv. "folder1/folder2/file.pdf")
+    """
+    # Gebruik forward slashes voor Supabase (altijd Unix-style)
+    return storage_path.replace('\\', '/') if storage_path else ''
+
+def _upload_to_supabase(file_content, storage_path, content_type=None):
+    """
+    Upload een bestand naar Supabase bucket
+    Returns: True als succesvol, False anders
+    """
+    if not supabase:
+        print("ERROR: Supabase client niet geconfigureerd")
+        return False
+    
+    try:
+        # Zorg dat bucket bestaat
+        _ensure_supabase_bucket_exists()
+        
+        bucket_name = _get_supabase_bucket()
+        supabase_path = _get_supabase_storage_path(storage_path)
+        
+        # Zorg dat file_content bytes is
+        if isinstance(file_content, str):
+            file_content = file_content.encode('utf-8')
+        
+        # Upload naar Supabase (overschrijf als bestand al bestaat)
+        file_options = {}
+        if content_type:
+            file_options["content-type"] = content_type
+        file_options["upsert"] = True  # Overschrijf bestaande bestanden
+        
+        print(f"DEBUG: Uploaden naar bucket '{bucket_name}', path '{supabase_path}', size {len(file_content)} bytes")
+        
+        # Supabase Python client API: upload(path, file, file_options={})
+        try:
+            response = supabase.storage.from_(bucket_name).upload(
+                supabase_path,
+                file_content,
+                file_options=file_options
+            )
+        except Exception as upload_exc:
+            print(f"ERROR: Exception tijdens upload: {upload_exc}")
+            # Probeer alternatieve syntax zonder file_options
+            try:
+                print("DEBUG: Probeer alternatieve upload syntax...")
+                response = supabase.storage.from_(bucket_name).upload(
+                    supabase_path,
+                    file_content
+                )
+            except Exception as alt_exc:
+                print(f"ERROR: Ook alternatieve upload faalde: {alt_exc}")
+                raise upload_exc
+        
+        print(f"DEBUG: Supabase response type: {type(response)}, value: {response}")
+        
+        # Check response - Supabase geeft een dict terug met 'path' als succesvol
+        # Of een dict met 'error' als er een fout is
+        if response:
+            if isinstance(response, dict):
+                if 'path' in response:
+                    print(f"SUCCESS: Bestand geüpload naar {response['path']}")
+                    return True
+                elif 'error' in response:
+                    error_msg = response.get('error', 'Unknown error')
+                    print(f"ERROR: Supabase error: {error_msg}")
+                    return False
+                elif 'message' in response:
+                    # Soms geeft Supabase een message terug
+                    print(f"INFO: Supabase response: {response['message']}")
+                    return True
+                # Lege dict kan ook succes betekenen
+                if len(response) == 0:
+                    print("INFO: Lege response dict, beschouwd als succes")
+                    return True
+            # Als response een list is (soms bij success)
+            if isinstance(response, list):
+                print(f"INFO: List response: {response}")
+                return True
+        
+        # Als response None is, kan het ook succes zijn (afhankelijk van Supabase versie)
+        print(f"WARNING: Onverwachte response van Supabase: {response} (type: {type(response)})")
+        # Bij twijfel, probeer te verifiëren of bestand bestaat
+        try:
+            # Probeer bestand te downloaden om te verifiëren
+            test_download = supabase.storage.from_(bucket_name).download(supabase_path)
+            if test_download:
+                print("INFO: Bestand bestaat na upload, beschouwd als succes")
+                return True
+        except:
+            pass
+        
+        return False
+        
+    except Exception as e:
+        print(f"ERROR: Fout bij uploaden naar Supabase: {e}")
+        print(f"ERROR: Bucket: {bucket_name}, Path: {supabase_path}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def _download_from_supabase(storage_path):
+    """
+    Download een bestand van Supabase bucket
+    Returns: bytes content of None bij fout
+    """
+    if not supabase:
+        print("ERROR: Supabase client niet geconfigureerd")
+        return None
+    
+    try:
+        bucket_name = _get_supabase_bucket()
+        supabase_path = _get_supabase_storage_path(storage_path)
+        
+        # Download van Supabase
+        response = supabase.storage.from_(bucket_name).download(supabase_path)
+        
+        if response:
+            return response
+        return None
+    except Exception as e:
+        print(f"ERROR: Fout bij downloaden van Supabase: {e}")
+        return None
+
+def _delete_from_supabase(storage_path):
+    """
+    Verwijder een bestand van Supabase bucket
+    Returns: True als succesvol, False anders
+    """
+    if not supabase:
+        print("ERROR: Supabase client niet geconfigureerd")
+        return False
+    
+    try:
+        bucket_name = _get_supabase_bucket()
+        supabase_path = _get_supabase_storage_path(storage_path)
+        
+        # Verwijder van Supabase
+        response = supabase.storage.from_(bucket_name).remove([supabase_path])
+        
+        # Supabase remove geeft een list terug met verwijderde paths
+        if response and isinstance(response, list):
+            return True
+        # Soms geeft het None terug bij succes
+        if response is None:
+            return True
+        return False
+    except Exception as e:
+        print(f"ERROR: Fout bij verwijderen van Supabase: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def _move_in_supabase(old_storage_path, new_storage_path):
+    """
+    Verplaats/hernoem een bestand in Supabase bucket
+    Returns: True als succesvol, False anders
+    """
+    if not supabase:
+        print("ERROR: Supabase client niet geconfigureerd")
+        return False
+    
+    try:
+        bucket_name = _get_supabase_bucket()
+        old_supabase_path = _get_supabase_storage_path(old_storage_path)
+        new_supabase_path = _get_supabase_storage_path(new_storage_path)
+        
+        # Download oude bestand
+        file_content = _download_from_supabase(old_storage_path)
+        if not file_content:
+            return False
+        
+        # Upload naar nieuwe locatie
+        if not _upload_to_supabase(file_content, new_storage_path):
+            return False
+        
+        # Verwijder oude bestand
+        _delete_from_supabase(old_storage_path)
+        
+        return True
+    except Exception as e:
+        print(f"ERROR: Fout bij verplaatsen in Supabase: {e}")
+        return False
 
 def _build_storage_path_from_parent(parent_id_int):
     """
@@ -3094,12 +3326,13 @@ def bestanden_folder(folder_id):
         
         # Bouw pad naar deze folder (skip "VIC leden" folder)
         path_items = []
-        temp = folder
-        while temp.parent_id:
-            path_items.insert(0, temp)
-            temp = db.session.query(FileItem).filter(FileItem.item_id == temp.parent_id).first()
-            if not temp:
+        temp = folder.parent_id  # Start bij parent, niet bij huidige folder
+        while temp:
+            parent_folder = db.session.query(FileItem).filter(FileItem.item_id == temp).first()
+            if not parent_folder:
                 break
+            path_items.insert(0, parent_folder)
+            temp = parent_folder.parent_id
         
         # Voeg pad items toe (skip "VIC leden" folder)
         for path_item in path_items:
@@ -3112,8 +3345,11 @@ def bestanden_folder(folder_id):
                     'url': url_for('main.bestanden_folder', folder_id=path_item.item_id)
                 })
         
-        # Voeg huidige folder toe
-        breadcrumbs.append({'name': folder.name, 'id': folder.item_id, 'url': None})
+        # Voeg huidige folder toe (alleen als naam niet al voorkomt)
+        # Check of huidige folder naam al in breadcrumbs voorkomt
+        folder_already_in_breadcrumbs = any(crumb['name'] == folder.name for crumb in breadcrumbs)
+        if not folder_already_in_breadcrumbs:
+            breadcrumbs.append({'name': folder.name, 'id': folder.item_id, 'url': None})
         
         # Haal alle folders op voor dropdown selector
         all_folders = _get_all_folders(exclude_folder_id=folder.item_id)
@@ -3226,26 +3462,29 @@ def upload_file():
                 file_name = f"{file_name}_{counter}"
             counter += 1
         
-        # Bepaal volledige storage path (lokaal filesystem)
+        # Bepaal volledige storage path (voor Supabase)
         if storage_path:
             full_storage_path = f"{storage_path}/{file_name}"
         else:
             full_storage_path = file_name
         
-        # Bouw lokaal file path en maak folder structuur aan
-        local_file_path = _build_local_file_path(full_storage_path)
-        local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        # Lees file content
+        file_content = file.read()
+        file_size = len(file_content)
         
-        # Sla file op lokaal filesystem
-        file.save(str(local_file_path))
-        file_size = local_file_path.stat().st_size
+        # Upload naar Supabase bucket
+        if not _upload_to_supabase(file_content, full_storage_path):
+            flash("Fout bij uploaden naar Supabase storage.", "error")
+            if parent_id_int:
+                return redirect(url_for("main.bestanden_folder", folder_id=parent_id_int))
+            return redirect(url_for("main.bestanden"))
         
         # Maak FileItem record aan
         new_file = FileItem(
             name=file_name,
             item_type='file',
             parent_id=parent_id_int,
-            file_path=full_storage_path.replace('/', '\\'),  # Gebruik backslashes voor Windows paths in database
+            file_path=full_storage_path,  # Gebruik forward slashes voor Supabase paths
             file_size=file_size,
             created_by=g.user.member_id if g.user else None
         )
@@ -3361,30 +3600,24 @@ def import_zip():
                     ).first()
                     
                     if not existing_file:
-                        # Kopieer file naar lokale storage
-                        upload_folder = Path(current_app.config['UPLOAD_FOLDER'])
-                        if storage_path:
-                            # Maak folder structuur aan
-                            folder_path = upload_folder / storage_path.replace('/', '\\')
-                            folder_path.mkdir(parents=True, exist_ok=True)
-                            local_file_path = folder_path / file_name
+                        # Lees file content
+                        with open(file_path, 'rb') as f:
+                            file_content = f.read()
+                        
+                        # Upload naar Supabase bucket
+                        if _upload_to_supabase(file_content, full_storage_path):
+                            # Maak FileItem record aan
+                            file_item = FileItem(
+                                name=file_name,
+                                item_type='file',
+                                parent_id=parent_db_id,
+                                file_path=full_storage_path,  # Gebruik forward slashes voor Supabase paths
+                                file_size=file_size,
+                                created_by=g.user.member_id if g.user else None
+                            )
+                            db.session.add(file_item)
                         else:
-                            local_file_path = upload_folder / file_name
-                        
-                        # Kopieer file
-                        import shutil
-                        shutil.copy2(file_path, local_file_path)
-                        
-                        # Maak FileItem record aan
-                        file_item = FileItem(
-                            name=file_name,
-                            item_type='file',
-                            parent_id=parent_db_id,
-                            file_path=full_storage_path.replace('/', '\\'),  # Gebruik backslashes voor Windows paths in database
-                            file_size=file_size,
-                            created_by=g.user.member_id if g.user else None
-                        )
-                        db.session.add(file_item)
+                            print(f"WARNING: Kon bestand {file_name} niet uploaden naar Supabase")
             
             # Verwerk alle items in de geëxtraheerde zip
             for item in sorted(extract_path.iterdir()):
@@ -3422,19 +3655,19 @@ def download_file(file_id):
             flash("Bestand pad niet gevonden in database.", "error")
             return redirect(url_for("main.bestanden"))
         
-        # Download van lokaal filesystem
-        local_file_path = _build_local_file_path(file_item.file_path)
+        # Download van Supabase bucket
+        file_content = _download_from_supabase(file_item.file_path)
         
-        if local_file_path.exists() and local_file_path.is_file():
-            # Serveer lokaal bestand
+        if file_content:
+            # Serveer bestand vanuit Supabase
             return send_file(
-                str(local_file_path),
+                BytesIO(file_content),
                 as_attachment=True,
                 download_name=file_item.name,
                 mimetype=None
             )
         else:
-            flash("Bestand niet gevonden op lokaal filesystem.", "error")
+            flash("Bestand niet gevonden in Supabase storage.", "error")
             return redirect(url_for("main.bestanden"))
         
     except Exception as exc:
@@ -3489,20 +3722,11 @@ def edit_file(file_id):
         else:
             new_storage_path = new_name
         
-        # Hernoem lokaal bestand
+        # Hernoem bestand in Supabase bucket
         if old_storage_path:
-            old_local_path = _build_local_file_path(old_storage_path)
-            new_local_path = _build_local_file_path(new_storage_path)
-            
-            # Maak parent directory aan als die niet bestaat
-            new_local_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            if old_local_path.exists() and old_local_path.is_file():
-                try:
-                    old_local_path.rename(new_local_path)
-                except Exception as rename_exc:
-                    print(f"WARNING: Kon bestand niet hernoemen: {rename_exc}")
-                    # Ga door met database update ook al is rename mislukt
+            if not _move_in_supabase(old_storage_path, new_storage_path):
+                print(f"WARNING: Kon bestand niet hernoemen in Supabase")
+                # Ga door met database update ook al is rename mislukt
         
         file_item.name = new_name
         file_item.file_path = new_storage_path
@@ -3538,16 +3762,11 @@ def delete_file(file_id):
         parent_id = file_item.parent_id
         storage_path = file_item.file_path
         
-        # Verwijder lokaal bestand
+        # Verwijder bestand van Supabase bucket
         if storage_path:
-            local_file_path = _build_local_file_path(storage_path)
-            
-            if local_file_path.exists() and local_file_path.is_file():
-                try:
-                    local_file_path.unlink()
-                except Exception as delete_exc:
-                    print(f"WARNING: Kon bestand niet verwijderen: {delete_exc}")
-                    # Ga door met database verwijdering ook al is delete mislukt
+            if not _delete_from_supabase(storage_path):
+                print(f"WARNING: Kon bestand niet verwijderen van Supabase")
+                # Ga door met database verwijdering ook al is delete mislukt
         
         # Verwijder uit database
         db.session.delete(file_item)

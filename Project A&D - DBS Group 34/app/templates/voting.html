@@ -129,6 +129,50 @@
       {% else %}
       <div class="empty-state">Geen resultaten beschikbaar</div>
       {% endfor %}
+      
+      {% if older_results|length > 0 %}
+      <div id="olderResultsContainer" style="display: none;">
+        {% for result in older_results %}
+        <div class="result-card">
+          <div class="result-header">
+            <div>
+              <h4>{{ result.deadline }}</h4>
+              <p class="result-stock">{{ result.stock_name }}</p>
+            </div>
+          </div>
+          <div class="result-body">
+            <div class="pie-chart-container">
+              <canvas id="pieChart{{ result.proposal_id }}" width="200" height="200"></canvas>
+            </div>
+            <div class="result-stats">
+              <div class="stat-item">
+                <div class="stat-bar stat-bar-for" data-width="{{ (result.for_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
+                <span class="stat-label">Voor</span>
+                <span class="stat-value">{{ result.for_votes }} votes</span>
+              </div>
+              <div class="stat-item">
+                <div class="stat-bar stat-bar-against" data-width="{{ (result.against_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
+                <span class="stat-label">Tegen</span>
+                <span class="stat-value">{{ result.against_votes }} votes</span>
+              </div>
+              {% if result.abstain_votes > 0 %}
+              <div class="stat-item">
+                <div class="stat-bar stat-bar-abstain" data-width="{{ (result.abstain_votes / result.total_votes * 100) if result.total_votes > 0 else 0 }}"></div>
+                <span class="stat-label">Onthouding</span>
+                <span class="stat-value">{{ result.abstain_votes }} votes</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div id="load-more-results-container" style="text-align: center; margin-top: 20px;">
+        <button type="button" id="toggleOlderResultsBtn" class="btn" onclick="toggleOlderResults()">
+          <span id="toggleOlderResultsText">Meer stemmingen zien</span>
+        </button>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -453,6 +497,90 @@ window.onclick = function(event) {
             modal.classList.remove('show');
         }
     });
+}
+
+// Toggle functie voor oudere resultaten
+function toggleOlderResults() {
+    const container = document.getElementById('olderResultsContainer');
+    const btn = document.getElementById('toggleOlderResultsBtn');
+    const btnText = document.getElementById('toggleOlderResultsText');
+    const loadMoreContainer = document.getElementById('load-more-results-container');
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        // Verberg de knop wanneer resultaten worden getoond (zoals op dashboard)
+        if (btn) btn.style.display = 'none';
+        if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+        // Teken pie charts voor oudere resultaten wanneer ze worden getoond
+        drawOlderResultsCharts();
+    } else {
+        container.style.display = 'none';
+        // Toon de knop weer wanneer resultaten worden verborgen
+        if (btn) btn.style.display = 'block';
+        if (loadMoreContainer) loadMoreContainer.style.display = 'block';
+    }
+}
+
+// Functie om pie charts te tekenen voor oudere resultaten
+function drawOlderResultsCharts() {
+    {% for result in older_results %}
+    (function() {
+        const canvasId = 'pieChart{{ result.proposal_id }}';
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const total = {{ result.total_votes }} || 1;
+        const forVotes = {{ result.for_votes }};
+        const againstVotes = {{ result.against_votes }};
+        const abstainVotes = {{ result.abstain_votes }};
+        
+        const forPct = (forVotes / total) * 100;
+        const againstPct = (againstVotes / total) * 100;
+        const abstainPct = (abstainVotes / total) * 100;
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(canvas.width, canvas.height) / 2 - 10;
+        
+        let currentAngle = -Math.PI / 2; // Start at top
+        
+        // Draw "Voor" (blue)
+        if (forPct > 0) {
+            const sliceAngle = (forPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#1976d2';
+            ctx.fill();
+            currentAngle += sliceAngle;
+        }
+        
+        // Draw "Tegen" (red)
+        if (againstPct > 0) {
+            const sliceAngle = (againstPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#f44336';
+            ctx.fill();
+            currentAngle += sliceAngle;
+        }
+        
+        // Draw "Onthouding" (orange)
+        if (abstainPct > 0) {
+            const sliceAngle = (abstainPct / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = '#ff9800';
+            ctx.fill();
+        }
+    })();
+    {% endfor %}
 }
 
 // Draw pie charts for results

@@ -1,0 +1,117 @@
+/* Deelnemers Page Styles */
+
+/* Section containers */
+.member-section {
+    margin-bottom: 30px;
+}
+
+.section-head {
+    background: var(--green);
+    color: white;
+    padding: 12px 18px;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+}
+
+.section-head h3 {
+    margin: 0;
+    color: white;
+}
+
+/* Participants table */
+.participants-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+}
+
+.participants-table thead {
+    background: #f8f9fa;
+}
+
+.participants-table th {
+    padding: 12px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--green);
+    border-bottom: 2px solid var(--border);
+}
+
+.participants-table td {
+    padding: 10px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+.participants-table tbody tr.odd-row {
+    background: #f0f7f4;
+}
+
+.participants-table tbody tr.even-row {
+    background: white;
+}
+
+.participants-table tbody tr:hover {
+    background: #e8f2ed;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--muted);
+    padding: 20px;
+}
+
+/* Form styles */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--green);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.form-group small {
+    color: #666;
+    font-size: 12px;
+    display: block;
+    margin-top: 4px;
+}
+
+.readonly-input {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+/* Modal styles */
+.modal-content {
+    max-width: 700px;
+}
+
+.modal-body p {
+    margin-bottom: 20px;
+    color: var(--muted);
+}
+

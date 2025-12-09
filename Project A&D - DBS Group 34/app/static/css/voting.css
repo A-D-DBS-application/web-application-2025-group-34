@@ -456,6 +456,35 @@
   margin-top: 20px;
 }
 
+/* Load More Results Button - zelfde stijl als dashboard */
+#toggleOlderResultsBtn {
+    background: #246F59;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(37,91,72,0.2);
+    width: 100%;
+}
+
+#toggleOlderResultsBtn:hover {
+    background: #1d5a48;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(37,91,72,0.3);
+}
+
+#toggleOlderResultsBtn:active {
+    transform: translateY(0);
+}
+
+#load-more-results-container {
+    margin-top: 20px;
+}
+
 .btn {
   padding: 10px 20px;
   border: none;

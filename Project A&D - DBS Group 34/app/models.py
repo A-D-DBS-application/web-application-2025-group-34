@@ -151,6 +151,9 @@ class FileItem(db.Model):
     # Self-referential relationship voor folder structuur
     parent = db.relationship('FileItem', remote_side=[item_id], backref='children')
     
+    # Relationship to creator
+    creator = db.relationship('Member', foreign_keys=[created_by], backref='created_files')
+    
 # --- Unified members Table (Includes all roles: board, analist, lid, kapitaalverschaffers, oud) ---
 class Member(UserMixin, db.Model):
     __tablename__ = 'members'
@@ -477,19 +480,28 @@ def get_next_available_id(role, **kwargs):
         return generate_analist_id(sector, next_num, year)
     
     elif role == 'lid':
-        # Zoek hoogste lid nummer voor dit jaar
-        existing = db.session.query(Member).filter(
+        # Zoek alle bestaande lid nummers voor dit jaar
+        existing_members = db.session.query(Member).filter(
             Member.member_id >= int(f"200{year_suffix:03d}"),
             Member.member_id < int(f"300{year_suffix:03d}")
-        ).order_by(Member.member_id.desc()).first()
+        ).all()
         
-        if existing:
-            existing_num = existing.get_member_number_in_year()
-            next_num = existing_num + 1
-        else:
-            next_num = 0  # Start bij 00
+        # Verzamel alle gebruikte nummers (0-99)
+        used_numbers = set()
+        for member in existing_members:
+            member_num = member.get_member_number_in_year()
+            if member_num is not None and 0 <= member_num <= 99:
+                used_numbers.add(member_num)
         
-        if next_num > 99:
+        # Vind het eerste beschikbare nummer (0-99)
+        next_num = None
+        for num in range(100):  # 0 tot en met 99
+            if num not in used_numbers:
+                next_num = num
+                break
+        
+        # Als alle nummers gebruikt zijn (0-99), dan is het vol
+        if next_num is None:
             raise ValueError(f"Maximum aantal leden (100) bereikt voor jaar {year}")
         
         return generate_lid_id(next_num, year)
@@ -523,6 +535,9 @@ class Portfolio(db.Model):
     portfolio_date = db.Column(db.DateTime(timezone=True), nullable=False, default=db.func.now())
     # Note: double precision maps to db.Float
     profit_loss = db.Column('profit&loss', db.Float)
+    
+    # Relationship to positions
+    positions = db.relationship('Position', backref='portfolio', lazy='dynamic', cascade='all, delete-orphan')
     
 # --- positions Table ---
 class Position(db.Model):
@@ -568,6 +583,22 @@ class VotingProposal(db.Model):
     
     # Relationship to votes
     votes = db.relationship('Vote', backref='proposal', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_vote_counts(self):
+        """Helper method om vote counts te krijgen zonder extra queries"""
+        votes_list = self.votes.all()
+        return {
+            'total': len(votes_list),
+            'voor': sum(1 for v in votes_list if v.vote_option.lower() == 'voor'),
+            'tegen': sum(1 for v in votes_list if v.vote_option.lower() == 'tegen'),
+            'onthouding': sum(1 for v in votes_list if v.vote_option.lower() == 'onthouding')
+        }
+    
+    def has_user_voted(self, user_id):
+        """Check of gebruiker al gestemd heeft"""
+        if not user_id:
+            return False
+        return self.votes.filter_by(member_id=user_id).first() is not None
 
 # --- votes Table ---
 class Vote(db.Model):
@@ -578,8 +609,21 @@ class Vote(db.Model):
     vote_option = db.Column(db.String(20), nullable=False)  # 'voor', 'tegen', 'onthouding'
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
     
+    # Relationships met backref
+    member = db.relationship('Member', backref='member_votes')
+    
     # Unique constraint: een member kan maar één keer stemmen per proposal
     __table_args__ = (db.UniqueConstraint('proposal_id', 'member_id', name='unique_member_proposal_vote'),)
+    
+    def to_dict(self):
+        """Convert vote to dictionary for JSON serialization"""
+        return {
+            'vote_id': self.vote_id,
+            'proposal_id': self.proposal_id,
+            'member_id': self.member_id,
+            'vote_option': self.vote_option,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
 
 
 class Announcement(db.Model):
