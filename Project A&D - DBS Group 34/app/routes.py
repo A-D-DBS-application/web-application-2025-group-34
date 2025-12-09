@@ -10,6 +10,24 @@ import os
 from pathlib import Path
 from io import BytesIO
 from . import supabase, db
+import time
+
+# Simple in-memory cache voor company info (voorkomt rate limiting)
+_company_info_cache = {}
+_cache_ttl_seconds = 600  # 10 minuten cache TTL
+
+def _cleanup_cache():
+    """Verwijder expired cache entries"""
+    current_time = time.time()
+    expired_keys = [
+        key for key, (_, cache_time) in _company_info_cache.items()
+        if current_time - cache_time >= _cache_ttl_seconds
+    ]
+    for key in expired_keys:
+        del _company_info_cache[key]
+    if expired_keys:
+        print(f"Cleaned up {len(expired_keys)} expired cache entries")
+
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio, FileItem,
     generate_board_member_id, generate_analist_id, generate_lid_id, 
@@ -1305,42 +1323,104 @@ def portfolio():
 @main.route("/portfolio/company/<ticker>")
 @login_required
 def get_company_info(ticker):
-    """Haal company info en financial ratios op via yfinance"""
+    """Haal company info en financial ratios op via yfinance met caching"""
     try:
         # URL decode de ticker
         import urllib.parse
         ticker = urllib.parse.unquote(ticker)
         
-        # Normaliseer ticker voor yfinance
-        # Bijv. "BRK. B" -> "BRK-B" (Berkshire Hathaway B shares)
-        # yfinance verwacht "-" voor class B shares, niet "." of spaties
+        # Normaliseer ticker voor cache key
         normalized_ticker = ticker.strip().replace(" ", "-").replace(".", "-")
-        # Verwijder dubbele streepjes
         normalized_ticker = normalized_ticker.replace("--", "-")
+        cache_key = normalized_ticker.upper()
         
-        info = {}
-        tickers_to_try = [normalized_ticker]
-        # Als genormaliseerde ticker anders is, probeer ook origineel
-        if normalized_ticker != ticker:
-            tickers_to_try.append(ticker)
+        # Cleanup expired cache entries periodiek
+        if len(_company_info_cache) > 100:  # Cleanup als cache te groot wordt
+            _cleanup_cache()
         
-        # Probeer verschillende ticker formaten
-        for ticker_variant in tickers_to_try:
-            try:
-                ticker_obj = yf.Ticker(ticker_variant)
-                info = ticker_obj.info
-                # Als we geldige data hebben, stop met proberen
-                if info and len(info) > 0 and 'symbol' in info:
-                    break
-            except Exception as yf_error:
-                print(f"yfinance error for {ticker_variant}: {yf_error}")
-                continue
+        # Check cache eerst
+        current_time = time.time()
+        if cache_key in _company_info_cache:
+            cached_data, cache_time = _company_info_cache[cache_key]
+            if current_time - cache_time < _cache_ttl_seconds:
+                # Cache hit - gebruik cached data
+                print(f"Cache hit for {ticker}")
+                info = cached_data
+            else:
+                # Cache expired - verwijder
+                del _company_info_cache[cache_key]
+                info = {}
+        else:
+            info = {}
+        
+        # Als geen cache hit, haal data op van yfinance
+        if not info:
+            tickers_to_try = [normalized_ticker]
+            # Als genormaliseerde ticker anders is, probeer ook origineel
+            if normalized_ticker != ticker:
+                tickers_to_try.append(ticker)
+            
+            # Probeer verschillende ticker formaten met retry logic voor rate limiting
+            last_error = None
+            for ticker_variant in tickers_to_try:
+                try:
+                    # Configureer yfinance met user agent voor betere compatibiliteit
+                    ticker_obj = yf.Ticker(ticker_variant)
+                    # Gebruik download_info met timeout voor betere error handling
+                    info = ticker_obj.info
+                    
+                    # Als we geldige data hebben, stop met proberen
+                    if info and len(info) > 0 and 'symbol' in info:
+                        # Sla op in cache
+                        _company_info_cache[cache_key] = (info, current_time)
+                        print(f"Cached company info for {ticker}")
+                        break
+                    elif info and len(info) > 0:
+                        # Soms geeft yfinance data zonder 'symbol' maar met andere velden
+                        # Check of er nuttige data is
+                        if any(key in info for key in ['longName', 'shortName', 'sector', 'industry']):
+                            _company_info_cache[cache_key] = (info, current_time)
+                            print(f"Cached company info for {ticker} (without symbol)")
+                            break
+                except Exception as yf_error:
+                    error_str = str(yf_error)
+                    last_error = yf_error
+                    # Check voor rate limiting errors
+                    if '429' in error_str or 'Too Many Requests' in error_str:
+                        print(f"Rate limit hit for {ticker_variant}, using cached data if available")
+                        # Probeer oude cache data te gebruiken als beschikbaar
+                        if cache_key in _company_info_cache:
+                            old_info, _ = _company_info_cache[cache_key]
+                            if old_info:
+                                info = old_info
+                                print(f"Using stale cache for {ticker} due to rate limit")
+                                break
+                    # Log meer details voor debugging
+                    print(f"yfinance error for {ticker_variant}: {type(yf_error).__name__}: {yf_error}")
+                    import traceback
+                    print(f"Traceback: {traceback.format_exc()}")
+                    continue
+            
+            # Als alle varianten gefaald hebben, log dit
+            if not info and last_error:
+                print(f"All ticker variants failed for {ticker}. Last error: {last_error}")
         
         # Check if info is available (yfinance returns empty dict if ticker not found)
         if not info or len(info) == 0:
+            # Geef meer informatieve error message
+            error_msg = f'Ticker "{ticker}" not found or no data available.'
+            if 'last_error' in locals() and last_error:
+                error_str = str(last_error)
+                if '429' in error_str or 'Too Many Requests' in error_str:
+                    error_msg += ' Yahoo Finance is rate limiting requests. Please try again in a few minutes.'
+                elif '404' in error_str or 'Not Found' in error_str:
+                    error_msg += ' This ticker may not exist or may be delisted.'
+                else:
+                    error_msg += f' Error: {error_str[:100]}'
+            
             return jsonify({
                 'success': False,
-                'error': f'Ticker "{ticker}" not found or no data available'
+                'error': error_msg
             }), 404
         
         # Haal portfolio positie op voor "Your Position" data

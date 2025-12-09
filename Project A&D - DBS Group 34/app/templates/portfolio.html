@@ -382,14 +382,24 @@ function openCompanyModal(ticker, assetName) {
   const encodedTicker = encodeURIComponent(ticker);
   const baseUrl = window.location.origin;
   const companyInfoUrl = `${baseUrl}/portfolio/company/${encodedTicker}`;
-  fetch(companyInfoUrl)
+  console.log(`Fetching company info from: ${companyInfoUrl}`);
+  fetch(companyInfoUrl, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    credentials: 'same-origin' // Zorg dat cookies worden meegestuurd
+  })
     .then(response => {
+      console.log(`Response status: ${response.status}, content-type: ${response.headers.get("content-type")}`);
       const contentType = response.headers.get("content-type");
       // Probeer altijd JSON te parsen, zelfs bij error status
       if (contentType && contentType.includes("application/json")) {
         return response.json().then(data => {
           if (!response.ok) {
             // Als response niet OK is maar wel JSON, gebruik de error message uit JSON
+            console.error(`Error response:`, data);
             throw new Error(data.error || `HTTP error! status: ${response.status}`);
           }
           return data;
@@ -398,6 +408,7 @@ function openCompanyModal(ticker, assetName) {
         // Als het geen JSON is, gooi een error
         if (!response.ok) {
           return response.text().then(text => {
+            console.error(`Non-JSON error response:`, text.substring(0, 200));
             throw new Error(`HTTP error! status: ${response.status}. Response: ${text.substring(0, 100)}`);
           });
         }
