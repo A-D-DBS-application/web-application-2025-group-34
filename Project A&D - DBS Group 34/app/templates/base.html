@@ -18,7 +18,9 @@
 <body>
 
   <main class="content">
-    {% include 'partials/_flash_messages.html' %}
+    {% block flash_messages %}
+      {% include 'partials/_flash_messages.html' %}
+    {% endblock %}
     {% block content %}{% endblock %}
   </main>
 

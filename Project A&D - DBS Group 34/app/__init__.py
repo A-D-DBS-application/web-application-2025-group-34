@@ -64,6 +64,14 @@ def create_app():
     from .routes import main
     app.register_blueprint(main)
 
+    # Template filters registreren
+    from .utils import format_currency, format_number, format_percentage, format_date, format_transaction_date
+    app.jinja_env.filters['currency'] = format_currency
+    app.jinja_env.filters['number'] = format_number
+    app.jinja_env.filters['percentage'] = format_percentage
+    app.jinja_env.filters['date_format'] = format_date
+    app.jinja_env.filters['transaction_date'] = format_transaction_date
+    
     # Context processor voor globale template variabelen
     @app.context_processor
     def inject_member_count():
@@ -81,6 +89,17 @@ def create_app():
         """Maakt file icon functie beschikbaar in templates."""
         from .routes import _get_file_icon
         return dict(get_file_icon=_get_file_icon)
+    
+    @app.context_processor
+    def inject_utils():
+        """Maakt utility functies beschikbaar in templates."""
+        from .utils import format_currency, format_number, format_percentage, format_date
+        return dict(
+            format_currency=format_currency,
+            format_number=format_number,
+            format_percentage=format_percentage,
+            format_date=format_date
+        )
 
     @app.cli.command("create-member")
     @click.option("--name", prompt=True, help="Full name for the member.")

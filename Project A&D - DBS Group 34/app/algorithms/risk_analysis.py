@@ -9,10 +9,35 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 import yfinance as yf
 import logging
+import requests_cache
+from pathlib import Path
 from ..models import Position
 
 # Configureer logging
 logger = logging.getLogger(__name__)
+
+# Initialize requests cache voor yfinance rate limiting
+# Cache duurt 24 uur (86400 seconden) en wordt opgeslagen in een SQLite database
+_cache_dir = Path(__file__).parent.parent.parent / '.cache'
+_cache_dir.mkdir(exist_ok=True)
+_cache_file = _cache_dir / 'yfinance_cache'
+
+# Installeer de cache voor alle requests via requests_cache.install_cache
+# Dit zorgt ervoor dat alle HTTP requests (inclusief yfinance) automatisch gecached worden
+# Cache duurt 24 uur (86400 seconden) en wordt opgeslagen in een SQLite database
+# De cache voorkomt rate limiting (429 errors) door herhaalde requests te cachen
+try:
+    requests_cache.install_cache(
+        cache_name=str(_cache_file),
+        expire_after=86400,  # 24 uur in seconden
+        backend='sqlite',
+        allowable_methods=['GET', 'POST'],  # Cache GET en POST requests
+        allowable_codes=[200, 429],  # Cache ook 429 errors om rate limiting te voorkomen
+        stale_if_error=True  # Gebruik oude data als nieuwe data niet beschikbaar is
+    )
+    logger.info(f"YFinance cache geïnitialiseerd: {_cache_file} (TTL: 24 uur)")
+except Exception as e:
+    logger.warning(f"Kon requests cache niet installeren: {e}. Rate limiting kan optreden.")
 
 # Mock Benchmark Portefeuilles
 BENCHMARKS = {
@@ -210,7 +235,7 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)  # Extra buffer voor weekends/holidays
             
-            # Download historische data
+            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
             try:
                 ticker_data = yf.download(
                     " ".join(tickers), 
@@ -479,7 +504,7 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)
             
-            # Download historische data
+            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
             try:
                 ticker_data = yf.download(
                     " ".join(tickers), 
@@ -614,7 +639,7 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)
             
-            # Download historische data
+            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
             try:
                 ticker_data = yf.download(
                     " ".join(tickers), 

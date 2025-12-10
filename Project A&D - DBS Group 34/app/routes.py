@@ -17,21 +17,50 @@ import logging
 logging.getLogger('yfinance').setLevel(logging.ERROR)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
-# Simple in-memory cache voor company info (voorkomt rate limiting)
-_company_info_cache = {}
-_cache_ttl_seconds = 600  # 10 minuten cache TTL
-
-def _cleanup_cache():
-    """Verwijder expired cache entries"""
-    current_time = time.time()
-    expired_keys = [
-        key for key, (_, cache_time) in _company_info_cache.items()
-        if current_time - cache_time >= _cache_ttl_seconds
-    ]
-    for key in expired_keys:
-        del _company_info_cache[key]
-    if expired_keys:
-        print(f"Cleaned up {len(expired_keys)} expired cache entries")
+# Initialize requests cache voor company info (yfinance rate limiting)
+# Gebruik dezelfde cache als risk_analysis.py voor consistentie
+try:
+    import requests_cache
+    from pathlib import Path
+    
+    # Gebruik dezelfde cache directory als risk_analysis
+    _cache_dir = Path(__file__).parent.parent / '.cache'
+    _cache_dir.mkdir(exist_ok=True)
+    _cache_file = _cache_dir / 'yfinance_cache'
+    
+    # Installeer de cache voor alle requests (werkt automatisch voor yfinance)
+    # Dit cached alle HTTP requests inclusief yf.Ticker().info calls
+    requests_cache.install_cache(
+        cache_name=str(_cache_file),
+        expire_after=86400,  # 24 uur in seconden (zelfde als risk_analysis)
+        backend='sqlite',
+        allowable_methods=['GET', 'POST'],
+        allowable_codes=[200, 429],  # Cache ook 429 errors
+        stale_if_error=True  # Gebruik oude data bij errors
+    )
+    logger = logging.getLogger(__name__)
+    logger.info(f"Company info cache geïnitialiseerd: {_cache_file} (TTL: 24 uur)")
+except ImportError:
+    # requests_cache niet beschikbaar - gebruik fallback in-memory cache
+    _company_info_cache = {}
+    _cache_ttl_seconds = 600  # 10 minuten cache TTL
+    
+    def _cleanup_cache():
+        """Verwijder expired cache entries (fallback als requests_cache niet beschikbaar is)"""
+        current_time = time.time()
+        expired_keys = [
+            key for key, (_, cache_time) in _company_info_cache.items()
+            if current_time - cache_time >= _cache_ttl_seconds
+        ]
+        for key in expired_keys:
+            del _company_info_cache[key]
+        if expired_keys:
+            print(f"Cleaned up {len(expired_keys)} expired cache entries")
+except Exception as e:
+    # Fallback naar in-memory cache bij errors
+    _company_info_cache = {}
+    _cache_ttl_seconds = 600
+    logging.getLogger(__name__).warning(f"Kon requests_cache niet initialiseren: {e}. Gebruik in-memory cache.")
 
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio, FileItem,
@@ -119,9 +148,12 @@ def ensure_timezone(dt):
 
 # Oude get_vote_counts functie verwijderd - gebruik nu VotingProposal.get_vote_counts() method
 
+# Import utility functions (backward compatibility - functions remain for existing code)
+from .utils import format_currency as _format_currency_util, format_transaction_date as _format_transaction_date_util
+
 def format_currency(value):
-    """Formats a float to a European currency string (e.g., 1.234,56)"""
-    return "{:,.2f}".format(value).replace(",", "X").replace(".", ",").replace("X", ".")
+    """Formats a float to a European currency string (e.g., 1.234,56) - Uses utils module"""
+    return _format_currency_util(value)
 
 # Exchange rates voor currency conversie (approximatieve rates)
 # Deze rates worden gebruikt om transacties te sorteren op grootte, rekening houdend met wisselkoersen
@@ -214,32 +246,8 @@ def parse_float_from_form(form_data, field_name, min_value=0, field_label=None):
         return None, f"Ongeldige {field_label.lower()}."
 
 def format_transaction_date(date_obj):
-    """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022')"""
-    if date_obj is None:
-        return datetime.now().strftime("%d-%m-%Y").lstrip('0').replace('-0', '-')
-    if hasattr(date_obj, 'strftime'):
-        date_str = date_obj.strftime("%d-%m-%Y")
-        # Remove leading zeros from day and month
-        parts = date_str.split('-')
-        day = str(int(parts[0]))
-        month = str(int(parts[1]))
-        year = parts[2]
-        return f"{day}-{month}-{year}"
-    if isinstance(date_obj, str):
-        # Probeer ISO format te parsen
-        try:
-            if 'T' in date_obj or '-' in date_obj:
-                dt = datetime.fromisoformat(date_obj.replace("Z", "+00:00"))
-                date_str = dt.strftime("%d-%m-%Y")
-                parts = date_str.split('-')
-                day = str(int(parts[0]))
-                month = str(int(parts[1]))
-                year = parts[2]
-                return f"{day}-{month}-{year}"
-        except Exception:
-            # Date parsing failed, return string representation
-            pass
-    return str(date_obj)
+    """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022') - Uses utils module"""
+    return _format_transaction_date_util(date_obj)
 
 # Mapping van tickers naar asset namen, exchanges en sectoren (uit de Supabase data)
 TICKER_TO_ASSET = {
@@ -1283,73 +1291,70 @@ def get_company_info(ticker):
         import urllib.parse
         ticker = urllib.parse.unquote(ticker)
         
-        # Normaliseer ticker voor cache key
+        # Normaliseer ticker
         normalized_ticker = ticker.strip().replace(" ", "-").replace(".", "-")
         normalized_ticker = normalized_ticker.replace("--", "-")
-        cache_key = normalized_ticker.upper()
         
-        # Cleanup expired cache entries periodiek
-        if len(_company_info_cache) > 100:  # Cleanup als cache te groot wordt
-            _cleanup_cache()
+        # requests_cache cached automatisch alle HTTP requests
+        # yf.Ticker().info gebruikt HTTP requests intern, dus wordt automatisch gecached
+        # Geen handmatige cache check nodig - requests_cache handelt dit af
         
-        # Check cache eerst
-        current_time = time.time()
-        if cache_key in _company_info_cache:
+        info = {}
+        tickers_to_try = [normalized_ticker]
+        # Als genormaliseerde ticker anders is, probeer ook origineel
+        if normalized_ticker != ticker:
+            tickers_to_try.append(ticker)
+        
+        # Probeer verschillende ticker formaten
+        # requests_cache cached automatisch alle HTTP requests, dus geen handmatige cache nodig
+        # Als requests_cache niet beschikbaar is, gebruik in-memory cache fallback
+        last_error = None
+        
+        # Check of we in-memory cache moeten gebruiken (fallback)
+        use_memory_cache = '_company_info_cache' in globals()
+        cache_key = normalized_ticker.upper() if use_memory_cache else None
+        current_time = time.time() if use_memory_cache else None
+        
+        # Check in-memory cache eerst (als fallback)
+        if use_memory_cache and cache_key in _company_info_cache:
             cached_data, cache_time = _company_info_cache[cache_key]
             if current_time - cache_time < _cache_ttl_seconds:
-                # Cache hit - gebruik cached data
                 info = cached_data
             else:
-                # Cache expired - verwijder
                 del _company_info_cache[cache_key]
-                info = {}
-        else:
-            info = {}
         
         # Als geen cache hit, haal data op van yfinance
         if not info:
-            tickers_to_try = [normalized_ticker]
-            # Als genormaliseerde ticker anders is, probeer ook origineel
-            if normalized_ticker != ticker:
-                tickers_to_try.append(ticker)
-            
-            # Probeer verschillende ticker formaten met retry logic voor rate limiting
-            last_error = None
             for ticker_variant in tickers_to_try:
                 try:
-                    # Nieuwe versies van yfinance vereisen curl_cffi in plaats van requests.Session
-                    # Dit is nodig omdat Yahoo Finance nu curl_cffi vereist voor betere compatibiliteit
-                    import time as time_module
-                    
-                    # Gebruik geen custom session - yfinance gebruikt automatisch curl_cffi als het beschikbaar is
-                    # Als curl_cffi niet beschikbaar is, gebruikt yfinance zijn eigen session management
+                    # yf.Ticker().info wordt automatisch gecached door requests_cache (als beschikbaar)
+                    # De cache duurt 24 uur en wordt opgeslagen in SQLite database
                     ticker_obj = yf.Ticker(ticker_variant)
                     
-                    # Gebruik info met timeout voor betere error handling
-                    # Voeg kleine delay toe tussen requests om rate limiting te voorkomen
-                    if ticker_variant != tickers_to_try[0]:
-                        time_module.sleep(0.5)  # 500ms delay tussen verschillende ticker varianten
-                    
+                    # Haal info op (wordt automatisch gecached door requests_cache)
                     info = ticker_obj.info
                     
                     # Als we geldige data hebben, stop met proberen
                     if info and len(info) > 0 and 'symbol' in info:
-                        # Sla op in cache
-                        _company_info_cache[cache_key] = (info, current_time)
+                        # Sla op in in-memory cache (fallback)
+                        if use_memory_cache:
+                            _company_info_cache[cache_key] = (info, current_time)
                         break
                     elif info and len(info) > 0:
                         # Soms geeft yfinance data zonder 'symbol' maar met andere velden
                         # Check of er nuttige data is
                         if any(key in info for key in ['longName', 'shortName', 'sector', 'industry']):
-                            _company_info_cache[cache_key] = (info, current_time)
+                            # Sla op in in-memory cache (fallback)
+                            if use_memory_cache:
+                                _company_info_cache[cache_key] = (info, current_time)
                             break
                 except Exception as yf_error:
                     error_str = str(yf_error)
                     last_error = yf_error
-                    # Check voor rate limiting errors
-                    if '429' in error_str or 'Too Many Requests' in error_str:
-                        # Probeer oude cache data te gebruiken als beschikbaar
-                        if cache_key in _company_info_cache:
+                    # requests_cache gebruikt automatisch stale_if_error voor 429 errors
+                    # Voor in-memory cache fallback: probeer oude data te gebruiken
+                    if use_memory_cache and cache_key in _company_info_cache:
+                        if '429' in error_str or 'Too Many Requests' in error_str:
                             old_info, _ = _company_info_cache[cache_key]
                             if old_info:
                                 info = old_info

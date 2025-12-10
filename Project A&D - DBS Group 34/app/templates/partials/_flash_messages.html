@@ -1,6 +1,6 @@
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
-    <div class="flash-messages mb-3">
+    <div class="flash-messages">
       {% for category, message in messages %}
         <div class="flash-{{ category }}">
           {{ message }}

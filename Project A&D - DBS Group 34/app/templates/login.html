@@ -3,12 +3,18 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 {% endblock %}
 
+{% block flash_messages %}
+{# Flash messages worden binnen de login-card getoond #}
+{% endblock %}
+
 {% block content %}
 <div class="login-wrap">
   <div class="login-card">
     <img src="{{ url_for('static', filename='img/logo.png') }}" class="login-logo" alt="logo">
     <h2>Investment Club Login</h2>
     <p class="muted">Voer je inloggegevens in om toegang te krijgen</p>
+    
+    {% include 'partials/_flash_messages.html' %}
 
     <form method="POST" action="{{ url_for('main.login_post') }}">
       <label for="id">ID Nummer</label>

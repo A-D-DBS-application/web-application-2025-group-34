@@ -3,6 +3,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 {% endblock %}
 
+{% block flash_messages %}
+{# Flash messages worden binnen de login-card getoond #}
+{% endblock %}
+
 {% block content %}
 <div class="login-wrap">
   <div class="login-card">
@@ -10,13 +14,7 @@
     <h2>Lid Registreren</h2>
     <p class="muted">Maak een account aan om te starten met de Investment Club</p>
     
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <p style="color: {% if category == 'error' %}red{% elif category == 'success' %}#255b48{% else %}#6b766f{% endif %}; margin-top: 10px;">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    {% include 'partials/_flash_messages.html' %}
 
     <form method="POST" action="{{ url_for('main.register') }}">
       <label for="name">Volledige Naam</label>

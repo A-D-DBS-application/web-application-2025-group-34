@@ -56,10 +56,14 @@
     box-shadow: 0 0 0 4px rgba(37,91,72,0.06);
     border-color: var(--green);
   }
-  input:disabled {
+  input:disabled,
+  .input-disabled {
     background: var(--bg);
     color: var(--muted);
     cursor: not-allowed;
+  }
+  .info-text-spacing {
+    margin-bottom: 16px;
   }
   .btn {
     padding: 12px 28px;
@@ -129,15 +133,7 @@
   <div class="profile-card">
     <h2>Profiel Bewerken</h2>
     
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div style="padding: 12px; margin-bottom: 16px; border-radius: 8px; background: {% if category == 'error' %}rgba(255,0,0,0.1){% elif category == 'success' %}rgba(0,255,0,0.1){% else %}rgba(0,0,255,0.1){% endif %}; color: {% if category == 'error' %}red{% elif category == 'success' %}var(--green){% else %}var(--primary){% endif %};">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    {% include 'partials/_flash_messages.html' %}
 
     <form method="POST" action="{{ url_for('main.edit_profile') }}">
       <!-- Basic Information Section -->
@@ -156,13 +152,13 @@
 
         <div class="form-group">
           <label>Lid ID</label>
-          <input type="text" value="{{ g.user.member_id }}" disabled style="background: var(--bg); color: var(--muted);">
+          <input type="text" value="{{ g.user.member_id }}" disabled class="input-disabled">
           <p class="info-text">Je lid ID kan niet worden gewijzigd.</p>
         </div>
 
         <div class="form-group">
           <label>Functie</label>
-          <input type="text" value="{{ g.user.get_role_display_name() }}" disabled style="background: var(--bg); color: var(--muted);">
+          <input type="text" value="{{ g.user.get_role_display_name() }}" disabled class="input-disabled">
           <p class="info-text">Je functie kan niet worden gewijzigd.</p>
         </div>
       </div>
@@ -170,7 +166,7 @@
       <!-- Password Change Section -->
       <div class="form-section">
         <h3>Wachtwoord Wijzigen</h3>
-        <p class="info-text" style="margin-bottom: 16px;">Laat deze velden leeg als je je wachtwoord niet wilt wijzigen.</p>
+        <p class="info-text info-text-spacing">Laat deze velden leeg als je je wachtwoord niet wilt wijzigen.</p>
         
         <div class="form-group">
           <label for="current_password">Huidig Wachtwoord</label>

@@ -4,6 +4,39 @@ from .models import db, Position, Portfolio
 import yfinance as yf
 from sqlalchemy import func
 import time
+import logging
+from pathlib import Path
+
+# Initialize requests_cache voor yfinance rate limiting
+# Dit zorgt ervoor dat alle yfinance calls gecached worden (24 uur)
+# Belangrijk: requests_cache.install_cache() werkt GLOBAAL, dus als het al in routes.py
+# of risk_analysis.py is geïnitialiseerd, wordt die cache gebruikt.
+# We initialiseren het hier ook voor het geval jobs.py als eerste wordt geladen.
+try:
+    import requests_cache
+    _cache_dir = Path(__file__).parent.parent / '.cache'
+    _cache_dir.mkdir(exist_ok=True)
+    _cache_file = _cache_dir / 'yfinance_cache'
+    
+    # Probeer cache te installeren (als het al geïnstalleerd is, doet dit niets)
+    try:
+        requests_cache.install_cache(
+            cache_name=str(_cache_file),
+            expire_after=86400,  # 24 uur
+            backend='sqlite',
+            allowable_methods=['GET', 'POST'],
+            allowable_codes=[200, 429],
+            stale_if_error=True
+        )
+        logger = logging.getLogger(__name__)
+        logger.info(f"Price update cache geïnitialiseerd: {_cache_file} (TTL: 24 uur)")
+    except Exception as e:
+        # Cache is mogelijk al geïnstalleerd door een andere module
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Cache al geïnstalleerd of fout: {e}")
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("requests_cache niet beschikbaar - rate limiting kan optreden bij prijsupdates")
 
 def fetch_exchange_rate(currency_pair, currency_name):
     """Haal exchange rate op voor een valuta paar via yfinance"""
