@@ -37,6 +37,19 @@
     </div>
   </div>
 
+  <!-- MANUAL UPDATE SECTION -->
+  <div class="manual-update-section">
+    <div class="update-buttons">
+      <button class="btn update-btn" onclick="manualUpdatePrices()" id="updatePricesBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 1 1 8.5-8.5M22 12.5a10 10 0 1 1-8.5 8.5"></path>
+        </svg>
+        Update Prijzen
+      </button>
+    </div>
+    <div id="updateStatus" class="update-status" style="display: none;"></div>
+  </div>
+
   <!-- Cash Edit Modal -->
   <div id="cashEditModal" class="modal" style="display:none;">
     <div class="modal-content" style="max-width:400px;">
@@ -59,9 +72,9 @@
     </div>
   </div>
 
-  <!-- Delete Position Modal (stap 1: nummer invoeren) -->
+  <!-- Delete Position Modal (stap 1: naam selecteren) -->
   <div id="deletePositionModal" class="modal" style="display:none;">
-    <div class="modal-content" style="max-width:400px;">
+    <div class="modal-content" style="max-width:500px;">
       <div class="modal-header">
         <h2>Positie Verwijderen</h2>
         <span class="modal-close" onclick="closeDeletePositionModal()">&times;</span>
@@ -69,9 +82,11 @@
       <div class="modal-body">
         <form id="deletePositionForm" onsubmit="fetchPositionForDeletion(event)">
           <div class="form-group">
-            <label>Positie Nummer *</label>
-            <input type="number" min="1" name="position_number" id="positionNumberInput" required placeholder="Bijv. 1, 2, 3...">
-            <small style="color: #666; font-size: 12px;">Voer het nummer in van de positie die je wilt verwijderen (zie de eerste kolom in de tabel)</small>
+            <label>Selecteer Positie *</label>
+            <select name="position_name" id="positionNameSelect" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;">
+              <option value="">-- Selecteer een positie --</option>
+            </select>
+            <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">Selecteer de positie die je wilt verwijderen</small>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn">Volgende</button>
@@ -232,10 +247,9 @@
         <button class="filter-btn" data-filter="sector" id="sectorFilterBtn" onclick="toggleSectorDropdown(event)">Sector</button>
         <div class="sector-dropdown" id="sectorDropdown" style="display: none;">
           <div class="sector-option" onclick="selectSector('')">Alle sectoren</div>
-          <div class="sector-option" onclick="selectSector('Tech')">Tech</div>
-          <div class="sector-option" onclick="selectSector('Ind., E. & R.M.')">Ind., E. & R.M.</div>
-          <div class="sector-option" onclick="selectSector('Cons. & Health')">Cons. & Health</div>
-          <div class="sector-option" onclick="selectSector('RE, F. & Hold.')">RE, F. & Hold.</div>
+          {% for value, label in sectors %}
+          <div class="sector-option" onclick="selectSector('{{ label }}')">{{ label }}</div>
+          {% endfor %}
           <div class="sector-option" onclick="selectSector('ETF')">ETF</div>
         </div>
       </div>
@@ -776,16 +790,47 @@ function closeCashEditModal() {
 }
 
 // Delete Position Modal Functions
-function openDeletePositionModal() {
+async function openDeletePositionModal() {
     const modal = document.getElementById('deletePositionModal');
+    const select = document.getElementById('positionNameSelect');
+    
+    // Load positions list
+    try {
+        const response = await fetch('/portfolio/get-positions-list');
+        const data = await response.json();
+        
+        // Clear existing options (keep first option)
+        select.innerHTML = '<option value="">-- Selecteer een positie --</option>';
+        
+        // Add positions to dropdown
+        if (data.positions && data.positions.length > 0) {
+            data.positions.forEach(pos => {
+                const option = document.createElement('option');
+                option.value = pos.name;
+                option.textContent = `${pos.name}${pos.ticker ? ' (' + pos.ticker + ')' : ''}${pos.sector ? ' - ' + pos.sector : ''}`;
+                option.dataset.positionId = pos.position_id;
+                select.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Geen posities beschikbaar';
+            option.disabled = true;
+            select.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Error loading positions:', error);
+        alert('Fout bij laden van posities.');
+        return;
+    }
+    
     modal.style.display = 'block';
-    document.getElementById('positionNumberInput').value = '';
-    document.getElementById('positionNumberInput').focus();
+    select.focus();
 }
 
 function closeDeletePositionModal() {
     document.getElementById('deletePositionModal').style.display = 'none';
-    document.getElementById('positionNumberInput').value = '';
+    document.getElementById('positionNameSelect').value = '';
 }
 
 function closeDeleteConfirmModal() {
@@ -795,27 +840,46 @@ function closeDeleteConfirmModal() {
 
 async function fetchPositionForDeletion(event) {
     event.preventDefault();
-    const positionNumber = parseInt(document.getElementById('positionNumberInput').value);
+    const positionName = document.getElementById('positionNameSelect').value;
+    const select = document.getElementById('positionNameSelect');
+    const selectedOption = select.options[select.selectedIndex];
     
-    if (!positionNumber || positionNumber < 1) {
-        alert('Voer een geldig positie nummer in.');
+    if (!positionName) {
+        alert('Selecteer een positie.');
         return;
     }
     
     try {
-        // Fetch position info from server
-        const response = await fetch(`/portfolio/get-position/${positionNumber}`);
-        const data = await response.json();
+        // Get position_id from selected option
+        const positionId = selectedOption.dataset.positionId;
         
-        if (data.error) {
-            alert(data.error);
-            return;
+        if (!positionId) {
+            // Fallback: fetch by name if position_id not available
+            const response = await fetch('/portfolio/get-position-by-name', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ position_name: positionName })
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Show confirmation modal with position name
+            document.getElementById('deletePositionId').value = data.position_id;
+            document.getElementById('deleteConfirmMessage').textContent = 
+                `Weet je zeker dat je "${data.position_name}"${data.ticker ? ' (' + data.ticker + ')' : ''} wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
+        } else {
+            // Use position_id from dropdown
+            document.getElementById('deletePositionId').value = positionId;
+            document.getElementById('deleteConfirmMessage').textContent = 
+                `Weet je zeker dat je "${positionName}" wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
         }
-        
-        // Show confirmation modal with position name
-        document.getElementById('deletePositionId').value = data.position_id;
-        document.getElementById('deleteConfirmMessage').textContent = 
-            `Weet je zeker dat je "${data.position_name}" wilt verwijderen? Wijzigingen zijn permanent en kunnen niet ongedaan gemaakt worden.`;
         
         // Close first modal and open confirmation modal
         closeDeletePositionModal();
@@ -1248,4 +1312,49 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- ============================================================================ -->
 <!-- COMPANY INFO MODAL FEATURE - END -->
 <!-- ============================================================================ -->
+
+<script>
+// Manual Update Prices Function
+async function manualUpdatePrices() {
+  const btn = document.getElementById('updatePricesBtn');
+  const statusDiv = document.getElementById('updateStatus');
+  
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle; animation: spin 1s linear infinite;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 1 1 8.5-8.5M22 12.5a10 10 0 1 1-8.5 8.5"></path></svg> Updaten...';
+  statusDiv.style.display = 'block';
+  statusDiv.className = 'update-status updating';
+  statusDiv.textContent = 'Prijzen worden bijgewerkt...';
+  
+  try {
+    const response = await fetch('/portfolio/manual-update-prices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      statusDiv.className = 'update-status success';
+      statusDiv.textContent = '✓ ' + (data.message || 'Prijzen succesvol bijgewerkt!');
+      
+      // Reload pagina na 1.5 seconden om nieuwe prijzen te tonen
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      statusDiv.className = 'update-status error';
+      statusDiv.textContent = '✗ ' + (data.error || 'Fout bij updaten prijzen');
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 1 1 8.5-8.5M22 12.5a10 10 0 1 1-8.5 8.5"></path></svg> Update Prijzen';
+    }
+  } catch (error) {
+    statusDiv.className = 'update-status error';
+    statusDiv.textContent = '✗ Fout: ' + error.message;
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 1 1 8.5-8.5M22 12.5a10 10 0 1 1-8.5 8.5"></path></svg> Update Prijzen';
+  }
+}
+</script>
 {% endblock %}

@@ -61,73 +61,9 @@
     font-size: 18px;
 }
 
-.add-transaction-btn {
-    background: var(--cta);
-    color: white;
-    padding: 12px 18px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.2s;
-}
+/* Add button styles moved to add-buttons.css */
 
-.add-transaction-btn:hover {
-    background: #1565c0;
-}
-
-.edit-position-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: #ff9800;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    padding: 0;
-}
-
-.edit-position-btn:hover {
-    background: #f57c00;
-    transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-}
-
-.edit-position-btn:active {
-    transform: scale(0.95);
-}
-
-.delete-position-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: #d32f2f;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    padding: 0;
-}
-
-.delete-position-btn:hover {
-    background: #b71c1c;
-    transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-}
-
-.delete-position-btn:active {
-    transform: scale(0.95);
-}
+/* Button styles moved to main.css */
 
 .filter-section {
     margin-bottom: 20px;

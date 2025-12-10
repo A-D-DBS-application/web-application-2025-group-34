@@ -2,6 +2,7 @@
 <nav class="tabs">
   <a href="{{ url_for('main.dashboard') }}" class="tab {% if active_endpoint == 'main.dashboard' %}active{% endif %}">Overview</a>
   <a href="{{ url_for('main.portfolio') }}" class="tab {% if active_endpoint == 'main.portfolio' %}active{% endif %}">Portfolio</a>
+  <a href="{{ url_for('main.risk_analysis') }}" class="tab {% if active_endpoint == 'main.risk_analysis' %}active{% endif %}">Risk Analysis</a>
   <a href="{{ url_for('main.transactions') }}" class="tab {% if active_endpoint == 'main.transactions' %}active{% endif %}">Transactions</a>
   <a href="{{ url_for('main.voting') }}" class="tab {% if active_endpoint == 'main.voting' %}active{% endif %}">Voting</a>
   <a href="{{ url_for('main.bestanden') }}" class="tab {% if active_endpoint == 'main.bestanden' or active_endpoint == 'main.bestanden_folder' %}active{% endif %}">Bestanden</a>

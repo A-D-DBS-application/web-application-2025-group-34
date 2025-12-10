@@ -1,0 +1,199 @@
+{% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+<style>
+  .profile-edit-wrap {
+    max-width: 900px;
+    width: 100%;
+    margin: 40px auto;
+    padding: 0 20px;
+  }
+  .profile-card {
+    background: var(--card);
+    padding: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    width: 100%;
+  }
+  .profile-card h2 {
+    margin-bottom: 32px;
+    text-align: center;
+    font-size: 24px;
+  }
+  .form-section {
+    margin-bottom: 32px;
+  }
+  .form-section h3 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .form-group {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  input:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(37,91,72,0.06);
+    border-color: var(--green);
+  }
+  input:disabled {
+    background: var(--bg);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .btn {
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+  }
+  .btn.primary {
+    background: var(--green);
+    color: white;
+  }
+  .btn.primary:hover {
+    background: var(--green-2);
+    opacity: 1;
+  }
+  .btn.secondary {
+    background: var(--border);
+    color: var(--text);
+    margin-right: 12px;
+  }
+  .btn.secondary:hover {
+    background: var(--muted);
+    color: var(--text);
+  }
+  .button-group {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    gap: 12px;
+  }
+  .info-text {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+  @media (max-width: 768px) {
+    .profile-edit-wrap {
+      padding: 0 15px;
+      margin: 20px auto;
+    }
+    .profile-card {
+      padding: 24px;
+    }
+    .button-group {
+      flex-direction: column;
+    }
+    .btn {
+      width: 100%;
+      margin-right: 0;
+      margin-bottom: 8px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block sub_content %}
+<div class="profile-edit-wrap">
+  <div class="profile-card">
+    <h2>Profiel Bewerken</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="padding: 12px; margin-bottom: 16px; border-radius: 8px; background: {% if category == 'error' %}rgba(255,0,0,0.1){% elif category == 'success' %}rgba(0,255,0,0.1){% else %}rgba(0,0,255,0.1){% endif %}; color: {% if category == 'error' %}red{% elif category == 'success' %}var(--green){% else %}var(--primary){% endif %};">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('main.edit_profile') }}">
+      <!-- Basic Information Section -->
+      <div class="form-section">
+        <h3>Basisinformatie</h3>
+        
+        <div class="form-group">
+          <label for="name">Volledige Naam</label>
+          <input id="name" name="name" type="text" value="{{ g.user.member_name or '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="email">E-mailadres</label>
+          <input id="email" name="email" type="email" value="{{ g.user.email or '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label>Lid ID</label>
+          <input type="text" value="{{ g.user.member_id }}" disabled style="background: var(--bg); color: var(--muted);">
+          <p class="info-text">Je lid ID kan niet worden gewijzigd.</p>
+        </div>
+
+        <div class="form-group">
+          <label>Functie</label>
+          <input type="text" value="{{ g.user.get_role_display_name() }}" disabled style="background: var(--bg); color: var(--muted);">
+          <p class="info-text">Je functie kan niet worden gewijzigd.</p>
+        </div>
+      </div>
+
+      <!-- Password Change Section -->
+      <div class="form-section">
+        <h3>Wachtwoord Wijzigen</h3>
+        <p class="info-text" style="margin-bottom: 16px;">Laat deze velden leeg als je je wachtwoord niet wilt wijzigen.</p>
+        
+        <div class="form-group">
+          <label for="current_password">Huidig Wachtwoord</label>
+          <input id="current_password" name="current_password" type="password" placeholder="Alleen nodig om wachtwoord te wijzigen">
+        </div>
+
+        <div class="form-group">
+          <label for="new_password">Nieuw Wachtwoord</label>
+          <input id="new_password" name="new_password" type="password" placeholder="Minimaal 6 tekens">
+        </div>
+
+        <div class="form-group">
+          <label for="confirm_password">Bevestig Nieuw Wachtwoord</label>
+          <input id="confirm_password" name="confirm_password" type="password" placeholder="Herhaal nieuw wachtwoord">
+        </div>
+      </div>
+
+      <div class="button-group">
+        <a href="{{ url_for('main.dashboard') }}" class="btn secondary">Annuleren</a>
+        <button class="btn primary" type="submit">Wijzigingen Opslaan</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

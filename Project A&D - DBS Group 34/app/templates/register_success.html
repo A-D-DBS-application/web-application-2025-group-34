@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+<style>
+  .success-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    width: 100%;
+  }
+  .success-card {
+    width: 500px;
+    max-width: 94vw;
+    background: var(--card);
+    padding: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .success-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: rgba(37, 91, 72, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    color: var(--green);
+  }
+  .success-card h2 {
+    margin: 0 0 16px 0;
+    color: var(--text);
+  }
+  .success-card p {
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .id-display {
+    background: var(--bg);
+    border: 2px solid var(--green);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 24px 0;
+    text-align: center;
+  }
+  .id-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .id-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--green);
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+  }
+  .warning-box {
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 24px 0;
+    text-align: left;
+  }
+  .warning-box p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .warning-box strong {
+    color: #f57c00;
+  }
+  .btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+  }
+  .btn.primary {
+    background: var(--green);
+    color: white;
+  }
+  .btn.primary:hover {
+    background: var(--green-2);
+    opacity: 1;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="success-wrap">
+  <div class="success-card">
+    <div class="success-icon">✓</div>
+    <h2>Account Succesvol Aangemaakt!</h2>
+    <p>Welkom, <strong>{{ member_name }}</strong>! Je account is succesvol aangemaakt.</p>
+    
+    <div class="id-display">
+      <div class="id-label">Je Lid ID Nummer</div>
+      <div class="id-number">{{ member_id }}</div>
+    </div>
+    
+    <div class="warning-box">
+      <p><strong>Belangrijk:</strong> Noteer dit ID nummer goed! Je hebt dit nodig om in te loggen. Je kunt inloggen met je ID nummer of e-mailadres.</p>
+    </div>
+    
+    <a href="{{ url_for('main.home') }}" class="btn primary">Ga naar Login</a>
+  </div>
+</div>
+{% endblock %}
+

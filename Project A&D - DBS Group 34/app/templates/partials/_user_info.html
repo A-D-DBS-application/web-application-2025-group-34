@@ -7,6 +7,7 @@
   <div><strong>Email:</strong> {{ g.user.email }}</div>
 </div>
 <div class="logout-box">
+  <a href="{{ url_for('main.edit_profile') }}" class="logout-link" style="margin-right: 12px;">Profiel Bewerken</a>
   <a href="{{ url_for('main.logout') }}" class="logout-link">Uitloggen</a>
 </div>
 {% endif %}

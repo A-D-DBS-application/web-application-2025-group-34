@@ -11,6 +11,11 @@ from pathlib import Path
 from io import BytesIO
 from . import supabase, db
 import time
+import logging
+
+# Onderdruk yfinance/urllib3 HTTP warnings (404 errors zijn normaal als ticker niet bestaat)
+logging.getLogger('yfinance').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 # Simple in-memory cache voor company info (voorkomt rate limiting)
 _company_info_cache = {}
@@ -72,16 +77,16 @@ MOCK_TRANSACTIONS = [
     {"number": 2, "date": "1-9-2022", "type": "SELL", "asset": "ADVANCED MICRO DEVICES", "ticker": "AMD", "units": 10, "price": 66.64, "total": -666.4, "currency": "USD", "profitLoss": 80.5},
 ]
 
-MOCK_VOTES = [
-    {"title": "Algemene Vergadering 2", "stockName": "Stock XYZ", "deadline": "November 20th", "totalVotes": 0, "forVotes": 0, "againstVotes": 0, "abstainVotes": 0, "isPending": True},
-    {"title": "Algemene Vergadering 1", "stockName": "Stock XYZ", "deadline": "October 15th", "totalVotes": 17, "forVotes": 12, "againstVotes": 5, "abstainVotes": 0, "isPending": False},
-]
-
 
 # --- HELPER FUNCTIES ---
 
 # Timezone constant
 TZ_BRUSSELS = pytz.timezone("Europe/Brussels")
+
+def handle_db_error(exc, error_message="Database operatie mislukt"):
+    """Helper functie voor database error handling"""
+    db.session.rollback()
+    flash(error_message, "error")
 
 def parse_deadline_date(date_str):
     """
@@ -269,22 +274,13 @@ def _normalize_transactions(records):
     """Normalize transaction records from Supabase to a consistent format"""
     normalized = []
     if not records:
-        print("DEBUG: _normalize_transactions received empty records list")
         return normalized
-    
-    print(f"DEBUG: Normalizing {len(records)} transaction records")
-    
-    # Debug: print eerste record om te zien welke velden beschikbaar zijn
-    if records and isinstance(records[0], dict):
-        print(f"DEBUG: First record keys: {list(records[0].keys())}")
-        print(f"DEBUG: First record sample: {str(records[0])[:200]}")
     
     for idx, record in enumerate(records):
         try:
             if isinstance(record, dict):
                 # Skip lege of ongeldige records
                 if not record:
-                    print(f"DEBUG: Skipping empty record at index {idx}")
                     continue
                 # Supabase kolommen: transaction_date, transaction_quantity, transaction_type, 
                 # transaction_ticker, transaction_currency, asset_type, transaction_share_price
@@ -341,10 +337,6 @@ def _normalize_transactions(records):
                 # Converteer naar EUR voor sortering (maar behoud originele currency)
                 # Gebruik absolute waarde voor sortering om grootte te vergelijken
                 total_amount_eur_for_sorting = convert_to_eur(abs(total_amount), currency)
-                
-                # Debug output voor eerste paar transacties
-                if idx < 3:
-                    print(f"DEBUG: Transaction {idx + 1}: {currency} {total_amount} -> EUR {total_amount_eur_for_sorting:.2f}")
                 
                 # Asset class/type - probeer eerst asset_class, dan asset_type, anders default
                 asset_class = record.get("asset_class") or record.get("asset_type") or "Stock"
@@ -427,17 +419,8 @@ def _normalize_transactions(records):
                     "profitLoss": float(getattr(record, 'realized_profit_loss', 0)) if getattr(record, 'realized_profit_loss', None) is not None else None,
                 })
         except Exception as e:
-            print(f"ERROR: Failed to normalize transaction record {idx}: {e}")
-            print(f"ERROR: Record type: {type(record)}")
-            if isinstance(record, dict):
-                print(f"ERROR: Record keys: {list(record.keys())}")
-            import traceback
-            traceback.print_exc()
             continue
     
-    print(f"DEBUG: Successfully normalized {len(normalized)} out of {len(records)} transaction records")
-    if normalized:
-        print(f"DEBUG: Sample normalized record: {normalized[0]}")
     return normalized
 
 def _get_next_event_number():
@@ -447,10 +430,7 @@ def _get_next_event_number():
         if latest_event and latest_event.event_number:
             return latest_event.event_number + 1
         return 1
-    except Exception as exc:
-        print(f"ERROR: SQLAlchemy event number fetch failed: {exc}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return len(MOCK_UPCOMING_EVENTS) + 1
 
 def _format_event_date(date_str, time_str):
@@ -502,10 +482,7 @@ def _persist_event_supabase(title, event_date_iso, location=None):
         db.session.add(event)
         db.session.commit()
         return True
-    except Exception as exc:
-        print(f"ERROR: SQLAlchemy event insert failed: {exc}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         db.session.rollback()
         return False
 
@@ -528,10 +505,7 @@ def _persist_announcement_supabase(title, body, author):
         db.session.add(announcement)
         db.session.commit()
         return True
-    except Exception as exc:
-        print(f"ERROR: SQLAlchemy announcement insert failed: {exc}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         db.session.rollback()
         return False
 
@@ -549,10 +523,8 @@ def _fetch_announcements():
                     "date": _format_supabase_date(ann.created_at.isoformat() if ann.created_at else None)
                 })
             return normalized
-    except Exception as exc:
-        print(f"ERROR: SQLAlchemy announcement fetch failed: {exc}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        pass
     
     return MOCK_ANNOUNCEMENTS
 
@@ -607,8 +579,8 @@ def _fetch_events():
                     "location": evt.location or "Onbekende locatie",
                 })
             return normalized
-    except Exception as exc:
-        print(f"WARNING: SQLAlchemy event fetch failed: {exc}")
+    except Exception:
+        pass
 
     # 2) Laatste fallback naar mock-data (gebruikt dezelfde normalisatie)
     for row in MOCK_UPCOMING_EVENTS:
@@ -788,8 +760,7 @@ def get_all_announcements():
                 "display": f"{ann.title or 'Onbekend'} - {created_at.strftime('%d/%m/%Y')}"
             })
         return jsonify({"announcements": announcements_list})
-    except Exception as e:
-        print(f"Error fetching all announcements: {e}")
+    except Exception:
         return jsonify({"error": "Fout bij ophalen van announcements."}), 500
 
 @main.route("/announcements/get-details/<int:announcement_id>")
@@ -812,8 +783,7 @@ def get_announcement_details(announcement_id):
             'author': announcement.author or '',
             'date': created_at.strftime("%d/%m/%Y")
         })
-    except Exception as e:
-        print(f"Error fetching announcement details: {e}")
+    except Exception:
         return jsonify({'error': 'Fout bij ophalen van announcement details.'}), 500
 
 @main.route("/announcements/update", methods=["POST"])
@@ -853,12 +823,8 @@ def update_announcement():
         db.session.commit()
         
         flash(f"Announcement '{title}' is succesvol bijgewerkt.", "success")
-    except Exception as exc:
-        print(f"WARNING: Announcement update failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij bijwerken van announcement.", "error")
-        db.session.rollback()
+    except Exception:
+        handle_db_error(None, "Fout bij bijwerken van announcement.")
     
     return redirect(url_for("main.dashboard"))
 
@@ -886,12 +852,8 @@ def delete_announcement():
         db.session.commit()
         
         flash(f"Announcement '{title}' is succesvol verwijderd.", "success")
-    except Exception as exc:
-        print(f"WARNING: Announcement delete failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij verwijderen van announcement.", "error")
-        db.session.rollback()
+    except Exception:
+        handle_db_error(None, "Fout bij verwijderen van announcement.")
     
     return redirect(url_for("main.dashboard"))
 
@@ -949,8 +911,7 @@ def get_all_events():
                 "display": f"{evt.event_name} - {event_dt.strftime('%d/%m/%Y %H:%M')}"
             })
         return jsonify({"events": events_list})
-    except Exception as e:
-        print(f"Error fetching all events: {e}")
+    except Exception:
         return jsonify({"error": "Fout bij ophalen van events."}), 500
 
 @main.route("/events/get-details/<int:event_number>")
@@ -972,8 +933,7 @@ def get_event_details(event_number):
             'event_time': event_dt.strftime("%H:%M"),
             'location': event.location or ''
         })
-    except Exception as e:
-        print(f"Error fetching event details: {e}")
+    except Exception:
         return jsonify({'error': 'Fout bij ophalen van event details.'}), 500
 
 @main.route("/events/update", methods=["POST"])
@@ -1022,12 +982,8 @@ def update_event():
         db.session.commit()
         
         flash(f"Event '{event_name}' is succesvol bijgewerkt.", "success")
-    except Exception as exc:
-        print(f"WARNING: Event update failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij bijwerken van event.", "error")
-        db.session.rollback()
+    except Exception:
+        handle_db_error(None, "Fout bij bijwerken van event.")
     
     return redirect(url_for("main.dashboard"))
 
@@ -1055,12 +1011,8 @@ def delete_event():
         db.session.commit()
         
         flash(f"Event '{event_name}' is succesvol verwijderd.", "success")
-    except Exception as exc:
-        print(f"WARNING: Event deletion failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij verwijderen van event.", "error")
-        db.session.rollback()
+    except Exception:
+        handle_db_error(None, "Fout bij verwijderen van event.")
     
     return redirect(url_for("main.dashboard"))
 
@@ -1263,6 +1215,7 @@ def portfolio():
             p_data['weight'] = format_currency(weight)
             p_data['market_value'] = format_currency(p_data['market_value'])
         
+        from .models import Sector
         return render_template(
             "portfolio.html",
             portfolio_value=format_currency(portfolio_value),
@@ -1270,18 +1223,17 @@ def portfolio():
             position_value=format_currency(total_market_value),
             cash_amount=format_currency(cash_amount),
             cash_amount_raw=cash_amount,
-            portfolio=portfolio_data_formatted
+            portfolio=portfolio_data_formatted,
+            sectors=Sector.get_all_options()
         )
         
     except Exception as e:
         # Fallback naar mock data bij database fouten
-        print(f"Error fetching portfolio data: {e}")
         # Probeer eerst cash uit database te halen (pos_id = 0)
         try:
             cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
             cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else MOCK_CASH_AMOUNT
-        except Exception as cash_error:
-            print(f"Error fetching cash position: {cash_error}")
+        except Exception:
             cash_amount = MOCK_CASH_AMOUNT
         
         total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
@@ -1305,6 +1257,7 @@ def portfolio():
                 'pnl_value': format_currency(p['unrealizedGain']),
             })
         
+        from .models import Sector
         return render_template(
             "portfolio.html",
             portfolio_value=format_currency(portfolio_value),
@@ -1312,7 +1265,8 @@ def portfolio():
             position_value=format_currency(total_market_value),
             cash_amount=format_currency(cash_amount),
             cash_amount_raw=cash_amount,
-            portfolio=portfolio_data_formatted
+            portfolio=portfolio_data_formatted,
+            sectors=Sector.get_all_options()
         )
 
 # ============================================================================
@@ -1344,7 +1298,6 @@ def get_company_info(ticker):
             cached_data, cache_time = _company_info_cache[cache_key]
             if current_time - cache_time < _cache_ttl_seconds:
                 # Cache hit - gebruik cached data
-                print(f"Cache hit for {ticker}")
                 info = cached_data
             else:
                 # Cache expired - verwijder
@@ -1364,46 +1317,44 @@ def get_company_info(ticker):
             last_error = None
             for ticker_variant in tickers_to_try:
                 try:
-                    # Configureer yfinance met user agent voor betere compatibiliteit
+                    # Nieuwe versies van yfinance vereisen curl_cffi in plaats van requests.Session
+                    # Dit is nodig omdat Yahoo Finance nu curl_cffi vereist voor betere compatibiliteit
+                    import time as time_module
+                    
+                    # Gebruik geen custom session - yfinance gebruikt automatisch curl_cffi als het beschikbaar is
+                    # Als curl_cffi niet beschikbaar is, gebruikt yfinance zijn eigen session management
                     ticker_obj = yf.Ticker(ticker_variant)
-                    # Gebruik download_info met timeout voor betere error handling
+                    
+                    # Gebruik info met timeout voor betere error handling
+                    # Voeg kleine delay toe tussen requests om rate limiting te voorkomen
+                    if ticker_variant != tickers_to_try[0]:
+                        time_module.sleep(0.5)  # 500ms delay tussen verschillende ticker varianten
+                    
                     info = ticker_obj.info
                     
                     # Als we geldige data hebben, stop met proberen
                     if info and len(info) > 0 and 'symbol' in info:
                         # Sla op in cache
                         _company_info_cache[cache_key] = (info, current_time)
-                        print(f"Cached company info for {ticker}")
                         break
                     elif info and len(info) > 0:
                         # Soms geeft yfinance data zonder 'symbol' maar met andere velden
                         # Check of er nuttige data is
                         if any(key in info for key in ['longName', 'shortName', 'sector', 'industry']):
                             _company_info_cache[cache_key] = (info, current_time)
-                            print(f"Cached company info for {ticker} (without symbol)")
                             break
                 except Exception as yf_error:
                     error_str = str(yf_error)
                     last_error = yf_error
                     # Check voor rate limiting errors
                     if '429' in error_str or 'Too Many Requests' in error_str:
-                        print(f"Rate limit hit for {ticker_variant}, using cached data if available")
                         # Probeer oude cache data te gebruiken als beschikbaar
                         if cache_key in _company_info_cache:
                             old_info, _ = _company_info_cache[cache_key]
                             if old_info:
                                 info = old_info
-                                print(f"Using stale cache for {ticker} due to rate limit")
                                 break
-                    # Log meer details voor debugging
-                    print(f"yfinance error for {ticker_variant}: {type(yf_error).__name__}: {yf_error}")
-                    import traceback
-                    print(f"Traceback: {traceback.format_exc()}")
                     continue
-            
-            # Als alle varianten gefaald hebben, log dit
-            if not info and last_error:
-                print(f"All ticker variants failed for {ticker}. Last error: {last_error}")
         
         # Check if info is available (yfinance returns empty dict if ticker not found)
         if not info or len(info) == 0:
@@ -1507,13 +1458,114 @@ def get_company_info(ticker):
         })
         
     except Exception as e:
-        print(f"Error fetching company info for {ticker}: {e}")
+        # Log error voor debugging op Render (maar niet naar console printen)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching company info for {ticker}: {e}", exc_info=True)
+        
+        # Geef gebruiksvriendelijke error message (geen technische details)
+        return jsonify({
+            'success': False,
+            'error': 'Unable to fetch company information. Please try again later or check if the ticker symbol is correct.'
+        }), 500
+# ============================================================================
+# COMPANY INFO MODAL FEATURE - END
+# ============================================================================
+
+# ============================================================================
+# RISK ANALYSIS - START
+# ============================================================================
+
+@main.route("/portfolio/risk-analysis")
+@login_required
+def portfolio_risk_analysis():
+    """Risico-analyse pagina voor portfolio"""
+    try:
+        from .algorithms import RiskAnalyzer
+        from .models import Position, Portfolio
+        
+        # Haal cash op (pos_id = 0)
+        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+        cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else 0.0
+        
+        # Haal alle posities op (exclude cash)
+        portfolio = db.session.query(Portfolio).first()
+        if not portfolio:
+            positions = []
+        else:
+            positions = db.session.query(Position).filter(
+                Position.portfolio_id == portfolio.portfolio_id,
+                Position.pos_id != 0  # Exclude cash
+            ).all()
+        
+        # Voer risico-analyse uit met cash
+        analyzer = RiskAnalyzer(positions, cash_amount=cash_amount)
+        risk_summary = analyzer.get_risk_summary()
+        
+        return jsonify({
+            'success': True,
+            'risk_summary': risk_summary
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in risk analysis: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Error performing risk analysis'
+        }), 500
+
+
+# ============================================================================
+# RISK ANALYSIS - END
+# ============================================================================
+
+# ============================================================================
+# RISK ANALYSIS PAGE - START
+# ============================================================================
+
+@main.route("/risk-analysis")
+@login_required
+def risk_analysis():
+    """Risico-analyse pagina"""
+    return render_template("risk_analysis.html")
+
+# ============================================================================
+# RISK ANALYSIS PAGE - END
+# ============================================================================
+
+# ============================================================================
+# MANUAL UPDATE ROUTES - START
+# ============================================================================
+
+@main.route("/portfolio/manual-update-prices", methods=['POST'])
+@login_required
+def manual_update_prices():
+    """Handmatig prijzen updaten via web interface"""
+    try:
+        from .jobs import update_portfolio_prices
+        from flask import current_app
+        
+        # Update prijzen - gebruik current_app direct
+        update_portfolio_prices(current_app)
+        
+        flash('Prijzen succesvol bijgewerkt!', 'success')
+        return jsonify({
+            'success': True,
+            'message': 'Prijzen succesvol bijgewerkt!'
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error manually updating prices: {e}", exc_info=True)
+        flash(f'Fout bij updaten prijzen: {str(e)}', 'error')
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
 # ============================================================================
-# COMPANY INFO MODAL FEATURE - END
+# MANUAL UPDATE ROUTES - END
 # ============================================================================
 
 def _fetch_transactions():
@@ -1544,7 +1596,6 @@ def _fetch_transactions():
         rows = result.fetchall()
         
         if rows:
-            print(f"DEBUG: Fetched {len(rows)} transactions via direct SQL query")
             # Converteer rows naar dicts
             columns = ['transaction_id', 'transaction_date', 'transaction_quantity', 
                       'transaction_type', 'transaction_ticker', 'transaction_currency', 
@@ -1556,60 +1607,23 @@ def _fetch_transactions():
                     row_dict[col] = row[i] if i < len(row) else None
                 data.append(row_dict)
             
-            if data and len(data) > 0:
-                print(f"DEBUG: First record from SQL: {data[0]}")
-                normalized = _normalize_transactions(data)
-                if normalized:
-                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from SQL")
-                    return normalized
-    except Exception as exc:
-        print(f"WARNING: Direct SQL query failed: {exc}")
-        import traceback
-        traceback.print_exc()
-    
-    # Probeer via Supabase REST API
-    if supabase is not None:
-        try:
-            print("DEBUG: Attempting to fetch transactions from Supabase REST API...")
-            # Haal alle transacties op (geen limit, gebruik range queries als nodig)
-            response = supabase.table("transactions").select("*").order("transaction_date", desc=False).limit(1000).execute()
-            data = response.data if hasattr(response, 'data') else []
-            
             if data:
-                print(f"DEBUG: Fetched {len(data)} transactions from Supabase REST API")
-                if len(data) > 0:
-                    print(f"DEBUG: First record from Supabase: {list(data[0].keys()) if isinstance(data[0], dict) else 'not a dict'}")
-                    print(f"DEBUG: Sample data: {str(data[0])[:300] if data else 'no data'}")
-                
                 normalized = _normalize_transactions(data)
                 if normalized:
-                    print(f"DEBUG: Successfully normalized {len(normalized)} transactions from Supabase (expected ~75)")
                     return normalized
-                else:
-                    print(f"WARNING: Supabase returned {len(data)} records but normalization resulted in 0 records")
-                    print(f"DEBUG: This suggests a problem in the normalization function")
-        except Exception as exc:
-            print(f"WARNING: Supabase REST API fetch failed: {exc}")
-            import traceback
-            traceback.print_exc()
-    else:
-        print("DEBUG: Supabase client is None, skipping Supabase REST API fetch")
+    except Exception:
+        pass
     
     # Fallback naar SQLAlchemy ORM
     try:
-        print("DEBUG: Attempting to fetch transactions via SQLAlchemy ORM...")
         transactions = db.session.query(Transaction).order_by(Transaction.transaction_date.asc()).all()
         if transactions:
             normalized = _normalize_transactions(transactions)
-            print(f"DEBUG: Fetched {len(normalized)} transactions from SQLAlchemy ORM")
             return normalized
-    except Exception as exc:
-        print(f"WARNING: SQLAlchemy ORM fetch failed: {exc}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        pass
     
     # Laatste fallback: mock data
-    print("DEBUG: Using mock data as final fallback")
     return _normalize_transactions(MOCK_TRANSACTIONS)
 
 # Transactions pagina (Nu de centrale bron voor transactiegegevens)
@@ -1940,10 +1954,8 @@ def update_member():
         flash(f"Deelnemer {member_name} (ID: {member_id:06d}) is bijgewerkt.", "success")
     except ValueError:
         flash("Ongeldig ID nummer of startjaar.", "error")
-    except Exception as exc:
-        db.session.rollback()
-        print(f"ERROR: Failed to update member: {exc}")
-        flash("Er is een fout opgetreden bij het bijwerken van de deelnemer.", "error")
+    except Exception:
+        handle_db_error(None, "Er is een fout opgetreden bij het bijwerken van de deelnemer.")
     
     return redirect(url_for("main.deelnemers"))
 
@@ -1967,10 +1979,8 @@ def delete_member():
         flash(f"Deelnemer {member_name} (ID: {member_id:06d}) is verwijderd.", "success")
     except ValueError:
         flash("Ongeldig ID nummer.", "error")
-    except Exception as exc:
-        db.session.rollback()
-        print(f"ERROR: Failed to delete member: {exc}")
-        flash("Er is een fout opgetreden bij het verwijderen van de deelnemer.", "error")
+    except Exception:
+        handle_db_error(None, "Er is een fout opgetreden bij het verwijderen van de deelnemer.")
     
     return redirect(url_for("main.deelnemers"))
 
@@ -2041,12 +2051,8 @@ def add_position():
         db.session.add(position)
         db.session.commit()
         flash(f"Positie '{pos_name}' toegevoegd.", "success")
-    except Exception as exc:
-        print(f"ERROR: Position insert failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        db.session.rollback()
-        flash("Fout bij toevoegen van positie.", "error")
+    except Exception:
+        handle_db_error(None, "Fout bij toevoegen van positie.")
     
     return redirect(url_for("main.portfolio"))
 
@@ -2117,6 +2123,38 @@ def update_cash():
     return redirect(url_for("main.portfolio"))
 
 # Portfolio: Get position by number (for deletion)
+@main.route("/portfolio/get-positions-list")
+@login_required
+def get_positions_list():
+    """Haal lijst van alle posities op voor dropdown (exclusief cash)"""
+    try:
+        from .models import Position, Portfolio
+        
+        portfolio = db.session.query(Portfolio).first()
+        if not portfolio:
+            return jsonify({'positions': []})
+        
+        positions = db.session.query(Position).filter(
+            Position.portfolio_id == portfolio.portfolio_id,
+            Position.pos_id != 0  # Exclude cash
+        ).all()
+        
+        positions_list = []
+        for pos in positions:
+            positions_list.append({
+                'position_id': pos.pos_id,
+                'name': pos.pos_name or 'Onbekend',
+                'ticker': pos.pos_ticker or '',
+                'sector': pos.pos_sector or ''
+            })
+        
+        return jsonify({'positions': positions_list})
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting positions list: {e}", exc_info=True)
+        return jsonify({'error': 'Fout bij ophalen posities'}), 500
+
 @main.route("/portfolio/get-position/<int:position_number>")
 @login_required
 def get_position_by_number(position_number):
@@ -2256,6 +2294,46 @@ def update_position():
     return redirect(url_for("main.portfolio"))
 
 # Portfolio: Delete position
+@main.route("/portfolio/get-position-by-name", methods=["POST"])
+@login_required
+def get_position_by_name():
+    """Haal positie op basis van naam op"""
+    try:
+        from .models import Position, Portfolio
+        import json
+        
+        data = request.get_json()
+        position_name = data.get('position_name', '').strip()
+        
+        if not position_name:
+            return jsonify({'error': 'Positie naam ontbreekt.'}), 400
+        
+        portfolio = db.session.query(Portfolio).first()
+        if not portfolio:
+            return jsonify({'error': 'Portfolio niet gevonden.'}), 404
+        
+        # Zoek positie op naam (case-insensitive, partial match)
+        position = db.session.query(Position).filter(
+            Position.portfolio_id == portfolio.portfolio_id,
+            Position.pos_id != 0,  # Exclude cash
+            Position.pos_name.ilike(f'%{position_name}%')
+        ).first()
+        
+        if not position:
+            return jsonify({'error': f'Positie met naam "{position_name}" niet gevonden.'}), 404
+        
+        return jsonify({
+            'position_id': position.pos_id,
+            'position_name': position.pos_name or 'Onbekend',
+            'ticker': position.pos_ticker or '',
+            'sector': position.pos_sector or ''
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting position by name: {e}", exc_info=True)
+        return jsonify({'error': 'Fout bij ophalen positie'}), 500
+
 @main.route("/portfolio/delete-position", methods=["POST"])
 @login_required
 def delete_position():
@@ -2942,6 +3020,167 @@ def logout():
     session.pop('user_id', None) 
     flash("Je bent succesvol uitgelogd.", "info")
     return redirect(url_for('main.home'))
+
+# Register routes
+@main.route("/register", methods=["GET"])
+def register():
+    """Display registration form"""
+    if g.user is not None:
+        return redirect(url_for('main.dashboard'))
+    return render_template("register.html")
+
+@main.route("/register", methods=["POST"])
+def register_post():
+    """Handle registration form submission"""
+    if g.user is not None:
+        return redirect(url_for('main.dashboard'))
+    
+    name = request.form.get("name")
+    email = request.form.get("email")
+    password = request.form.get("password")
+    
+    # Validation
+    if not name or not email or not password:
+        flash("Alle velden zijn verplicht.", "error")
+        return redirect(url_for('main.register'))
+    
+    if len(password) < 6:
+        flash("Wachtwoord moet minimaal 6 tekens lang zijn.", "error")
+        return redirect(url_for('main.register'))
+    
+    try:
+        # Check if email already exists
+        existing_member = db.session.execute(
+            db.select(Member).where(Member.email == email)
+        ).scalar_one_or_none()
+        
+        if existing_member:
+            flash("Dit e-mailadres is al geregistreerd.", "error")
+            return redirect(url_for('main.register'))
+        
+        # Generate a new member ID for a regular member (lid)
+        # Use role 'lid' which generates IDs starting with 2
+        member_id = get_next_available_id('lid')
+        
+        # Create new member
+        new_member = Member(
+            member_id=member_id,
+            member_name=name,
+            email=email,
+            join_date=datetime.now().year
+        )
+        new_member.set_password(password)
+        
+        db.session.add(new_member)
+        db.session.commit()
+        
+        # Store member_id in session temporarily to show on success page
+        session['new_member_id'] = member_id
+        session['new_member_name'] = name
+        return redirect(url_for('main.register_success'))
+    
+    except ValueError as e:
+        db.session.rollback()
+        flash(f"Fout bij aanmaken van account: {str(e)}", "error")
+        return redirect(url_for('main.register'))
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        current_app.logger.error(f"Register error: {str(e)}\n{traceback.format_exc()}")
+        flash(f"Fout bij aanmaken van account. Probeer het opnieuw.", "error")
+        return redirect(url_for('main.register'))
+
+# Register success page
+@main.route("/register/success", methods=["GET"])
+def register_success():
+    """Display registration success page with member ID"""
+    if g.user is not None:
+        return redirect(url_for('main.dashboard'))
+    
+    member_id = session.get('new_member_id')
+    member_name = session.get('new_member_name')
+    
+    if not member_id:
+        # If no member_id in session, redirect to register
+        flash("Geen registratie gevonden. Registreer eerst een account.", "info")
+        return redirect(url_for('main.register'))
+    
+    # Clear session data after displaying
+    session.pop('new_member_id', None)
+    session.pop('new_member_name', None)
+    
+    return render_template("register_success.html", member_id=member_id, member_name=member_name)
+
+# Edit profile routes
+@main.route("/profile/edit", methods=["GET"])
+@login_required
+def edit_profile():
+    """Display edit profile form"""
+    return render_template("edit_profile.html")
+
+@main.route("/profile/edit", methods=["POST"])
+@login_required
+def edit_profile_post():
+    """Handle edit profile form submission"""
+    name = request.form.get("name")
+    email = request.form.get("email")
+    current_password = request.form.get("current_password")
+    new_password = request.form.get("new_password")
+    confirm_password = request.form.get("confirm_password")
+    
+    # Validation
+    if not name:
+        flash("Naam is verplicht.", "error")
+        return redirect(url_for('main.edit_profile'))
+    
+    # Update name
+    g.user.member_name = name
+    
+    # Update email if provided and different
+    if email and email != g.user.email:
+        # Check if email is already taken by another user
+        existing_member = db.session.execute(
+            db.select(Member).where(
+                Member.email == email,
+                Member.member_id != g.user.member_id
+            )
+        ).scalar_one_or_none()
+        
+        if existing_member:
+            flash("Dit e-mailadres is al in gebruik door een andere gebruiker.", "error")
+            return redirect(url_for('main.edit_profile'))
+        
+        g.user.email = email
+    
+    # Update password if provided
+    if new_password:
+        if not current_password:
+            flash("Huidig wachtwoord is verplicht om wachtwoord te wijzigen.", "error")
+            return redirect(url_for('main.edit_profile'))
+        
+        if not g.user.check_password(current_password):
+            flash("Huidig wachtwoord is onjuist.", "error")
+            return redirect(url_for('main.edit_profile'))
+        
+        if len(new_password) < 6:
+            flash("Nieuw wachtwoord moet minimaal 6 tekens lang zijn.", "error")
+            return redirect(url_for('main.edit_profile'))
+        
+        if new_password != confirm_password:
+            flash("Nieuwe wachtwoorden komen niet overeen.", "error")
+            return redirect(url_for('main.edit_profile'))
+        
+        g.user.set_password(new_password)
+    
+    try:
+        db.session.commit()
+        flash("Profiel succesvol bijgewerkt!", "success")
+        return redirect(url_for('main.edit_profile'))
+    
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Fout bij bijwerken van profiel: {str(e)}", "error")
+        return redirect(url_for('main.edit_profile'))
 
 # --- File Storage Helper Functies ---
 

@@ -4,14 +4,21 @@ from flask_migrate import Migrate
 from flask_apscheduler import APScheduler
 from supabase import create_client, Client
 from .config import Config
-import os
-from flask_login import LoginManager
 import click
+import logging
+import warnings
+
+# Onderdruk yfinance/urllib3 HTTP warnings (404 errors zijn normaal als ticker niet bestaat)
+logging.getLogger('yfinance').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.ERROR)
+# Onderdruk ook Python warnings voor HTTP errors
+warnings.filterwarnings('ignore', message='.*HTTP Error.*')
+warnings.filterwarnings('ignore', message='.*quoteSummary.*')
 
 db = SQLAlchemy()
 migrate = Migrate()
 supabase: Client | None = None
-login_manager = LoginManager()
 scheduler = APScheduler()
 
 def create_app():

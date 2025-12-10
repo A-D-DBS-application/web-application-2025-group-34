@@ -1,0 +1,976 @@
+{% extends "logged_in_base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+{% endblock %}
+
+{% block sub_content %}
+<div class="card">
+  <div class="section-head">
+    <h3>Risico-analyse</h3>
+    <button class="btn" onclick="loadRiskAnalysis()" id="riskAnalysisBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+        <path d="M2 17l10 5 10-5"></path>
+        <path d="M2 12l10 5 10-5"></path>
+      </svg>
+      Risico-analyse uitvoeren
+    </button>
+  </div>
+
+  <!-- Risk Analysis Results -->
+  <div id="riskAnalysisResults" style="display: none; padding: 20px;">
+    <div id="riskAnalysisLoading" style="text-align: center; padding: 40px;">
+      <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--green); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="margin-top: 15px; color: var(--muted);">Risico-analyse wordt uitgevoerd...</p>
+    </div>
+    <div id="riskAnalysisContent" style="display: none;">
+      <!-- Content wordt hier ingevuld via JavaScript -->
+    </div>
+  </div>
+</div>
+
+<style>
+/* Risk Analysis Styles - gebruikt main.css variabelen */
+.risk-analysis-header {
+  margin-bottom: 30px;
+}
+
+.risk-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.risk-metric-card {
+  background: #f8fffc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.risk-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.risk-metric-card.large {
+  grid-column: span 2;
+}
+
+.risk-metric-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.risk-metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--green);
+  margin-bottom: 5px;
+}
+
+.risk-metric-value.large-value {
+  font-size: 36px;
+}
+
+.risk-metric-value.positive {
+  color: #2e7d32;
+}
+
+.risk-metric-value.negative {
+  color: #c62828;
+}
+
+.risk-metric-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.risk-metric-percentage {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+.risk-level-card {
+  background: linear-gradient(135deg, #f8fffc 0%, #e8f5e9 100%);
+  border: 2px solid var(--border);
+}
+
+.risk-level-card.risk-level-low {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-color: #2e7d32;
+}
+
+.risk-level-card.risk-level-medium {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-color: #f57c00;
+}
+
+.risk-level-card.risk-level-high {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  border-color: #c62828;
+}
+
+.risk-level-badge {
+  font-size: 32px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.risk-level-card.risk-level-low .risk-level-badge {
+  color: #2e7d32;
+}
+
+.risk-level-card.risk-level-medium .risk-level-badge {
+  color: #f57c00;
+}
+
+.risk-level-card.risk-level-high .risk-level-badge {
+  color: #c62828;
+}
+
+.risk-section {
+  margin-bottom: 40px;
+  padding: 25px;
+  background: #fafafa;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.risk-section-header {
+  margin-bottom: 20px;
+}
+
+.risk-section-header h4 {
+  color: var(--green);
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.risk-section-description {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.risk-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.var-card {
+  background: linear-gradient(135deg, #fff 0%, #f0f7f4 100%);
+}
+
+.score-card {
+  text-align: left;
+}
+
+.score-display {
+  margin: 15px 0;
+}
+
+.score-value {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.score-bar-container {
+  width: 100%;
+  height: 12px;
+  background: #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.score-bar {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.score-bar.positive {
+  background: linear-gradient(90deg, #2e7d32 0%, #43A047 100%);
+}
+
+.score-bar.negative {
+  background: linear-gradient(90deg, #c62828 0%, #e53935 100%);
+}
+
+.sector-allocation-section {
+  margin-top: 25px;
+  padding-top: 25px;
+  border-top: 1px solid var(--border);
+}
+
+.sector-allocation-title {
+  color: var(--green);
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sector-allocation-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.sector-allocation-item {
+  background: white;
+  padding: 12px 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.sector-allocation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sector-name {
+  font-weight: 600;
+  color: var(--green);
+  font-size: 14px;
+}
+
+.sector-weight {
+  font-weight: 700;
+  color: var(--green);
+  font-size: 14px;
+}
+
+.sector-bar-container {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sector-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.top-positions-table {
+  margin-top: 15px;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: white;
+}
+
+.positions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.positions-table thead {
+  background: #f8f9fa;
+}
+
+.positions-table th {
+  padding: 12px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--green);
+  border-bottom: 2px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.positions-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.positions-table tbody tr:hover {
+  background: #f8fffc;
+}
+
+.positions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ticker-cell {
+  font-weight: 600;
+  color: var(--green);
+}
+
+.value-cell {
+  font-weight: 600;
+  color: var(--green);
+}
+
+.weight-cell {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vol-cell {
+  font-weight: 500;
+}
+
+.vol-cell.positive {
+  color: #2e7d32;
+}
+
+.vol-cell.negative {
+  color: #c62828;
+}
+
+.correlation-matrix-wrapper {
+  overflow-x: auto;
+  margin-top: 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: white;
+}
+
+.correlation-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 400px;
+}
+
+.correlation-header {
+  padding: 12px 10px;
+  background: #f8f9fa;
+  border: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--green);
+  text-align: center;
+  font-size: 12px;
+}
+
+.correlation-row-header {
+  padding: 12px 10px;
+  background: #f8f9fa;
+  border: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--green);
+  font-size: 12px;
+}
+
+.correlation-cell {
+  padding: 10px;
+  border: 1px solid var(--border);
+  text-align: center;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.correlation-cell.diagonal {
+  background: #e3f2fd;
+  font-weight: 700;
+  color: #1976d2;
+}
+
+.correlation-cell.low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.correlation-cell.medium {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.correlation-cell.high {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.correlation-cell:hover {
+  opacity: 0.8;
+  cursor: help;
+}
+
+.correlation-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend-color {
+  width: 20px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.legend-color.low {
+  background: #e8f5e9;
+}
+
+.legend-color.medium {
+  background: #fff3e0;
+}
+
+.legend-color.high {
+  background: #ffebee;
+}
+
+.risk-error {
+  text-align: center;
+  padding: 30px;
+  background: #ffebee;
+  border-radius: var(--radius);
+  border: 1px solid #ffcdd2;
+}
+
+.risk-error p {
+  color: #c62828;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Benchmark Comparison Styles */
+.benchmark-comparison-table-wrapper {
+  margin-top: 20px;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: white;
+}
+
+.benchmark-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.benchmark-comparison-table thead {
+  background: linear-gradient(135deg, var(--green) 0%, var(--green-2) 100%);
+  color: white;
+}
+
+.benchmark-comparison-table th {
+  padding: 14px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.benchmark-comparison-table th.benchmark-rank {
+  width: 50px;
+  text-align: center;
+}
+
+.benchmark-comparison-table th.benchmark-name {
+  width: auto;
+}
+
+.benchmark-comparison-table th.benchmark-metric {
+  width: 120px;
+  text-align: right;
+}
+
+.benchmark-comparison-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.2s;
+}
+
+.benchmark-comparison-table tbody tr:hover {
+  background: #f8fffc;
+}
+
+.benchmark-comparison-table tbody tr.benchmark-row-vek {
+  background: linear-gradient(135deg, rgba(37, 91, 72, 0.05) 0%, rgba(37, 91, 72, 0.02) 100%);
+  font-weight: 600;
+}
+
+.benchmark-comparison-table tbody tr.benchmark-row-vek:hover {
+  background: linear-gradient(135deg, rgba(37, 91, 72, 0.1) 0%, rgba(37, 91, 72, 0.05) 100%);
+}
+
+.benchmark-comparison-table td {
+  padding: 12px;
+  vertical-align: middle;
+}
+
+.benchmark-comparison-table td.benchmark-rank {
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.benchmark-comparison-table td.benchmark-rank.benchmark-rank-first {
+  color: #f57c00;
+}
+
+.benchmark-comparison-table td.benchmark-name {
+  font-weight: 500;
+}
+
+.benchmark-comparison-table td.benchmark-metric {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}
+
+.benchmark-legend {
+  margin-top: 15px;
+  padding: 12px;
+  background: #f8fffc;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.benchmark-legend-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.positive {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.negative {
+  color: #c62828;
+  font-weight: 600;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .risk-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .risk-metric-card.large {
+    grid-column: span 1;
+  }
+  
+  .risk-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .correlation-matrix-wrapper {
+    font-size: 11px;
+  }
+  
+  .correlation-header,
+  .correlation-row-header {
+    padding: 8px 6px;
+    font-size: 10px;
+  }
+  
+  .correlation-cell {
+    padding: 6px;
+    font-size: 11px;
+  }
+  
+  .positions-table {
+    font-size: 12px;
+  }
+  
+  .positions-table th,
+  .positions-table td {
+    padding: 8px 6px;
+  }
+}
+</style>
+
+<script>
+// Risk Analysis Functions
+async function loadRiskAnalysis() {
+  const resultsDiv = document.getElementById('riskAnalysisResults');
+  const loadingDiv = document.getElementById('riskAnalysisLoading');
+  const contentDiv = document.getElementById('riskAnalysisContent');
+  const btn = document.getElementById('riskAnalysisBtn');
+  
+  resultsDiv.style.display = 'block';
+  loadingDiv.style.display = 'block';
+  contentDiv.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Laden...';
+  
+  try {
+    const response = await fetch('/portfolio/risk-analysis');
+    const data = await response.json();
+    
+    if (data.success) {
+      displayRiskAnalysis(data.risk_summary);
+    } else {
+      showError('riskAnalysisContent', 'Kon risico-analyse niet uitvoeren: ' + (data.error || 'Onbekende fout'));
+    }
+  } catch (error) {
+    showError('riskAnalysisContent', 'Fout bij ophalen risico-analyse: ' + error.message);
+  } finally {
+    loadingDiv.style.display = 'none';
+    contentDiv.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Risico-analyse uitvoeren';
+  }
+}
+
+function displayRiskAnalysis(summary) {
+  const contentDiv = document.getElementById('riskAnalysisContent');
+  
+  let html = '<div class="risk-analysis-header">';
+  html += '<div class="risk-overview-grid">';
+  
+  html += `<div class="risk-metric-card large">
+    <div class="risk-metric-label">Portfolio Waarde</div>
+    <div class="risk-metric-value large-value">€ ${formatNumber(summary.portfolio_value || 0)}</div>
+    ${summary.position_value ? `<div class="risk-metric-hint">Posities: € ${formatNumber(summary.position_value)} | Cash: € ${formatNumber(summary.cash_amount || 0)}</div>` : ''}
+  </div>`;
+  
+  html += `<div class="risk-metric-card">
+    <div class="risk-metric-label">Aantal Posities</div>
+    <div class="risk-metric-value">${summary.num_positions || 0}</div>
+    <div class="risk-metric-hint">Actieve posities</div>
+  </div>`;
+  
+  if (summary.cash_percentage !== null && summary.cash_percentage !== undefined) {
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Cash Percentage</div>
+      <div class="risk-metric-value">${summary.cash_percentage.toFixed(1)}%</div>
+      <div class="risk-metric-hint">${summary.cash_percentage > 20 ? 'Hoog cash niveau' : summary.cash_percentage > 10 ? 'Matig cash niveau' : 'Laag cash niveau'}</div>
+    </div>`;
+  }
+  
+  const riskLevel = (summary.risk_level || 'Unknown').toLowerCase();
+  const riskLevelText = summary.risk_level || 'Unknown';
+  html += `<div class="risk-metric-card risk-level-card risk-level-${riskLevel}">
+    <div class="risk-metric-label">Risico Niveau</div>
+    <div class="risk-metric-value risk-level-badge">${riskLevelText}</div>
+    <div class="risk-metric-hint">${getRiskLevelDescription(riskLevel)}</div>
+  </div>`;
+  
+  if (summary.volatility !== null && summary.volatility !== undefined) {
+    const volColor = getRiskColorClass(summary.volatility, 10, 20);
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Volatiliteit (Jaarlijks)</div>
+      <div class="risk-metric-value ${volColor}">${summary.volatility.toFixed(2)}%</div>
+      <div class="risk-metric-hint">${getVolatilityDescription(summary.volatility)}</div>
+    </div>`;
+  }
+  
+  if (summary.sharpe_ratio !== null && summary.sharpe_ratio !== undefined) {
+    const sharpeColor = summary.sharpe_ratio > 1 ? 'positive' : summary.sharpe_ratio > 0 ? '' : 'negative';
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Sharpe Ratio</div>
+      <div class="risk-metric-value ${sharpeColor}">${summary.sharpe_ratio.toFixed(2)}</div>
+      <div class="risk-metric-hint">${summary.sharpe_ratio > 1 ? 'Uitstekend' : summary.sharpe_ratio > 0 ? 'Goed' : 'Laag'}</div>
+    </div>`;
+  }
+  
+  html += '</div></div>';
+  
+  if (summary.var_95) {
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Value at Risk (VaR)</h4>';
+    html += '<p class="risk-section-description">De maximale verwachte verlieswaarde binnen een bepaald betrouwbaarheidsniveau</p>';
+    html += '</div>';
+    html += '<div class="risk-metrics-grid">';
+    
+    const var95Pct = summary.var_95.var_percentage_of_portfolio || summary.var_95.var_percentage || 0;
+    const var95Abs = summary.var_95.var_absolute || 0;
+    html += `<div class="risk-metric-card var-card">
+      <div class="risk-metric-label">VaR (95% Confidence)</div>
+      <div class="risk-metric-value ${var95Pct > 3 ? 'negative' : var95Pct > 1.5 ? '' : 'positive'}">€ ${formatNumber(var95Abs)}</div>
+      <div class="risk-metric-percentage">${var95Pct.toFixed(2)}% van portfolio</div>
+      <div class="risk-metric-hint">95% kans dat verlies ≤ dit bedrag</div>
+    </div>`;
+    
+    if (summary.var_99) {
+      const var99Pct = summary.var_99.var_percentage_of_portfolio || summary.var_99.var_percentage || 0;
+      const var99Abs = summary.var_99.var_absolute || 0;
+      html += `<div class="risk-metric-card var-card">
+        <div class="risk-metric-label">VaR (99% Confidence)</div>
+        <div class="risk-metric-value ${var99Pct > 3 ? 'negative' : var99Pct > 1.5 ? '' : 'positive'}">€ ${formatNumber(var99Abs)}</div>
+        <div class="risk-metric-percentage">${var99Pct.toFixed(2)}% van portfolio</div>
+        <div class="risk-metric-hint">99% kans dat verlies ≤ dit bedrag</div>
+      </div>`;
+    }
+    
+    html += '</div></div>';
+  }
+  
+  if (summary.diversification) {
+    const div = summary.diversification;
+    const divScore = div.score || 0;
+    
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Diversificatie Analyse</h4>';
+    html += '<p class="risk-section-description">Hoe goed gespreid is je portfolio over verschillende sectoren en posities?</p>';
+    html += '</div>';
+    
+    html += '<div class="risk-metrics-grid">';
+    
+    html += `<div class="risk-metric-card score-card">
+      <div class="risk-metric-label">Diversificatie Score</div>
+      <div class="score-display">
+        <div class="score-value ${getScoreColorClass(divScore)}">${divScore}/100</div>
+        <div class="score-bar-container">
+          <div class="score-bar ${getScoreColorClass(divScore)}" style="width: ${divScore}%"></div>
+        </div>
+      </div>
+      <div class="risk-metric-hint">${getDiversificationDescription(divScore)}</div>
+    </div>`;
+    
+    const hhi = div.sector_concentration || 0;
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Sector Concentratie (HHI)</div>
+      <div class="risk-metric-value ${hhi > 2500 ? 'negative' : hhi > 1500 ? '' : 'positive'}">${hhi.toFixed(0)}</div>
+      <div class="risk-metric-hint">${getHHIDescription(hhi)}</div>
+    </div>`;
+    
+    const maxWeight = (div.max_weight || 0) * 100;
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Grootste Positie</div>
+      <div class="risk-metric-value ${maxWeight > 30 ? 'negative' : maxWeight > 15 ? '' : 'positive'}">${maxWeight.toFixed(1)}%</div>
+      <div class="risk-metric-hint">${maxWeight > 30 ? 'Te geconcentreerd' : maxWeight > 15 ? 'Matig geconcentreerd' : 'Goed gespreid'}</div>
+    </div>`;
+    
+    html += '</div>';
+    
+    if (div.sector_weights && Object.keys(div.sector_weights).length > 0) {
+      html += '<div class="sector-allocation-section">';
+      html += '<h5 class="sector-allocation-title">Sector Allocatie</h5>';
+      html += '<div class="sector-allocation-grid">';
+      
+      const sortedSectors = Object.entries(div.sector_weights)
+        .sort((a, b) => b[1] - a[1]);
+      
+      for (const [sector, weight] of sortedSectors) {
+        const weightPct = weight * 100;
+        html += `<div class="sector-allocation-item">
+          <div class="sector-allocation-header">
+            <span class="sector-name">${sector}</span>
+            <span class="sector-weight">${weightPct.toFixed(1)}%</span>
+          </div>
+          <div class="sector-bar-container">
+            <div class="sector-bar" style="width: ${weightPct}%; background: ${getSectorColor(sector)}"></div>
+          </div>
+        </div>`;
+      }
+      
+      html += '</div></div>';
+    }
+    
+    html += '</div>';
+  }
+  
+  if (summary.top_positions && summary.top_positions.length > 0) {
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Top Posities</h4>';
+    html += '<p class="risk-section-description">Grootste posities in je portfolio (gesorteerd op waarde)</p>';
+    html += '</div>';
+    html += '<div class="top-positions-table">';
+    html += '<table class="positions-table">';
+    html += '<thead><tr>';
+    html += '<th>#</th><th>Ticker</th><th>Naam</th><th>Sector</th><th>Waarde</th><th>Gewicht</th>';
+    if (summary.position_volatilities) {
+      html += '<th>Volatiliteit</th>';
+    }
+    html += '</tr></thead><tbody>';
+    
+    summary.top_positions.forEach((pos, index) => {
+      const vol = summary.position_volatilities?.[pos.ticker];
+      const volColor = vol ? (vol > 30 ? 'negative' : vol > 20 ? '' : 'positive') : '';
+      html += `<tr>
+        <td>${index + 1}</td>
+        <td class="ticker-cell"><strong>${pos.ticker}</strong></td>
+        <td>${pos.name || pos.ticker}</td>
+        <td>${pos.sector || 'Unknown'}</td>
+        <td class="value-cell">€ ${formatNumber(pos.value)}</td>
+        <td class="weight-cell">${pos.weight.toFixed(1)}%</td>
+        ${vol ? `<td class="vol-cell ${volColor}">${vol.toFixed(2)}%</td>` : '<td>-</td>'}
+      </tr>`;
+    });
+    
+    html += '</tbody></table></div></div>';
+  }
+  
+  if (summary.correlation && summary.correlation.matrix) {
+    const avgCorr = summary.correlation.average_correlation || 0;
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Correlatie Analyse</h4>';
+    html += `<p class="risk-section-description">Hoe bewegen je posities ten opzichte van elkaar? Gemiddelde correlatie: <strong class="${avgCorr > 0.7 ? 'negative' : avgCorr > 0.3 ? '' : 'positive'}">${avgCorr.toFixed(3)}</strong> ${avgCorr < 0.3 ? '(goed gediversifieerd)' : avgCorr < 0.7 ? '(matig gediversifieerd)' : '(weinig gediversifieerd)'}</p>`;
+    html += '</div>';
+    
+    html += '<div class="correlation-matrix-wrapper">';
+    html += '<table class="correlation-matrix">';
+    html += '<thead><tr><th class="correlation-header"></th>';
+    for (const ticker of summary.correlation.tickers) {
+      html += `<th class="correlation-header">${ticker}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    
+    for (const ticker1 of summary.correlation.tickers) {
+      html += `<tr><td class="correlation-row-header">${ticker1}</td>`;
+      for (const ticker2 of summary.correlation.tickers) {
+        const corr = summary.correlation.matrix[ticker1]?.[ticker2] || 0;
+        const isDiagonal = ticker1 === ticker2;
+        const cellClass = isDiagonal ? 'correlation-cell diagonal' : 
+                         corr > 0.7 ? 'correlation-cell high' : 
+                         corr > 0.3 ? 'correlation-cell medium' : 'correlation-cell low';
+        html += `<td class="${cellClass}" title="${ticker1} vs ${ticker2}: ${corr.toFixed(3)}">${corr.toFixed(2)}</td>`;
+      }
+      html += '</tr>';
+    }
+    
+    html += '</tbody></table></div>';
+    html += '<div class="correlation-legend">';
+    html += '<span class="legend-item"><span class="legend-color low"></span> Laag (&lt;0.3)</span>';
+    html += '<span class="legend-item"><span class="legend-color medium"></span> Matig (0.3-0.7)</span>';
+    html += '<span class="legend-item"><span class="legend-color high"></span> Hoog (&gt;0.7)</span>';
+    html += '</div></div>';
+  }
+  
+  // Benchmark Vergelijking
+  if (summary.benchmark_comparison && summary.benchmark_comparison.length > 0) {
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Portefeuille Benchmark Vergelijking</h4>';
+    html += '<p class="risk-section-description">Vergelijk je VEK portefeuille met drie benchmark strategieën op basis van rendement, volatiliteit en Sharpe ratio</p>';
+    html += '</div>';
+    
+    html += '<div class="benchmark-comparison-table-wrapper">';
+    html += '<table class="benchmark-comparison-table">';
+    html += '<thead><tr>';
+    html += '<th class="benchmark-rank">#</th>';
+    html += '<th class="benchmark-name">Portefeuille</th>';
+    html += '<th class="benchmark-metric">Rendement</th>';
+    html += '<th class="benchmark-metric">Volatiliteit</th>';
+    html += '<th class="benchmark-metric">Sharpe Ratio</th>';
+    html += '</tr></thead><tbody>';
+    
+    summary.benchmark_comparison.forEach((benchmark, index) => {
+      const isVek = benchmark.name === 'Huidige VEK Portefeuille';
+      const rowClass = isVek ? 'benchmark-row-vek' : '';
+      const rankClass = index === 0 ? 'benchmark-rank-first' : '';
+      const sharpe = benchmark.sharpe_ratio;
+      const sharpeColor = sharpe ? (sharpe > 1 ? 'positive' : sharpe > 0 ? '' : 'negative') : '';
+      const sharpeStr = sharpe !== null && sharpe !== undefined ? sharpe.toFixed(3) : 'N/A';
+      
+      html += `<tr class="${rowClass}">`;
+      html += `<td class="benchmark-rank ${rankClass}">${index === 0 ? '🏆' : index + 1}</td>`;
+      html += `<td class="benchmark-name"><strong>${isVek ? '★ ' : ''}${benchmark.name}</strong></td>`;
+      html += `<td class="benchmark-metric ${benchmark.annual_return >= 0 ? 'positive' : 'negative'}">${benchmark.annual_return.toFixed(2)}%</td>`;
+      html += `<td class="benchmark-metric">${benchmark.volatility.toFixed(2)}%</td>`;
+      html += `<td class="benchmark-metric ${sharpeColor}">${sharpeStr}</td>`;
+      html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    html += '<div class="benchmark-legend">';
+    html += '<p class="benchmark-legend-text"><strong>★</strong> = Jouw VEK Portefeuille | <strong>🏆</strong> = Beste Sharpe Ratio</p>';
+    html += '</div></div>';
+  }
+  
+  contentDiv.innerHTML = html;
+}
+
+function formatNumber(num) {
+  return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function getRiskColorClass(value, low, high) {
+  if (value < low) return 'positive';
+  if (value > high) return 'negative';
+  return '';
+}
+
+function getScoreColorClass(score) {
+  if (score >= 70) return 'positive';
+  if (score < 40) return 'negative';
+  return '';
+}
+
+function getRiskLevelDescription(level) {
+  const descriptions = {
+    'low': 'Laag risico - Conservatief portfolio',
+    'medium': 'Gemiddeld risico - Gebalanceerd portfolio',
+    'high': 'Hoog risico - Agressief portfolio',
+    'unknown': 'Niet beschikbaar'
+  };
+  return descriptions[level] || descriptions['unknown'];
+}
+
+function getVolatilityDescription(vol) {
+  if (vol < 10) return 'Zeer stabiel';
+  if (vol < 15) return 'Stabiel';
+  if (vol < 20) return 'Matig volatiel';
+  if (vol < 30) return 'Volatiel';
+  return 'Zeer volatiel';
+}
+
+function getDiversificationDescription(score) {
+  if (score >= 80) return 'Uitstekend gediversifieerd';
+  if (score >= 60) return 'Goed gediversifieerd';
+  if (score >= 40) return 'Matig gediversifieerd';
+  return 'Weinig gediversifieerd - overweeg meer spreiding';
+}
+
+function getHHIDescription(hhi) {
+  if (hhi < 1500) return 'Goed gespreid';
+  if (hhi < 2500) return 'Matig geconcentreerd';
+  return 'Sterk geconcentreerd';
+}
+
+function getSectorColor(sector) {
+  const colors = {
+    'Tech': '#43A047',
+    'Cons. & Health': '#E53935',
+    'Ind., E. & R.M.': '#FB8C00',
+    'RE, F. & Hold.': '#7CB342',
+    'ETF': '#1E88E5'
+  };
+  return colors[sector] || '#607D8B';
+}
+
+function showError(elementId, message) {
+  const element = document.getElementById(elementId);
+  element.innerHTML = `<div class="risk-error"><p>${message}</p></div>`;
+}
+</script>
+{% endblock %}
+

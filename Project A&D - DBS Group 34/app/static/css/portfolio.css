@@ -6,9 +6,9 @@
     padding: 14px 18px;
     border-radius: 8px;
     margin-bottom: 14px;
-    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    background: var(--green-gradient);
     border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(37,91,72,0.15);
+    box-shadow: 0 2px 8px rgba(var(--green-rgb),0.15);
 }
 
 .cash-label {
@@ -35,89 +35,111 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: #ff9800;
+    background: var(--warning);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
 }
 
 .cash-edit-btn:hover {
-    background: #f57c00;
+    background: var(--warning-dark);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .cash-edit-btn:active {
     transform: scale(0.95);
 }
 
-.delete-position-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: #d32f2f;
-    border: none;
-    cursor: pointer;
+/* Portfolio Header */
+.portfolio-header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    padding: 0;
-}
-
-.delete-position-btn:hover {
-    background: #b71c1c;
-    transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-}
-
-.delete-position-btn:active {
-    transform: scale(0.95);
-}
-
-.edit-position-btn {
-    width: 40px;
-    height: 40px;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
     border-radius: 8px;
-    background: #ff9800;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    padding: 0;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+    background: var(--green-gradient);
+    flex-wrap: wrap;
 }
 
-.edit-position-btn:hover {
-    background: #f57c00;
-    transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+.portfolio-header .muted {
+    color: rgba(var(--white-rgba),0.9);
+    font-size: 13px;
+    font-weight: 500;
 }
 
-.edit-position-btn:active {
-    transform: scale(0.95);
+.portfolio-header .big {
+    font-weight: 800;
+    color: white;
+    font-size: 20px;
+    margin-top: 4px;
 }
 
-.portfolio-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid var(--border);background:linear-gradient(90deg,rgba(37,91,72,0.95), rgba(37,91,72,0.95))}
-.portfolio-header .muted{color:rgba(255,255,255,0.9)}
-.portfolio-header .big{font-weight:800;color:white;font-size:20px}
+/* Portfolio Table */
+.portfolio-table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: white;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(var(--green-rgb),0.05);
+}
 
-.portfolio-table-wrapper{overflow-x:auto}
-.portfolio-table{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.portfolio-table th, .portfolio-table td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}
-.portfolio-table thead th{background:var(--green);color:white;font-weight:700}
-.portfolio-table tbody tr:nth-child(even){background:#f7faf8}
-.positive{color:#0b7a51;font-weight:700}
-.negative{color:#9b2f2f;font-weight:700}
+.portfolio-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 8px;
+    overflow: hidden;
+}
 
-/* ===== PORTFOLIO FILTER SECTION (vergelijkbaar met transactions) ===== */
+.portfolio-table th,
+.portfolio-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-size: 14px;
+}
+
+.portfolio-table thead th {
+    background: var(--green);
+    color: white;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.portfolio-table tbody tr:nth-child(even) {
+    background: var(--bg-lighter);
+}
+
+.portfolio-table tbody tr:hover {
+    background: var(--bg-lightest);
+}
+
+.portfolio-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.positive {
+    color: var(--success);
+    font-weight: 700;
+}
+
+.negative {
+    color: var(--error-text);
+    font-weight: 700;
+}
+
+/* ===== PORTFOLIO FILTER SECTION ===== */
 .filter-section {
     margin-bottom: 20px;
     padding-bottom: 15px;
@@ -151,7 +173,7 @@
 }
 
 .filter-btn:hover {
-    background: #f8fffc;
+    background: var(--bg-light);
     border-color: var(--green);
 }
 
@@ -176,7 +198,7 @@
     background: white;
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(var(--black-rgba), 0.15);
     z-index: 1000;
     min-width: 180px;
     overflow: hidden;
@@ -188,7 +210,7 @@
     font-size: 13px;
     color: var(--green);
     transition: background 0.2s;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .sector-option:last-child {
@@ -196,7 +218,7 @@
 }
 
 .sector-option:hover {
-    background: #f8fffc;
+    background: var(--bg-light);
     color: var(--green);
 }
 
@@ -219,22 +241,21 @@
 }
 
 .scrollbar-spacer::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--gray-light);
     border-radius: 10px;
 }
 
 .scrollbar-spacer::-webkit-scrollbar-thumb {
-    background: #888;
+    background: var(--gray);
     border-radius: 10px;
 }
 
 .scrollbar-spacer::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: var(--gray-dark);
 }
 
 /* ============================================================================ */
 /* COMPANY INFO MODAL FEATURE - START */
-/* Om terug te draaien: verwijder alles vanaf hier tot "COMPANY INFO MODAL FEATURE - END" */
 /* ============================================================================ */
 
 /* Asset link styling */
@@ -243,11 +264,12 @@
   text-decoration: none;
   cursor: pointer;
   font-weight: 500;
+  transition: color 0.2s;
 }
 
 .asset-link:hover {
   text-decoration: underline;
-  color: #2d6a4f;
+  color: var(--success);
 }
 
 /* Modal styling */
@@ -260,20 +282,26 @@
   width: 100%;
   height: 100%;
   overflow: auto;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(var(--black-rgba), 0.5);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.show {
+  display: flex;
 }
 
 .modal-content {
-  background-color: #fefefe;
+  background-color: white;
   margin: 2% auto;
   padding: 0;
-  border: 1px solid #888;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   width: 90%;
   max-width: 900px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(var(--black-rgba), 0.3);
 }
 
 .modal-header {
@@ -283,7 +311,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .modal-header h2 {
@@ -298,6 +326,7 @@
   font-weight: bold;
   cursor: pointer;
   line-height: 1;
+  transition: opacity 0.2s;
 }
 
 .modal-close:hover,
@@ -347,13 +376,14 @@
 
 .info-label {
   font-weight: 600;
-  color: #666;
+  color: var(--muted);
   font-size: 14px;
 }
 
 .info-value {
-  color: #333;
+  color: var(--green);
   font-size: 16px;
+  font-weight: 600;
 }
 
 .info-value a {
@@ -368,13 +398,13 @@
 .description {
   margin-top: 15px;
   padding: 15px;
-  background-color: #f7faf8;
+  background-color: var(--bg-lighter);
   border-radius: 4px;
 }
 
 .description p {
   margin: 0;
-  color: #555;
+  color: var(--muted);
   line-height: 1.6;
   font-size: 14px;
 }
@@ -393,26 +423,27 @@
 
 .ratio-label {
   font-weight: 600;
-  color: #666;
+  color: var(--muted);
   font-size: 14px;
 }
 
 .ratio-value {
-  color: #333;
+  color: var(--green);
   font-size: 16px;
+  font-weight: 600;
 }
 
 .loading-spinner {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--muted);
   font-size: 16px;
 }
 
 .error-message {
   text-align: center;
   padding: 40px;
-  color: #9b2f2f;
+  color: var(--error-text);
   font-size: 16px;
 }
 
@@ -422,14 +453,14 @@
 .portfolio-breakdown-section {
     margin-top: 40px;
     background: white;
-    border-radius: 8px;
+    border-radius: var(--radius);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     overflow: hidden;
 }
 
 .breakdown-header {
-    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    background: var(--green-gradient);
     color: white;
     padding: 16px 20px;
     display: flex;
@@ -449,7 +480,7 @@
     padding: 8px 16px;
     border-radius: 20px;
     border: none;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(var(--white-rgba), 0.2);
     color: white;
     font-size: 13px;
     font-weight: 600;
@@ -458,7 +489,7 @@
 }
 
 .sector-tab:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(var(--white-rgba), 0.3);
 }
 
 .sector-tab.active {
@@ -479,16 +510,29 @@
 
 .breakdown-table-wrapper {
     overflow-x: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(var(--green-rgb),0.05);
 }
 
 .breakdown-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
 }
 
 .breakdown-table thead {
-    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
+    background: var(--green-gradient);
+}
+
+.breakdown-table thead tr:first-child th:first-child {
+    border-top-left-radius: var(--radius);
+}
+
+.breakdown-table thead tr:first-child th:last-child {
+    border-top-right-radius: var(--radius);
 }
 
 .breakdown-table th {
@@ -496,7 +540,7 @@
     text-align: left;
     font-weight: 600;
     color: white;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 2px solid rgba(var(--white-rgba), 0.2);
 }
 
 .breakdown-table td {
@@ -505,17 +549,25 @@
 }
 
 .breakdown-table tbody tr:hover {
-    background: #f8fffc;
+    background: var(--bg-light);
 }
 
 .breakdown-table tbody tr:nth-child(even) {
-    background: #f7faf8;
+    background: var(--bg-lighter);
+}
+
+.breakdown-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: var(--radius);
+}
+
+.breakdown-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: var(--radius);
 }
 
 .breakdown-total-row {
     background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95)) !important;
     font-weight: 600;
-    border-top: 2px solid rgba(255, 255, 255, 0.2) !important;
+    border-top: 2px solid rgba(var(--white-rgba), 0.2) !important;
     color: white;
 }
 
@@ -523,6 +575,14 @@
     padding-top: 14px;
     padding-bottom: 14px;
     color: white;
+}
+
+.breakdown-total-row td:first-child {
+    border-bottom-left-radius: var(--radius);
+}
+
+.breakdown-total-row td:last-child {
+    border-bottom-right-radius: var(--radius);
 }
 
 .breakdown-chart-wrapper {
@@ -533,8 +593,114 @@
     justify-content: center;
 }
 
-@media(max-width:900px){
-  .portfolio-table th:nth-child(6), .portfolio-table td:nth-child(6), .portfolio-table th:nth-child(7), .portfolio-table td:nth-child(7){display:none}
+/* ============================================================================ */
+/* MANUAL UPDATE SECTION - START */
+/* ============================================================================ */
+
+.manual-update-section {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f8fffc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.update-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.update-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.update-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.update-status {
+  margin-top: 12px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.update-status.updating {
+    background: var(--warning-bg);
+    color: var(--warning-dark);
+    border: 1px solid var(--warning-border);
+}
+
+.update-status.success {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
+}
+
+.update-status.error {
+    background: var(--error-bg);
+    color: var(--error-text);
+    border: 1px solid var(--error-border);
+}
+
+/* ============================================================================ */
+/* MANUAL UPDATE SECTION - END */
+/* ============================================================================ */
+
+/* Form styling */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--green);
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    font-family: var(--font);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--green);
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+/* Responsive Design */
+@media(max-width: 900px) {
+  .portfolio-table th:nth-child(6),
+  .portfolio-table td:nth-child(6),
+  .portfolio-table th:nth-child(7),
+  .portfolio-table td:nth-child(7) {
+    display: none;
+  }
   
   .info-grid {
     grid-template-columns: 1fr;
@@ -558,12 +724,28 @@
   }
 }
 
-@media(max-width:600px){
+@media(max-width: 600px) {
   .ratios-grid {
     grid-template-columns: 1fr;
   }
+  
+  .portfolio-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .portfolio-header .big {
+    font-size: 18px;
+  }
+  
+  .cash-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .cash-amount-wrapper {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
-
-/* ============================================================================ */
-/* COMPANY INFO MODAL FEATURE - END */
-/* ============================================================================ */

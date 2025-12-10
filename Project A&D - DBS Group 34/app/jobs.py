@@ -3,10 +3,13 @@
 from .models import db, Position, Portfolio
 import yfinance as yf
 from sqlalchemy import func
+import time
 
 def fetch_exchange_rate(currency_pair, currency_name):
     """Haal exchange rate op voor een valuta paar via yfinance"""
     try:
+        # Nieuwe versies van yfinance gebruiken automatisch curl_cffi als beschikbaar
+        # Geen custom session nodig - yfinance handelt dit zelf af
         ticker = yf.Ticker(currency_pair)
         info = ticker.info
         price = info.get('regularMarketPrice') or info.get('currentPrice')
@@ -63,6 +66,7 @@ def update_portfolio_prices(app):
             }
             
             # 3. Gebruik yfinance om de live prijzen op te halen
+            # Nieuwe versies van yfinance gebruiken automatisch curl_cffi als beschikbaar
             ticker_objects = yf.Tickers(" ".join(ticker_list))
             
             # 4. Update elke positie met de nieuwe prijs en dagverandering

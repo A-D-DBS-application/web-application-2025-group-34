@@ -14,74 +14,24 @@
 @media (max-width:980px){
   .dashboard-grid{grid-template-columns:1fr; padding-bottom:30px}
 }
-/* ===== CARD WRAPPER ===== */
-.card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 12px;
+/* Dashboard-specific card override */
+.dashboard-grid .card {
     padding: 20px;
+    border-radius: 12px;
     box-shadow: 0 2px 8px rgba(37,91,72,0.08);
 }
 
-/* ===== SECTION HEAD ===== */
-.section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+/* Dashboard-specific section-head override */
+.dashboard-grid .section-head {
     margin-bottom: 18px;
     padding: 12px 14px;
-    border-radius: 8px;
     background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
     border: 1px solid rgba(37,91,72,0.3);
 }
 
-.section-head h3 {
-    margin: 0;
+.dashboard-grid .section-head h3 {
     font-size: 20px;
-    font-weight: 600;
     color: white;
-}
-
-/* ===== MUTED TEXT ===== */
-.muted {
-    color: #777;
-    font-size: 14px;
-}
-
-/* ===== BUTTONS ===== */
-.btn {
-    border: none;
-    border-radius: 6px;
-    padding: 8px 14px;
-    cursor: pointer;
-    transition: 0.2s;
-    font-size: 14px;
-}
-
-.btn.small {
-    padding: 6px 10px;
-    font-size: 13px;
-}
-
-/* Primary button */
-.btn:not(.ghost) {
-    background: #246F59;
-    color: white;
-}
-
-.btn:not(.ghost):hover {
-    background: #1d5a48;
-}
-
-/* Ghost button */
-.btn.ghost {
-    background: transparent;
-    border: 1px solid #246F59;
-    color: #246F59;
-}
-
-.btn.ghost:hover {
-    background: rgba(36, 111, 89, 0.10);
 }
 
 /* ===== AGENDA LAYOUT (Toekomstige / Vandaag / Voorbije) ===== */

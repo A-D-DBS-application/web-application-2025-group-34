@@ -5,7 +5,8 @@
     margin-bottom: 30px;
 }
 
-.section-head {
+/* Section-head override for deelnemers page */
+.member-section .section-head {
     background: var(--green);
     color: white;
     padding: 12px 18px;
@@ -13,7 +14,7 @@
     margin-bottom: 0;
 }
 
-.section-head h3 {
+.member-section .section-head h3 {
     margin: 0;
     color: white;
 }

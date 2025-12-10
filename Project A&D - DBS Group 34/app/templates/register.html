@@ -13,12 +13,12 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <p style="color: {% if category == 'error' %}red{% elif category == 'success' %}var(--green){% endif %}; margin-top: 10px;">{{ message }}</p>
+                <p style="color: {% if category == 'error' %}red{% elif category == 'success' %}#255b48{% else %}#6b766f{% endif %}; margin-top: 10px;">{{ message }}</p>
             {% endfor %}
         {% endif %}
     {% endwith %}
 
-    <form method="POST" action="{{ url_for('auth.register') }}">
+    <form method="POST" action="{{ url_for('main.register') }}">
       <label for="name">Volledige Naam</label>
       <input id="name" name="name" type="text" placeholder="Jan Jansen" required>
 
@@ -31,7 +31,7 @@
       <button class="btn primary" type="submit">Account Aanmaken</button>
     </form>
 
-    <p class="muted small">Al een account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+    <p class="muted small">Al een account? <a href="{{ url_for('main.home') }}">Log in</a></p>
   </div>
 </div>
 {% endblock %}
