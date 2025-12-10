@@ -11,7 +11,7 @@ import yfinance as yf
 import logging
 import requests_cache
 from pathlib import Path
-from ..models import Position
+from ..models import Position, StockPriceHistory
 
 # Configureer logging
 logger = logging.getLogger(__name__)
@@ -235,64 +235,90 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)  # Extra buffer voor weekends/holidays
             
-            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
+            # Probeer eerst gecachte database data te gebruiken - efficiënte bulk query
+            prices_dict = {}
             try:
-                ticker_data = yf.download(
-                    " ".join(tickers), 
-                    start=start_date, 
-                    end=end_date, 
-                    progress=False,
-                    group_by='ticker',
-                    auto_adjust=True
-                )
+                from flask import has_app_context, current_app
+                if has_app_context():
+                    from sqlalchemy import and_, or_
+                    from .. import db
+                    
+                    # Bulk query: haal alle tickers in één keer op (veel efficiënter)
+                    all_price_records = db.session.query(StockPriceHistory).filter(
+                        and_(
+                            StockPriceHistory.ticker.in_(tickers),
+                            StockPriceHistory.price_date >= start_date.date(),
+                            StockPriceHistory.price_date <= end_date.date()
+                        )
+                    ).order_by(StockPriceHistory.ticker, StockPriceHistory.price_date).all()
+                    
+                    # Groepeer per ticker
+                    records_by_ticker = {}
+                    for record in all_price_records:
+                        if record.ticker not in records_by_ticker:
+                            records_by_ticker[record.ticker] = []
+                        records_by_ticker[record.ticker].append(record)
+                    
+                    # Converteer naar pandas Series per ticker
+                    for ticker in tickers:
+                        price_records = records_by_ticker.get(ticker, [])
+                        if price_records and len(price_records) > 1:
+                            dates = [pd.Timestamp(record.price_date) for record in price_records]
+                            prices = [float(record.close_price) for record in price_records]
+                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
+                            logger.debug(f"Gebruik gecachte database data voor {ticker}: {len(price_records)} datapunten")
             except Exception as e:
-                logger.warning(f"Error downloading ticker data: {e}")
+                logger.debug(f"Kon geen database cache gebruiken: {e}")
+            
+            # Fallback naar yfinance als database cache niet beschikbaar is of incomplete
+            if not prices_dict or len(prices_dict) < len(tickers):
+                try:
+                    ticker_data = yf.download(
+                        " ".join([t for t in tickers if t not in prices_dict]), 
+                        start=start_date, 
+                        end=end_date, 
+                        progress=False,
+                        group_by='ticker',
+                        auto_adjust=True
+                    )
+                    
+                    if not ticker_data.empty:
+                        # Verwerk yfinance data
+                        for ticker in tickers:
+                            if ticker in prices_dict:
+                                continue  # Skip als al uit database
+                            
+                            if len([t for t in tickers if t not in prices_dict]) == 1:
+                                # Single ticker
+                                if 'Close' in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data['Close'].dropna()
+                                else:
+                                    prices_dict[ticker] = ticker_data.dropna()
+                            else:
+                                # Multi-ticker
+                                if isinstance(ticker_data.columns, pd.MultiIndex):
+                                    if (ticker, 'Close') in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
+                                    elif ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                                else:
+                                    if ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                except Exception as e:
+                    logger.warning(f"Error downloading ticker data (yfinance fallback): {e}")
+            
+            if not prices_dict:
                 return None
             
-            if ticker_data.empty:
-                return None
-            
-            # Handle both single and multi-ticker responses
-            if len(tickers) == 1:
-                # Single ticker returns DataFrame with columns directly
-                if 'Close' in ticker_data.columns:
-                    prices = ticker_data['Close'].dropna()
-                else:
-                    prices = ticker_data.dropna()
-            else:
-                # Multi-ticker: check structure
-                if isinstance(ticker_data.columns, pd.MultiIndex):
-                    # MultiIndex columns
-                    prices_dict = {}
-                    for ticker in tickers:
-                        if (ticker, 'Close') in ticker_data.columns:
-                            prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
-                        elif ticker in ticker_data.columns:
-                            prices_dict[ticker] = ticker_data[ticker].dropna()
-                    if not prices_dict:
-                        return None
-                else:
-                    # Simple columns, try to match tickers
-                    prices_dict = {}
-                    for ticker in tickers:
-                        if ticker in ticker_data.columns:
-                            prices_dict[ticker] = ticker_data[ticker].dropna()
-                    if not prices_dict:
-                        return None
+            # prices_dict is nu al gevuld (uit database of yfinance)
             
             # Bereken daily returns voor elke ticker
             returns = {}
             for ticker in tickers:
-                if len(tickers) == 1:
-                    if len(prices) > 1:
-                        daily_returns = prices.pct_change().dropna()
-                        if len(daily_returns) > 0:
-                            returns[ticker] = daily_returns
-                else:
-                    if ticker in prices_dict and len(prices_dict[ticker]) > 1:
-                        daily_returns = prices_dict[ticker].pct_change().dropna()
-                        if len(daily_returns) > 0:
-                            returns[ticker] = daily_returns
+                if ticker in prices_dict and len(prices_dict[ticker]) > 1:
+                    daily_returns = prices_dict[ticker].pct_change().dropna()
+                    if len(daily_returns) > 0:
+                        returns[ticker] = daily_returns
             
             if not returns:
                 return None
@@ -504,48 +530,73 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)
             
-            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
+            # Gebruik dezelfde helper logica als _get_returns_and_stats
+            prices_dict = {}
             try:
-                ticker_data = yf.download(
-                    " ".join(tickers), 
-                    start=start_date, 
-                    end=end_date, 
-                    progress=False,
-                    group_by='ticker',
-                    auto_adjust=True
-                )
+                from flask import has_app_context
+                if has_app_context():
+                    from sqlalchemy import and_
+                    from .. import db
+                    
+                    for ticker in tickers:
+                        price_records = db.session.query(StockPriceHistory).filter(
+                            and_(
+                                StockPriceHistory.ticker == ticker,
+                                StockPriceHistory.price_date >= start_date.date(),
+                                StockPriceHistory.price_date <= end_date.date()
+                            )
+                        ).order_by(StockPriceHistory.price_date).all()
+                        
+                        if price_records and len(price_records) > 1:
+                            dates = [pd.Timestamp(record.price_date) for record in price_records]
+                            prices = [float(record.close_price) for record in price_records]
+                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
             except Exception as e:
-                logger.warning(f"Error downloading ticker data for correlation: {e}")
-                return None
+                logger.debug(f"Kon geen database cache gebruiken voor correlation: {e}")
             
-            if ticker_data.empty:
+            # Fallback naar yfinance
+            if not prices_dict or len(prices_dict) < len(tickers):
+                try:
+                    ticker_data = yf.download(
+                        " ".join([t for t in tickers if t not in prices_dict]),
+                        start=start_date,
+                        end=end_date,
+                        progress=False,
+                        group_by='ticker',
+                        auto_adjust=True
+                    )
+                    
+                    if not ticker_data.empty:
+                        for ticker in tickers:
+                            if ticker in prices_dict:
+                                continue
+                            
+                            if len([t for t in tickers if t not in prices_dict]) == 1:
+                                if 'Close' in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data['Close'].dropna()
+                                else:
+                                    prices_dict[ticker] = ticker_data.dropna()
+                            else:
+                                if isinstance(ticker_data.columns, pd.MultiIndex):
+                                    if (ticker, 'Close') in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
+                                    elif ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                                else:
+                                    if ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                except Exception as e:
+                    logger.warning(f"Error downloading ticker data for correlation (yfinance fallback): {e}")
+            
+            if not prices_dict:
                 return None
             
             # Bereken correlatie matrix
             returns_data = {}
             for ticker in tickers:
                 try:
-                    if len(tickers) == 1:
-                        if 'Close' in ticker_data.columns:
-                            prices = ticker_data['Close'].dropna()
-                        else:
-                            prices = ticker_data.dropna()
-                    else:
-                        if isinstance(ticker_data.columns, pd.MultiIndex):
-                            if (ticker, 'Close') in ticker_data.columns:
-                                prices = ticker_data[(ticker, 'Close')].dropna()
-                            elif ticker in ticker_data.columns:
-                                prices = ticker_data[ticker].dropna()
-                            else:
-                                continue
-                        else:
-                            if ticker in ticker_data.columns:
-                                prices = ticker_data[ticker].dropna()
-                            else:
-                                continue
-                    
-                    if len(prices) > 1:
-                        returns = prices.pct_change().dropna()
+                    if ticker in prices_dict and len(prices_dict[ticker]) > 1:
+                        returns = prices_dict[ticker].pct_change().dropna()
                         if len(returns) > 0:
                             returns_data[ticker] = returns
                 except Exception as e:
@@ -639,46 +690,68 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)
             
-            # Download historische data (gebruikt automatisch de gecachte session via install_cache)
+            # Gebruik database cache
+            prices_dict = {}
             try:
-                ticker_data = yf.download(
-                    " ".join(tickers), 
-                    start=start_date, 
-                    end=end_date, 
-                    progress=False,
-                    group_by='ticker',
-                    auto_adjust=True
-                )
+                from flask import has_app_context
+                if has_app_context():
+                    from sqlalchemy import and_
+                    from .. import db
+                    
+                    for ticker in tickers:
+                        price_records = db.session.query(StockPriceHistory).filter(
+                            and_(
+                                StockPriceHistory.ticker == ticker,
+                                StockPriceHistory.price_date >= start_date.date(),
+                                StockPriceHistory.price_date <= end_date.date()
+                            )
+                        ).order_by(StockPriceHistory.price_date).all()
+                        
+                        if price_records and len(price_records) > 1:
+                            dates = [pd.Timestamp(record.price_date) for record in price_records]
+                            prices = [float(record.close_price) for record in price_records]
+                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
             except Exception as e:
-                logger.warning(f"Error downloading ticker data for volatilities: {e}")
-                return {}
+                logger.debug(f"Kon geen database cache gebruiken voor volatilities: {e}")
             
-            if ticker_data.empty:
-                return {}
+            # Fallback naar yfinance
+            if not prices_dict or len(prices_dict) < len(tickers):
+                try:
+                    ticker_data = yf.download(
+                        " ".join([t for t in tickers if t not in prices_dict]),
+                        start=start_date,
+                        end=end_date,
+                        progress=False,
+                        group_by='ticker',
+                        auto_adjust=True
+                    )
+                    
+                    if not ticker_data.empty:
+                        for ticker in tickers:
+                            if ticker in prices_dict:
+                                continue
+                            
+                            if len([t for t in tickers if t not in prices_dict]) == 1:
+                                if 'Close' in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data['Close'].dropna()
+                                else:
+                                    prices_dict[ticker] = ticker_data.dropna()
+                            else:
+                                if isinstance(ticker_data.columns, pd.MultiIndex):
+                                    if (ticker, 'Close') in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
+                                    elif ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                                else:
+                                    if ticker in ticker_data.columns:
+                                        prices_dict[ticker] = ticker_data[ticker].dropna()
+                except Exception as e:
+                    logger.warning(f"Error downloading ticker data for volatilities (yfinance fallback): {e}")
             
             for ticker in tickers:
                 try:
-                    if len(tickers) == 1:
-                        if 'Close' in ticker_data.columns:
-                            prices = ticker_data['Close'].dropna()
-                        else:
-                            prices = ticker_data.dropna()
-                    else:
-                        if isinstance(ticker_data.columns, pd.MultiIndex):
-                            if (ticker, 'Close') in ticker_data.columns:
-                                prices = ticker_data[(ticker, 'Close')].dropna()
-                            elif ticker in ticker_data.columns:
-                                prices = ticker_data[ticker].dropna()
-                            else:
-                                continue
-                        else:
-                            if ticker in ticker_data.columns:
-                                prices = ticker_data[ticker].dropna()
-                            else:
-                                continue
-                    
-                    if len(prices) > 1:
-                        returns = prices.pct_change().dropna()
+                    if ticker in prices_dict and len(prices_dict[ticker]) > 1:
+                        returns = prices_dict[ticker].pct_change().dropna()
                         if len(returns) > 0:
                             volatility = returns.std() * np.sqrt(252) * 100
                             volatilities[ticker] = float(volatility)

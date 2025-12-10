@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, session, redirect, url_for, g, flash, jsonify, Response, current_app, send_file  # Response for iCal downloads, send_file for file downloads
 from functools import wraps
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 import yfinance as yf  # Added: for company info and financial ratios
@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from io import BytesIO
 from . import supabase, db
+from .models import CompanyInfo
 import time
 import logging
 
@@ -1291,8 +1292,9 @@ def get_company_info(ticker):
         import urllib.parse
         ticker = urllib.parse.unquote(ticker)
         
-        # Normaliseer ticker
-        normalized_ticker = ticker.strip().replace(" ", "-").replace(".", "-")
+        # Normaliseer ticker - behoud originele formaten voor database lookup
+        original_ticker = ticker.strip()
+        normalized_ticker = original_ticker.replace(" ", "-").replace(".", "-")
         normalized_ticker = normalized_ticker.replace("--", "-")
         
         # requests_cache cached automatisch alle HTTP requests
@@ -1300,10 +1302,27 @@ def get_company_info(ticker):
         # Geen handmatige cache check nodig - requests_cache handelt dit af
         
         info = {}
-        tickers_to_try = [normalized_ticker]
-        # Als genormaliseerde ticker anders is, probeer ook origineel
-        if normalized_ticker != ticker:
-            tickers_to_try.append(ticker)
+        # Probeer verschillende ticker formaten (origineel, genormaliseerd, uppercase, etc.)
+        tickers_to_try = [
+            original_ticker.upper(),  # Origineel uppercase (voor database)
+            normalized_ticker.upper(),  # Genormaliseerd uppercase
+            original_ticker,  # Origineel zoals is
+            normalized_ticker,  # Genormaliseerd zoals is
+        ]
+        
+        # Voeg ook varianten toe zonder punten/dashes
+        if "." in original_ticker or "-" in original_ticker:
+            clean_ticker = original_ticker.replace(".", "").replace("-", "").upper()
+            if clean_ticker not in [t.upper() for t in tickers_to_try]:
+                tickers_to_try.append(clean_ticker)
+        
+        # Verwijder duplicaten maar behoud volgorde
+        seen = set()
+        tickers_to_try = [t for t in tickers_to_try if not (t in seen or seen.add(t))]
+        
+        # Initialize logger
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Zoeken naar company info voor ticker '{ticker}', probeer varianten: {tickers_to_try}")
         
         # Probeer verschillende ticker formaten
         # requests_cache cached automatisch alle HTTP requests, dus geen handmatige cache nodig
@@ -1323,41 +1342,74 @@ def get_company_info(ticker):
             else:
                 del _company_info_cache[cache_key]
         
-        # Als geen cache hit, haal data op van yfinance
+        # Probeer eerst database cache - gebruik service layer voor efficiënte query
         if not info:
+            try:
+                from .services.company_info_service import get_company_info_from_cache
+                cached_info, cached_position = get_company_info_from_cache(tickers_to_try)
+                if cached_info:
+                    info = cached_info
+                    position = cached_position
+                    logger.debug(f"Gebruik gecachte database company info voor {ticker}")
+            except Exception as db_error:
+                logger.debug(f"Database cache check failed: {db_error}")
+        
+        # Fallback naar yfinance als database cache niet beschikbaar is of incomplete
+        # Ook als database cache wel bestaat maar sommige financial ratios ontbreken
+        if not info or (info and not all(key in info for key in ['trailingPE', 'priceToBook', 'dividendYield'])):
             for ticker_variant in tickers_to_try:
                 try:
                     # yf.Ticker().info wordt automatisch gecached door requests_cache (als beschikbaar)
-                    # De cache duurt 24 uur en wordt opgeslagen in SQLite database
                     ticker_obj = yf.Ticker(ticker_variant)
+                    yf_info = ticker_obj.info
                     
-                    # Haal info op (wordt automatisch gecached door requests_cache)
-                    info = ticker_obj.info
-                    
-                    # Als we geldige data hebben, stop met proberen
-                    if info and len(info) > 0 and 'symbol' in info:
-                        # Sla op in in-memory cache (fallback)
-                        if use_memory_cache:
-                            _company_info_cache[cache_key] = (info, current_time)
-                        break
-                    elif info and len(info) > 0:
-                        # Soms geeft yfinance data zonder 'symbol' maar met andere velden
-                        # Check of er nuttige data is
-                        if any(key in info for key in ['longName', 'shortName', 'sector', 'industry']):
-                            # Sla op in in-memory cache (fallback)
+                    # Als we geldige data hebben
+                    if yf_info and len(yf_info) > 0:
+                        # Als info al bestaat (uit database), vul ontbrekende velden aan
+                        if info:
+                            # Vul ontbrekende financial ratios aan
+                            if 'trailingPE' not in info or info.get('trailingPE') is None:
+                                info['trailingPE'] = yf_info.get('trailingPE')
+                            if 'forwardPE' not in info or info.get('forwardPE') is None:
+                                info['forwardPE'] = yf_info.get('forwardPE')
+                            if 'pegRatio' not in info or info.get('pegRatio') is None:
+                                info['pegRatio'] = yf_info.get('pegRatio')
+                            if 'priceToBook' not in info or info.get('priceToBook') is None:
+                                info['priceToBook'] = yf_info.get('priceToBook')
+                            if 'priceToSalesTrailing12Months' not in info or info.get('priceToSalesTrailing12Months') is None:
+                                info['priceToSalesTrailing12Months'] = yf_info.get('priceToSalesTrailing12Months')
+                            if 'dividendYield' not in info or info.get('dividendYield') is None:
+                                info['dividendYield'] = yf_info.get('dividendYield')
+                            if 'dividendRate' not in info or info.get('dividendRate') is None:
+                                info['dividendRate'] = yf_info.get('dividendRate')
+                            if 'payoutRatio' not in info or info.get('payoutRatio') is None:
+                                info['payoutRatio'] = yf_info.get('payoutRatio')
+                            if 'trailingEps' not in info or info.get('trailingEps') is None:
+                                info['trailingEps'] = yf_info.get('trailingEps')
+                            if 'forwardEps' not in info or info.get('forwardEps') is None:
+                                info['forwardEps'] = yf_info.get('forwardEps')
+                            if 'debtToEquity' not in info or info.get('debtToEquity') is None:
+                                info['debtToEquity'] = yf_info.get('debtToEquity')
+                            if 'currentRatio' not in info or info.get('currentRatio') is None:
+                                info['currentRatio'] = yf_info.get('currentRatio')
+                        else:
+                            # Geen database cache, gebruik volledige yfinance data
+                            info = yf_info
+                        
+                        # Als we geldige data hebben, stop met proberen
+                        if info and len(info) > 0 and ('symbol' in info or 'longName' in info or 'shortName' in info):
                             if use_memory_cache:
                                 _company_info_cache[cache_key] = (info, current_time)
                             break
                 except Exception as yf_error:
                     error_str = str(yf_error)
                     last_error = yf_error
-                    # requests_cache gebruikt automatisch stale_if_error voor 429 errors
-                    # Voor in-memory cache fallback: probeer oude data te gebruiken
                     if use_memory_cache and cache_key in _company_info_cache:
                         if '429' in error_str or 'Too Many Requests' in error_str:
                             old_info, _ = _company_info_cache[cache_key]
                             if old_info:
-                                info = old_info
+                                if not info:
+                                    info = old_info
                                 break
                     continue
         
@@ -1379,14 +1431,20 @@ def get_company_info(ticker):
                 'error': error_msg
             }), 404
         
-        # Haal portfolio positie op voor "Your Position" data
+        # Haal portfolio positie op voor "Your Position" data en sector
+        # Gebruik position uit cache als beschikbaar, anders query
         position_data = {}
-        try:
-            position = db.session.query(Position).filter(
-                or_(Position.pos_ticker == ticker, Position.pos_name == ticker)
-            ).first()
-            
-            if position:
+        if not position:  # Als niet al uit cache gehaald
+            try:
+                position = db.session.query(Position).filter(
+                    or_(Position.pos_ticker == ticker, Position.pos_name == ticker)
+                ).first()
+            except Exception as e:
+                logger.debug(f"Error fetching position: {e}")
+                position = None
+        
+        if position:
+            try:
                 quantity = position.pos_quantity or 0
                 cost_basis = float(position.pos_value) if position.pos_value else 0.0
                 current_price = position.current_price or 0.0
@@ -1403,14 +1461,38 @@ def get_company_info(ticker):
                     'pnl_value': format_currency(pnl_value),
                     'pnl_percent': f"{'+' if pnl_percent >= 0 else ''}{pnl_percent:.2f}%"
                 }
-        except Exception as e:
-            print(f"Error fetching position data: {e}")
+                
+                # Overschrijf sector met sector uit positions tabel (om overlap te voorkomen)
+                if position.pos_sector and info:
+                    info['sector'] = position.pos_sector
+            except Exception as e:
+                logger.debug(f"Error processing position data: {e}")
         
         # Format financial data
-        def safe_get(key, default='N/A', format_func=None):
+        def safe_get(key, default='N/A', format_func=None, alt_keys=None):
+            """
+            Haal waarde op uit info dict, probeer alternatieve keys als eerste key niet bestaat
+            
+            Args:
+                key: Primaire key om te zoeken
+                default: Default waarde als niet gevonden
+                format_func: Functie om waarde te formatteren
+                alt_keys: Lijst van alternatieve keys om te proberen
+            """
+            # Probeer eerst primaire key
             value = info.get(key)
+            
+            # Als niet gevonden en alternatieve keys zijn gegeven, probeer die
+            if (value is None or value == '') and alt_keys:
+                for alt_key in alt_keys:
+                    alt_value = info.get(alt_key)
+                    if alt_value is not None and alt_value != '':
+                        value = alt_value
+                        break
+            
             if value is None or value == '':
                 return default
+            
             if format_func:
                 try:
                     return format_func(value)
@@ -1431,27 +1513,27 @@ def get_company_info(ticker):
             'currency': safe_get('currency', 'EUR'),
         }
         
-        # Financial Ratios
+        # Financial Ratios - probeer alternatieve keys voor betere data coverage
         ratios = {
-            'pe_ratio': safe_get('trailingPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'forward_pe': safe_get('forwardPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'pe_ratio': safe_get('trailingPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['peRatio', 'trailingP/E']),
+            'forward_pe': safe_get('forwardPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['forwardP/E']),
             'peg_ratio': safe_get('pegRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'price_to_book': safe_get('priceToBook', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'price_to_sales': safe_get('priceToSalesTrailing12Months', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'dividend_yield': safe_get('dividendYield', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'dividend_rate': safe_get('dividendRate', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'payout_ratio': safe_get('payoutRatio', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'eps': safe_get('trailingEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
-            'eps_forward': safe_get('forwardEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
-            'return_on_equity': safe_get('returnOnEquity', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'return_on_assets': safe_get('returnOnAssets', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'profit_margin': safe_get('profitMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'operating_margin': safe_get('operatingMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'debt_to_equity': safe_get('debtToEquity', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'current_ratio': safe_get('currentRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            '52_week_high': safe_get('fiftyTwoWeekHigh', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
-            '52_week_low': safe_get('fiftyTwoWeekLow', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
-            'beta': safe_get('beta', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
+            'price_to_book': safe_get('priceToBook', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['pbRatio', 'priceToBookRatio']),
+            'price_to_sales': safe_get('priceToSalesTrailing12Months', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['priceToSales', 'priceSalesTrailing12Months']),
+            'dividend_yield': safe_get('dividendYield', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['yield', 'dividendYieldTTM']),
+            'dividend_rate': safe_get('dividendRate', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['annualDividend', 'dividend']),
+            'payout_ratio': safe_get('payoutRatio', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['payout']),
+            'eps': safe_get('trailingEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['epsTrailing12Months', 'eps']),
+            'eps_forward': safe_get('forwardEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['epsForward', 'forwardEps']),
+            'return_on_equity': safe_get('returnOnEquity', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['roe', 'returnOnEquityTTM']),
+            'return_on_assets': safe_get('returnOnAssets', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['roa', 'returnOnAssetsTTM']),
+            'profit_margin': safe_get('profitMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['profitMargin', 'netProfitMargin']),
+            'operating_margin': safe_get('operatingMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['operatingMargin', 'operatingMarginTTM']),
+            'debt_to_equity': safe_get('debtToEquity', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['debtEquity', 'totalDebt/equity']),
+            'current_ratio': safe_get('currentRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['current']),
+            '52_week_high': safe_get('fiftyTwoWeekHigh', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['52WeekHigh', 'fiftyTwoWeekHigh']),
+            '52_week_low': safe_get('fiftyTwoWeekLow', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['52WeekLow', 'fiftyTwoWeekLow']),
+            'beta': safe_get('beta', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['beta3Year']),
         }
         
         return jsonify({
@@ -1463,10 +1545,24 @@ def get_company_info(ticker):
         })
         
     except Exception as e:
-        # Log error voor debugging op Render (maar niet naar console printen)
-        import logging
+        # Log error voor debugging
         logger = logging.getLogger(__name__)
         logger.error(f"Error fetching company info for {ticker}: {e}", exc_info=True)
+        
+        # Probeer te debuggen: check of ticker in database staat
+        try:
+            all_tickers = db.session.query(CompanyInfo.ticker).all()
+            logger.debug(f"Available tickers in database: {[t[0] for t in all_tickers[:10]]}")
+            
+            # Check of ticker in positions staat
+            position = db.session.query(Position).filter(
+                or_(Position.pos_ticker.ilike(f"%{ticker}%"), 
+                    Position.pos_name.ilike(f"%{ticker}%"))
+            ).first()
+            if position:
+                logger.debug(f"Found position: ticker={position.pos_ticker}, name={position.pos_name}")
+        except Exception as debug_error:
+            logger.debug(f"Debug check failed: {debug_error}")
         
         # Geef gebruiksvriendelijke error message (geen technische details)
         return jsonify({
@@ -3189,10 +3285,6 @@ def edit_profile_post():
 
 # --- File Storage Helper Functies ---
 
-def _get_upload_folder():
-    """Haal upload folder path op (voor backwards compatibility)"""
-    return Path(current_app.config['UPLOAD_FOLDER'])
-
 def _get_supabase_bucket():
     """Haal Supabase bucket naam op"""
     return current_app.config.get('SUPABASE_BUCKET', 'files')
@@ -3249,16 +3341,6 @@ def _get_file_item_by_id(file_id):
         FileItem.item_id == file_id,
         FileItem.item_type == 'file'
     ).first()
-
-def _build_local_file_path(storage_path):
-    """
-    Bouw lokaal file path op basis van storage path (voor backwards compatibility)
-    Returns: Path object naar lokaal bestand
-    """
-    upload_folder = _get_upload_folder()
-    # Converteer forward slashes naar backslashes voor Windows
-    windows_path = storage_path.replace('/', '\\') if storage_path else ''
-    return upload_folder / windows_path if windows_path else upload_folder
 
 def _get_supabase_storage_path(storage_path):
     """
