@@ -1,7 +1,6 @@
 """
 Risico-analyse module voor portfolio
-Berekent VaR, volatility, correlation, diversification metrics, etc.
-Inclusief geavanceerde Portefeuille Benchmark Vergelijking.
+Berekent VaR, volatility, diversification metrics, stress testing, en benchmark vergelijkingen.
 """
 import numpy as np
 import pandas as pd
@@ -9,35 +8,14 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 import yfinance as yf
 import logging
-import requests_cache
-from pathlib import Path
-from ..models import Position, StockPriceHistory
+from ..models import Position
 
 # Configureer logging
 logger = logging.getLogger(__name__)
 
-# Initialize requests cache voor yfinance rate limiting
-# Cache duurt 24 uur (86400 seconden) en wordt opgeslagen in een SQLite database
-_cache_dir = Path(__file__).parent.parent.parent / '.cache'
-_cache_dir.mkdir(exist_ok=True)
-_cache_file = _cache_dir / 'yfinance_cache'
-
-# Installeer de cache voor alle requests via requests_cache.install_cache
-# Dit zorgt ervoor dat alle HTTP requests (inclusief yfinance) automatisch gecached worden
-# Cache duurt 24 uur (86400 seconden) en wordt opgeslagen in een SQLite database
-# De cache voorkomt rate limiting (429 errors) door herhaalde requests te cachen
-try:
-    requests_cache.install_cache(
-        cache_name=str(_cache_file),
-        expire_after=86400,  # 24 uur in seconden
-        backend='sqlite',
-        allowable_methods=['GET', 'POST'],  # Cache GET en POST requests
-        allowable_codes=[200, 429],  # Cache ook 429 errors om rate limiting te voorkomen
-        stale_if_error=True  # Gebruik oude data als nieuwe data niet beschikbaar is
-    )
-    logger.info(f"YFinance cache geïnitialiseerd: {_cache_file} (TTL: 24 uur)")
-except Exception as e:
-    logger.warning(f"Kon requests cache niet installeren: {e}. Rate limiting kan optreden.")
+# Note: requests_cache wordt geïnitialiseerd in routes.py en jobs.py
+# Dit voorkomt rate limiting bij Yahoo Finance API calls
+# De cache werkt globaal voor alle HTTP requests inclusief yfinance
 
 # Mock Benchmark Portefeuilles
 BENCHMARKS = {
@@ -150,57 +128,6 @@ class RiskAnalyzer:
         
         return weights
     
-    def get_top_positions(self, top_n: int = 5) -> List[Dict]:
-        """
-        Haal top N posities op (gesorteerd op waarde)
-        
-        Returns:
-            Lijst van dicts met positie informatie
-        """
-        position_data = []
-        for pos in self.positions:
-            if not pos:
-                continue
-            if not (hasattr(pos, 'current_price') and hasattr(pos, 'pos_quantity')):
-                continue
-            if pos.current_price is None or pos.pos_quantity is None:
-                continue
-            
-            try:
-                ticker = None
-                if hasattr(pos, 'pos_ticker') and pos.pos_ticker:
-                    ticker = str(pos.pos_ticker)
-                elif hasattr(pos, 'pos_name') and pos.pos_name:
-                    ticker = str(pos.pos_name)
-                
-                if not ticker:
-                    continue
-                
-                value = float(pos.current_price) * int(pos.pos_quantity)
-                position_data.append({
-                    'ticker': ticker,
-                    'name': str(pos.pos_name) if hasattr(pos, 'pos_name') and pos.pos_name else ticker,
-                    'sector': str(pos.pos_sector) if hasattr(pos, 'pos_sector') and pos.pos_sector else 'Unknown',
-                    'value': float(value),
-                    'quantity': int(pos.pos_quantity),
-                    'price': float(pos.current_price),
-                    'weight': 0.0  # Wordt later berekend
-                })
-            except (ValueError, TypeError, AttributeError) as e:
-                logger.debug(f"Error processing position: {e}")
-                continue
-        
-        # Sorteer op waarde (hoogste eerst)
-        position_data.sort(key=lambda x: x['value'], reverse=True)
-        
-        # Bereken gewichten
-        total_value = self.calculate_portfolio_value()
-        for p in position_data:
-            if total_value > 0:
-                p['weight'] = (p['value'] / total_value) * 100
-        
-        return position_data[:top_n]
-    
     def _get_returns_and_stats(self, weights: Dict[str, float], lookback_days: int = 252) -> Optional[Dict]:
         """
         Centrale helper functie om historische returns en statistieken te berekenen.
@@ -235,77 +162,39 @@ class RiskAnalyzer:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days + 30)  # Extra buffer voor weekends/holidays
             
-            # Probeer eerst gecachte database data te gebruiken - efficiënte bulk query
+            # Haal historische prijzen op via Yahoo Finance API
             prices_dict = {}
             try:
-                from flask import has_app_context, current_app
-                if has_app_context():
-                    from sqlalchemy import and_, or_
-                    from .. import db
-                    
-                    # Bulk query: haal alle tickers in één keer op (veel efficiënter)
-                    all_price_records = db.session.query(StockPriceHistory).filter(
-                        and_(
-                            StockPriceHistory.ticker.in_(tickers),
-                            StockPriceHistory.price_date >= start_date.date(),
-                            StockPriceHistory.price_date <= end_date.date()
-                        )
-                    ).order_by(StockPriceHistory.ticker, StockPriceHistory.price_date).all()
-                    
-                    # Groepeer per ticker
-                    records_by_ticker = {}
-                    for record in all_price_records:
-                        if record.ticker not in records_by_ticker:
-                            records_by_ticker[record.ticker] = []
-                        records_by_ticker[record.ticker].append(record)
-                    
-                    # Converteer naar pandas Series per ticker
+                ticker_data = yf.download(
+                    " ".join(tickers), 
+                    start=start_date, 
+                    end=end_date, 
+                    progress=False,
+                    group_by='ticker',
+                    auto_adjust=True
+                )
+                
+                if not ticker_data.empty:
+                    # Verwerk yfinance data
                     for ticker in tickers:
-                        price_records = records_by_ticker.get(ticker, [])
-                        if price_records and len(price_records) > 1:
-                            dates = [pd.Timestamp(record.price_date) for record in price_records]
-                            prices = [float(record.close_price) for record in price_records]
-                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
-                            logger.debug(f"Gebruik gecachte database data voor {ticker}: {len(price_records)} datapunten")
-            except Exception as e:
-                logger.debug(f"Kon geen database cache gebruiken: {e}")
-            
-            # Fallback naar yfinance als database cache niet beschikbaar is of incomplete
-            if not prices_dict or len(prices_dict) < len(tickers):
-                try:
-                    ticker_data = yf.download(
-                        " ".join([t for t in tickers if t not in prices_dict]), 
-                        start=start_date, 
-                        end=end_date, 
-                        progress=False,
-                        group_by='ticker',
-                        auto_adjust=True
-                    )
-                    
-                    if not ticker_data.empty:
-                        # Verwerk yfinance data
-                        for ticker in tickers:
-                            if ticker in prices_dict:
-                                continue  # Skip als al uit database
-                            
-                            if len([t for t in tickers if t not in prices_dict]) == 1:
-                                # Single ticker
-                                if 'Close' in ticker_data.columns:
-                                    prices_dict[ticker] = ticker_data['Close'].dropna()
-                                else:
-                                    prices_dict[ticker] = ticker_data.dropna()
+                        if len(tickers) == 1:
+                            # Single ticker
+                            if 'Close' in ticker_data.columns:
+                                prices_dict[ticker] = ticker_data['Close'].dropna()
                             else:
-                                # Multi-ticker
-                                if isinstance(ticker_data.columns, pd.MultiIndex):
-                                    if (ticker, 'Close') in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
-                                    elif ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                                else:
-                                    if ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                except Exception as e:
-                    logger.warning(f"Error downloading ticker data (yfinance fallback): {e}")
+                                prices_dict[ticker] = ticker_data.dropna()
+                        else:
+                            # Multi-ticker
+                            if isinstance(ticker_data.columns, pd.MultiIndex):
+                                if (ticker, 'Close') in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
+                                elif ticker in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data[ticker].dropna()
+                            else:
+                                if ticker in ticker_data.columns:
+                                    prices_dict[ticker] = ticker_data[ticker].dropna()
+            except Exception as e:
+                logger.warning(f"Error downloading ticker data from Yahoo Finance: {e}")
             
             if not prices_dict:
                 return None
@@ -445,10 +334,11 @@ class RiskAnalyzer:
     
     def calculate_diversification_score(self) -> Dict[str, Any]:
         """
-        Bereken diversificatie metrics voor portfolio
+        Bereken vereenvoudigde diversificatie metrics voor portfolio
+        (Sector spreiding wordt al getoond in portfolio tabblad)
         
         Returns:
-            Dict met verschillende diversificatie metrics
+            Dict met diversificatie metrics
         """
         weights = self.calculate_portfolio_weights()
         
@@ -456,9 +346,7 @@ class RiskAnalyzer:
             return {
                 'score': 0.0,
                 'num_positions': 0,
-                'sector_concentration': 1.0,
-                'max_weight': 0.0,
-                'sector_weights': {}
+                'max_weight': 0.0
             }
         
         # Exclude cash from position count
@@ -468,175 +356,18 @@ class RiskAnalyzer:
         # Maximum gewicht (concentratie risico)
         max_weight = max(position_weights.values()) if position_weights else 0.0
         
-        # Sector concentratie (als sector data beschikbaar is)
-        sector_weights = {}
-        for pos in self.positions:
-            if not pos:
-                continue
-            ticker = None
-            if hasattr(pos, 'pos_ticker') and pos.pos_ticker:
-                ticker = normalize_ticker(str(pos.pos_ticker))
-            elif hasattr(pos, 'pos_name') and pos.pos_name:
-                ticker = normalize_ticker(str(pos.pos_name))
-            
-            if ticker:
-                sector = str(pos.pos_sector) if hasattr(pos, 'pos_sector') and pos.pos_sector else "Unknown"
-                weight = position_weights.get(ticker, 0)
-                sector_weights[sector] = sector_weights.get(sector, 0) + weight
+        # Vereenvoudigde diversificatie score (0-100)
+        # Gebaseerd op aantal posities en max weight (sector spreiding al in portfolio tabblad)
+        position_score = min(num_positions / 15.0, 1.0) * 50  # Max 50 punten voor posities
+        concentration_score = (1 - max_weight) * 50  # Max 50 punten voor spreiding
         
-        # Herfindahl-Hirschman Index voor sector concentratie
-        # HHI = sum(weight^2), lager is beter (meer gediversifieerd)
-        hhi = sum(w**2 for w in sector_weights.values()) if sector_weights else 1.0
-        
-        # Diversificatie score (0-100, hoger is beter)
-        # Gebaseerd op aantal posities, max weight, en sector spreiding
-        position_score = min(num_positions / 20.0, 1.0) * 40  # Max 40 punten voor posities
-        concentration_score = (1 - max_weight) * 30  # Max 30 punten voor spreiding
-        sector_score = (1 - min(hhi, 1.0)) * 30  # Max 30 punten voor sector diversificatie
-        
-        total_score = position_score + concentration_score + sector_score
+        total_score = position_score + concentration_score
         
         return {
             'score': round(float(total_score), 2),
             'num_positions': num_positions,
-            'sector_concentration': round(float(hhi), 3),
-            'max_weight': round(float(max_weight), 3),
-            'sector_weights': {k: float(v) for k, v in sector_weights.items()}
+            'max_weight': round(float(max_weight), 3)
         }
-    
-    def calculate_correlation_matrix(self, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
-        """
-        Bereken correlatie matrix tussen posities
-        
-        Returns:
-            Dict met correlatie data of None
-        """
-        try:
-            weights = self.calculate_portfolio_weights()
-            if not weights:
-                return None
-            
-            # Exclude cash
-            position_weights = {k: v for k, v in weights.items() if k != 'CASH' and v > 0}
-            
-            if len(position_weights) < 2:
-                return None
-            
-            tickers = [normalize_ticker(t) for t in position_weights.keys() if normalize_ticker(t)]
-            
-            if len(tickers) < 2:
-                return None
-            
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=lookback_days + 30)
-            
-            # Gebruik dezelfde helper logica als _get_returns_and_stats
-            prices_dict = {}
-            try:
-                from flask import has_app_context
-                if has_app_context():
-                    from sqlalchemy import and_
-                    from .. import db
-                    
-                    for ticker in tickers:
-                        price_records = db.session.query(StockPriceHistory).filter(
-                            and_(
-                                StockPriceHistory.ticker == ticker,
-                                StockPriceHistory.price_date >= start_date.date(),
-                                StockPriceHistory.price_date <= end_date.date()
-                            )
-                        ).order_by(StockPriceHistory.price_date).all()
-                        
-                        if price_records and len(price_records) > 1:
-                            dates = [pd.Timestamp(record.price_date) for record in price_records]
-                            prices = [float(record.close_price) for record in price_records]
-                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
-            except Exception as e:
-                logger.debug(f"Kon geen database cache gebruiken voor correlation: {e}")
-            
-            # Fallback naar yfinance
-            if not prices_dict or len(prices_dict) < len(tickers):
-                try:
-                    ticker_data = yf.download(
-                        " ".join([t for t in tickers if t not in prices_dict]),
-                        start=start_date,
-                        end=end_date,
-                        progress=False,
-                        group_by='ticker',
-                        auto_adjust=True
-                    )
-                    
-                    if not ticker_data.empty:
-                        for ticker in tickers:
-                            if ticker in prices_dict:
-                                continue
-                            
-                            if len([t for t in tickers if t not in prices_dict]) == 1:
-                                if 'Close' in ticker_data.columns:
-                                    prices_dict[ticker] = ticker_data['Close'].dropna()
-                                else:
-                                    prices_dict[ticker] = ticker_data.dropna()
-                            else:
-                                if isinstance(ticker_data.columns, pd.MultiIndex):
-                                    if (ticker, 'Close') in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
-                                    elif ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                                else:
-                                    if ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                except Exception as e:
-                    logger.warning(f"Error downloading ticker data for correlation (yfinance fallback): {e}")
-            
-            if not prices_dict:
-                return None
-            
-            # Bereken correlatie matrix
-            returns_data = {}
-            for ticker in tickers:
-                try:
-                    if ticker in prices_dict and len(prices_dict[ticker]) > 1:
-                        returns = prices_dict[ticker].pct_change().dropna()
-                        if len(returns) > 0:
-                            returns_data[ticker] = returns
-                except Exception as e:
-                    logger.debug(f"Error processing ticker {ticker} for correlation: {e}")
-                    continue
-            
-            if len(returns_data) < 2:
-                return None
-            
-            # Maak DataFrame van returns
-            returns_df = pd.DataFrame(returns_data)
-            returns_df = returns_df.dropna()
-            
-            if len(returns_df) < 10:  # Minimaal 10 datapunten nodig
-                return None
-            
-            # Bereken correlatie matrix
-            correlation_matrix = returns_df.corr()
-            
-            # Gemiddelde correlatie (hoe lager, hoe beter gediversifieerd)
-            # Exclude diagonal (1.0)
-            mask = np.triu(np.ones_like(correlation_matrix.values), k=1).astype(bool)
-            avg_correlation = correlation_matrix.values[mask].mean()
-            
-            # Convert to dict for JSON serialization
-            matrix_dict = {}
-            for idx, ticker1 in enumerate(correlation_matrix.index):
-                matrix_dict[ticker1] = {}
-                for ticker2 in correlation_matrix.columns:
-                    matrix_dict[ticker1][ticker2] = float(correlation_matrix.loc[ticker1, ticker2])
-            
-            return {
-                'matrix': matrix_dict,
-                'average_correlation': round(float(avg_correlation), 3),
-                'tickers': list(correlation_matrix.index)
-            }
-            
-        except Exception as e:
-            logger.error(f"Error calculating correlation matrix: {e}", exc_info=True)
-            return None
     
     def calculate_sharpe_ratio(self, lookback_days: int = 252) -> Optional[float]:
         """
@@ -662,16 +393,221 @@ class RiskAnalyzer:
             logger.error(f"Error calculating Sharpe ratio: {e}")
             return None
     
-    def calculate_position_volatilities(self, lookback_days: int = 252) -> Dict[str, float]:
+    def calculate_maximum_drawdown(self, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
         """
-        Bereken volatiliteit voor elke individuele positie
+        Bereken Maximum Drawdown (MDD) voor portfolio
+        MDD is de grootste daling van piek naar dal in de periode
+        
+        Args:
+            lookback_days: Aantal dagen terug voor historische data
         
         Returns:
-            Dict met ticker als key en volatiliteit (jaarlijks %) als value
+            Dict met 'mdd_percentage', 'mdd_absolute', 'peak_date', 'trough_date' of None
         """
-        volatilities = {}
+        stats = self._get_returns_and_stats(self.calculate_portfolio_weights(), lookback_days)
+        if not stats or stats['returns'] is None:
+            return None
+        
+        returns = stats['returns']
+        
+        # Bereken cumulatieve returns (portfolio waarde over tijd)
+        cumulative_returns = (1 + returns).cumprod()
+        
+        # Bereken running maximum (peak)
+        running_max = cumulative_returns.expanding().max()
+        
+        # Bereken drawdown (percentage daling vanaf peak)
+        drawdown = (cumulative_returns - running_max) / running_max * 100
+        
+        # Maximum drawdown
+        max_drawdown = drawdown.min()
+        
+        # Vind datum van peak en trough
+        trough_idx = drawdown.idxmin()
+        peak_idx = running_max[:trough_idx].idxmax() if trough_idx is not None else None
+        
+        # Bereken absolute MDD in EUR
+        portfolio_value = self.calculate_portfolio_value()
+        mdd_absolute = portfolio_value * (abs(max_drawdown) / 100) if max_drawdown < 0 else 0
+        
+        return {
+            'mdd_percentage': round(float(max_drawdown), 2),
+            'mdd_absolute': round(float(mdd_absolute), 2),
+            'peak_date': peak_idx.strftime('%Y-%m-%d') if peak_idx is not None else None,
+            'trough_date': trough_idx.strftime('%Y-%m-%d') if trough_idx is not None else None
+        }
+    
+    def calculate_conditional_var(self, confidence_level: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
+        """
+        Bereken Conditional Value at Risk (CVaR) / Expected Shortfall
+        CVaR is de verwachte verlies GEGEVEN dat VaR wordt overschreden
+        
+        Args:
+            confidence_level: Confidence level (default 0.95 = 95%)
+            lookback_days: Aantal dagen terug voor historische data
+        
+        Returns:
+            Dict met 'cvar_percentage', 'cvar_absolute' of None
+        """
+        stats = self._get_returns_and_stats(self.calculate_portfolio_weights(), lookback_days)
+        if not stats or stats['returns'] is None:
+            return None
+        
+        returns = stats['returns']
+        portfolio_value = self.calculate_portfolio_value()
+        
+        # Bereken VaR threshold (percentiel)
+        var_threshold = returns.quantile(1 - confidence_level)
+        
+        # CVaR = gemiddelde van alle returns die erger zijn dan VaR threshold
+        tail_returns = returns[returns <= var_threshold]
+        
+        if len(tail_returns) == 0:
+            return None
+        
+        # CVaR als percentage (negatief omdat het verlies is)
+        cvar_percentage = abs(tail_returns.mean()) * np.sqrt(252) * 100
+        
+        # CVaR in absolute waarde (EUR)
+        cvar_absolute = portfolio_value * (cvar_percentage / 100)
+        
+        return {
+            'cvar_percentage': round(float(cvar_percentage), 2),
+            'cvar_absolute': round(float(cvar_absolute), 2),
+            'confidence_level': confidence_level
+        }
+    
+    def calculate_portfolio_beta(self, benchmark_ticker: str = "SPY", lookback_days: int = 252) -> Optional[float]:
+        """
+        Bereken portfolio beta t.o.v. benchmark (default S&P 500)
+        Beta meet hoe gevoelig portfolio is voor marktbewegingen
+        
+        Args:
+            benchmark_ticker: Benchmark ticker (default "SPY" voor S&P 500)
+            lookback_days: Aantal dagen terug voor historische data
+        
+        Returns:
+            Beta waarde of None
+        """
+        stats = self._get_returns_and_stats(self.calculate_portfolio_weights(), lookback_days)
+        if not stats or stats['returns'] is None:
+            return None
+        
+        portfolio_returns = stats['returns']
+        
+        # Haal benchmark returns op
         try:
-            tickers = []
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=lookback_days + 30)
+            
+            benchmark_data = yf.download(
+                benchmark_ticker,
+                start=start_date,
+                end=end_date,
+                progress=False
+            )
+            
+            if benchmark_data.empty:
+                return None
+            
+            # Handle both single column and multi-column DataFrames
+            # Ensure we get a 1D Series, not a 2D DataFrame
+            if 'Close' in benchmark_data.columns:
+                benchmark_prices = benchmark_data['Close']
+                # If it's still a DataFrame (MultiIndex), get the first column
+                if isinstance(benchmark_prices, pd.DataFrame):
+                    benchmark_prices = benchmark_prices.iloc[:, 0]
+                # Ensure it's a Series
+                if not isinstance(benchmark_prices, pd.Series):
+                    benchmark_prices = pd.Series(benchmark_prices.values.flatten(), index=benchmark_data.index)
+            elif len(benchmark_data.columns) == 1:
+                benchmark_prices = benchmark_data.iloc[:, 0]
+                # Ensure it's a Series
+                if not isinstance(benchmark_prices, pd.Series):
+                    benchmark_prices = pd.Series(benchmark_prices.values.flatten(), index=benchmark_data.index)
+            else:
+                return None
+            
+            # Ensure benchmark_prices is 1D
+            if isinstance(benchmark_prices, pd.DataFrame):
+                benchmark_prices = benchmark_prices.iloc[:, 0]
+            if hasattr(benchmark_prices, 'values') and len(benchmark_prices.values.shape) > 1:
+                benchmark_prices = pd.Series(benchmark_prices.values.flatten(), index=benchmark_prices.index)
+            
+            benchmark_returns = benchmark_prices.pct_change().dropna()
+            
+            # Align portfolio en benchmark returns op datum
+            aligned_returns = pd.DataFrame({
+                'portfolio': portfolio_returns,
+                'benchmark': benchmark_returns
+            }).dropna()
+            
+            if len(aligned_returns) < 10:
+                return None
+            
+            # Beta = cov(portfolio, benchmark) / var(benchmark)
+            covariance = aligned_returns['portfolio'].cov(aligned_returns['benchmark'])
+            benchmark_variance = aligned_returns['benchmark'].var()
+            
+            if benchmark_variance == 0:
+                return None
+            
+            beta = covariance / benchmark_variance
+            
+            return float(beta)
+            
+        except Exception as e:
+            logger.warning(f"Error calculating portfolio beta: {e}")
+            return None
+    
+    def calculate_stress_test(self) -> Dict[str, Any]:
+        """
+        Voer stress test uit met verschillende scenario's
+        Simuleert impact van markt crashes en extreme events op portfolio
+        
+        Returns:
+            Dict met stress test resultaten voor verschillende scenario's
+        """
+        try:
+            portfolio_value = self.calculate_portfolio_value()
+            position_value = self.calculate_position_value()
+            weights = self.calculate_portfolio_weights()
+            position_weights = {k: v for k, v in weights.items() if k != 'CASH' and v > 0}
+            
+            if not position_weights:
+                return {
+                    'scenarios': [],
+                    'total_portfolio_value': float(portfolio_value),
+                    'total_position_value': float(position_value)
+                }
+            
+            scenarios = []
+            
+            # Scenario 1: Algemene markt crash (-10%, -20%, -30%)
+            for crash_percentage in [10, 20, 30]:
+                # Bereken nieuwe position value na crash
+                scenario_position_value = position_value * (1 - crash_percentage / 100)
+                # Totale portfolio waarde = nieuwe position value + cash (cash blijft onveranderd)
+                total_value = scenario_position_value + self.cash_amount
+                # Verlies = verschil tussen oude en nieuwe portfolio waarde
+                loss_absolute = portfolio_value - total_value
+                # Verlies percentage van totale portfolio waarde
+                loss_percentage = (loss_absolute / portfolio_value * 100) if portfolio_value > 0 else 0
+                
+                scenarios.append({
+                    'name': f'Market Crash -{crash_percentage}%',
+                    'description': f'Simuleert een algemene marktcrash van {crash_percentage}%',
+                    'position_value_after': round(float(scenario_position_value), 2),
+                    'total_value_after': round(float(total_value), 2),
+                    'loss_absolute': round(float(loss_absolute), 2),
+                    'loss_percentage': round(float(loss_percentage), 2),
+                    'cash_impact': 'Cash blijft onveranderd',
+                    'severity': 'High' if crash_percentage >= 20 else 'Medium'
+                })
+            
+            # Scenario 2: Tech sector crash (-25%)
+            tech_tickers = []
+            tech_weight = 0.0
             for pos in self.positions:
                 if not pos:
                     continue
@@ -681,87 +617,109 @@ class RiskAnalyzer:
                 elif hasattr(pos, 'pos_name') and pos.pos_name:
                     ticker = normalize_ticker(str(pos.pos_name))
                 
-                if ticker:
-                    tickers.append(ticker)
+                if ticker and ticker in position_weights:
+                    sector = str(pos.pos_sector) if hasattr(pos, 'pos_sector') and pos.pos_sector else "Unknown"
+                    # Tech sector keywords (kan uitgebreid worden)
+                    if any(keyword in sector.lower() for keyword in ['tech', 'technology', 'software', 'semiconductor']):
+                        tech_weight += position_weights.get(ticker, 0)
+                        tech_tickers.append(ticker)
             
-            if not tickers:
-                return {}
+            if tech_weight > 0:
+                tech_crash_percentage = 25
+                # Verlies alleen op tech posities
+                tech_loss = position_value * tech_weight * (tech_crash_percentage / 100)
+                # Nieuwe position value = oude value - tech loss
+                scenario_position_value = position_value - tech_loss
+                # Totale portfolio waarde = nieuwe position value + cash
+                total_value = scenario_position_value + self.cash_amount
+                # Verlies = verschil tussen oude en nieuwe portfolio waarde
+                loss_absolute = portfolio_value - total_value
+                loss_percentage = (loss_absolute / portfolio_value * 100) if portfolio_value > 0 else 0
+                
+                scenarios.append({
+                    'name': f'Tech Sector Crash -{tech_crash_percentage}%',
+                    'description': f'Simuleert een tech sector crash van {tech_crash_percentage}% (impact: {tech_weight*100:.1f}% van portfolio)',
+                    'position_value_after': round(float(scenario_position_value), 2),
+                    'total_value_after': round(float(total_value), 2),
+                    'loss_absolute': round(float(loss_absolute), 2),
+                    'loss_percentage': round(float(loss_percentage), 2),
+                    'cash_impact': 'Cash blijft onveranderd',
+                    'severity': 'High',
+                    'affected_positions': len(tech_tickers)
+                })
             
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=lookback_days + 30)
+            # Scenario 3: Volatility spike (2x volatiliteit)
+            volatility = self.calculate_portfolio_volatility(lookback_days=252)
+            if volatility is not None:
+                # Bij 2x volatiliteit, veronderstel een 1.5x standaarddeviatie move (ongeveer 95% VaR)
+                volatility_multiplier = 2.0
+                stress_volatility = volatility * volatility_multiplier
+                # Gebruik VaR-achtige berekening: 1.645 * volatility (95% confidence)
+                stress_move = (stress_volatility / np.sqrt(252)) * 1.645  # 1-day move
+                stress_percentage = abs(stress_move)
+                
+                # Nieuwe position value na volatility spike
+                scenario_position_value = position_value * (1 - stress_percentage / 100)
+                # Totale portfolio waarde = nieuwe position value + cash
+                total_value = scenario_position_value + self.cash_amount
+                # Verlies = verschil tussen oude en nieuwe portfolio waarde
+                loss_absolute = portfolio_value - total_value
+                loss_percentage = (loss_absolute / portfolio_value * 100) if portfolio_value > 0 else 0
+                
+                scenarios.append({
+                    'name': f'Volatility Spike (2x)',
+                    'description': f'Simuleert een volatiliteitsspike waarbij portfolio volatiliteit verdubbelt naar {stress_volatility:.1f}%',
+                    'position_value_after': round(float(scenario_position_value), 2),
+                    'total_value_after': round(float(total_value), 2),
+                    'loss_absolute': round(float(loss_absolute), 2),
+                    'loss_percentage': round(float(loss_percentage), 2),
+                    'cash_impact': 'Cash blijft onveranderd',
+                    'severity': 'Medium',
+                    'volatility_after': round(float(stress_volatility), 2)
+                })
             
-            # Gebruik database cache
-            prices_dict = {}
-            try:
-                from flask import has_app_context
-                if has_app_context():
-                    from sqlalchemy import and_
-                    from .. import db
-                    
-                    for ticker in tickers:
-                        price_records = db.session.query(StockPriceHistory).filter(
-                            and_(
-                                StockPriceHistory.ticker == ticker,
-                                StockPriceHistory.price_date >= start_date.date(),
-                                StockPriceHistory.price_date <= end_date.date()
-                            )
-                        ).order_by(StockPriceHistory.price_date).all()
-                        
-                        if price_records and len(price_records) > 1:
-                            dates = [pd.Timestamp(record.price_date) for record in price_records]
-                            prices = [float(record.close_price) for record in price_records]
-                            prices_dict[ticker] = pd.Series(prices, index=dates, name='Close')
-            except Exception as e:
-                logger.debug(f"Kon geen database cache gebruiken voor volatilities: {e}")
+            # Scenario 4: Worst case (combineert -30% crash + volatility spike)
+            worst_case_percentage = 35  # Conservatieve worst case
+            # Nieuwe position value na worst case
+            scenario_position_value = position_value * (1 - worst_case_percentage / 100)
+            # Totale portfolio waarde = nieuwe position value + cash
+            total_value = scenario_position_value + self.cash_amount
+            # Verlies = verschil tussen oude en nieuwe portfolio waarde
+            loss_absolute = portfolio_value - total_value
+            loss_percentage = (loss_absolute / portfolio_value * 100) if portfolio_value > 0 else 0
             
-            # Fallback naar yfinance
-            if not prices_dict or len(prices_dict) < len(tickers):
-                try:
-                    ticker_data = yf.download(
-                        " ".join([t for t in tickers if t not in prices_dict]),
-                        start=start_date,
-                        end=end_date,
-                        progress=False,
-                        group_by='ticker',
-                        auto_adjust=True
-                    )
-                    
-                    if not ticker_data.empty:
-                        for ticker in tickers:
-                            if ticker in prices_dict:
-                                continue
-                            
-                            if len([t for t in tickers if t not in prices_dict]) == 1:
-                                if 'Close' in ticker_data.columns:
-                                    prices_dict[ticker] = ticker_data['Close'].dropna()
-                                else:
-                                    prices_dict[ticker] = ticker_data.dropna()
-                            else:
-                                if isinstance(ticker_data.columns, pd.MultiIndex):
-                                    if (ticker, 'Close') in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[(ticker, 'Close')].dropna()
-                                    elif ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                                else:
-                                    if ticker in ticker_data.columns:
-                                        prices_dict[ticker] = ticker_data[ticker].dropna()
-                except Exception as e:
-                    logger.warning(f"Error downloading ticker data for volatilities (yfinance fallback): {e}")
+            scenarios.append({
+                'name': 'Worst Case Scenario',
+                'description': f'Conservatieve worst case combinatie: -{worst_case_percentage}% marktcrash + extreme volatiliteit',
+                'position_value_after': round(float(scenario_position_value), 2),
+                'total_value_after': round(float(total_value), 2),
+                'loss_absolute': round(float(loss_absolute), 2),
+                'loss_percentage': round(float(loss_percentage), 2),
+                'cash_impact': 'Cash blijft onveranderd',
+                'severity': 'Critical'
+            })
             
-            for ticker in tickers:
-                try:
-                    if ticker in prices_dict and len(prices_dict[ticker]) > 1:
-                        returns = prices_dict[ticker].pct_change().dropna()
-                        if len(returns) > 0:
-                            volatility = returns.std() * np.sqrt(252) * 100
-                            volatilities[ticker] = float(volatility)
-                except Exception as e:
-                    logger.debug(f"Error calculating volatility for {ticker}: {e}")
-                    continue
+            # Sorteer scenarios op severity en loss percentage
+            severity_order = {'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3}
+            scenarios.sort(key=lambda x: (severity_order.get(x.get('severity', 'Low'), 3), -x.get('loss_percentage', 0)))
+            
+            return {
+                'scenarios': scenarios,
+                'total_portfolio_value': round(float(portfolio_value), 2),
+                'total_position_value': round(float(position_value), 2),
+                'cash_amount': round(float(self.cash_amount), 2),
+                'num_positions': len(position_weights)
+            }
+            
         except Exception as e:
-            logger.error(f"Error calculating position volatilities: {e}")
-        
-        return volatilities
+            logger.error(f"Error calculating stress test: {e}", exc_info=True)
+            return {
+                'scenarios': [],
+                'total_portfolio_value': float(self.calculate_portfolio_value()),
+                'total_position_value': float(self.calculate_position_value()),
+                'cash_amount': float(self.cash_amount),
+                'num_positions': 0
+            }
     
     def compare_with_benchmarks(self) -> List[Dict[str, Any]]:
         """
@@ -831,10 +789,11 @@ class RiskAnalyzer:
             var_95 = self.calculate_var(confidence_level=0.95, lookback_days=252)
             var_99 = self.calculate_var(confidence_level=0.99, lookback_days=252)
             diversification = self.calculate_diversification_score()
-            correlation = self.calculate_correlation_matrix(lookback_days=252)
-            top_positions = self.get_top_positions(top_n=5)
-            position_volatilities = self.calculate_position_volatilities(lookback_days=252)
             sharpe_ratio = self.calculate_sharpe_ratio(lookback_days=252)
+            max_drawdown = self.calculate_maximum_drawdown(lookback_days=252)
+            cvar_95 = self.calculate_conditional_var(confidence_level=0.95, lookback_days=252)
+            portfolio_beta = self.calculate_portfolio_beta(lookback_days=252)
+            stress_test = self.calculate_stress_test()
             
             # Benchmark vergelijkingen
             benchmark_comparison = self.compare_with_benchmarks()
@@ -852,11 +811,12 @@ class RiskAnalyzer:
                 'var_95': var_95,
                 'var_99': var_99,
                 'diversification': diversification,
-                'correlation': correlation,
                 'risk_level': self._assess_risk_level(volatility, diversification, var_95),
-                'top_positions': top_positions,
-                'position_volatilities': position_volatilities,
                 'sharpe_ratio': float(sharpe_ratio) if sharpe_ratio is not None else None,
+                'max_drawdown': max_drawdown,
+                'cvar_95': cvar_95,
+                'portfolio_beta': float(portfolio_beta) if portfolio_beta is not None else None,
+                'stress_test': stress_test,
                 'benchmark_comparison': benchmark_comparison
             }
         except Exception as e:
@@ -871,12 +831,13 @@ class RiskAnalyzer:
                 'volatility': None,
                 'var_95': None,
                 'var_99': None,
-                'diversification': {'score': 0.0, 'num_positions': 0, 'sector_concentration': 1.0, 'max_weight': 0.0, 'sector_weights': {}},
-                'correlation': None,
+                'diversification': {'score': 0.0, 'num_positions': 0, 'max_weight': 0.0},
                 'risk_level': 'Unknown',
-                'top_positions': [],
-                'position_volatilities': {},
                 'sharpe_ratio': None,
+                'max_drawdown': None,
+                'cvar_95': None,
+                'portfolio_beta': None,
+                'stress_test': {'scenarios': [], 'total_portfolio_value': 0, 'total_position_value': 0, 'cash_amount': 0, 'num_positions': 0},
                 'benchmark_comparison': []
             }
     

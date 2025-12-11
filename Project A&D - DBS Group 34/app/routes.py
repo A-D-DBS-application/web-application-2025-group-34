@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 from io import BytesIO
 from . import supabase, db
-from .models import CompanyInfo
 import time
 import logging
 
@@ -71,52 +70,227 @@ from .models import (
 
 main = Blueprint("main", __name__)
 
-# --- MOCK DATA UIT FIGMA (App.tsx) ---
-MOCK_CASH_AMOUNT = 16411.22
-
-MOCK_POSITIONS = [
-  {"asset": "Adyen NV", "sector": "Tech", "ticker": "ADYEN", "day_change": "+0.66%", "share_price": 1504.0, "quantity": 1, "market_value": 1504.0, "unrealizedGain": 187.4, "unrealizedPL": 14.23},
-  {"asset": "ALPHABET INC.", "sector": "Tech", "ticker": "GOOGL", "day_change": "+0.55%", "share_price": 217.85, "quantity": 7, "market_value": 1524.95, "unrealizedGain": -92.8, "unrealizedPL": -6.02},
-  {"asset": "BERKSHIRE HATHAWAY", "sector": "RE, F. & Hold.", "ticker": "BRK. B", "day_change": "-0.34%", "share_price": 421.93, "quantity": 8, "market_value": 3375.44, "unrealizedGain": 393.38, "unrealizedPL": 11.15},
-  {"asset": "MICROSOFT CORP.", "sector": "Tech", "ticker": "MSFT", "day_change": "+0.02%", "share_price": 448.1, "quantity": 3, "market_value": 1344.3, "unrealizedGain": 833.28, "unrealizedPL": 114.4},
-]
-
-MOCK_ANNOUNCEMENTS = [
-    {"title": "Stemresultaten Banca Sistema", "body": "De stemming over Banca Sistema verliep als volgt: 75,00% akkoord. De aankoop is goedgekeurd.", "date": "04/11/2025", "author": "Milan Van Nuffel"},
-    {"title": "Reminder: AV 3 vanavond", "body": "Een korte reminder dat deze avond AV 3 op de planning staat.", "date": "05/11/2025", "author": "Casper Bekaert"},
-]
-
-MOCK_UPCOMING_EVENTS = [
-    {"title": "Algemene vergadering 6", "date": "12/12/2025", "time": "19:30", "location": "Gent, Belgium"},
-    {"title": "Algemene vergadering 5", "date": "28/11/2025", "time": "19:30", "location": "Gent, Belgium"},
-]
-
-# Weekdag-namen in het Nederlands voor de "Vandaag:"-sectie van de agenda
-WEEKDAY_NAMES_NL = [
-    "maandag",
-    "dinsdag",
-    "woensdag",
-    "donderdag",
-    "vrijdag",
-    "zaterdag",
-    "zondag",
-]
-
-MOCK_TRANSACTIONS = [
-    {"number": 1, "date": "1-9-2022", "type": "BUY", "asset": "Volkswagen AG", "ticker": "VOW3", "units": 4, "price": 129.72, "total": 518.88, "currency": "EUR", "profitLoss": None},
-    {"number": 2, "date": "1-9-2022", "type": "SELL", "asset": "ADVANCED MICRO DEVICES", "ticker": "AMD", "units": 10, "price": 66.64, "total": -666.4, "currency": "USD", "profitLoss": 80.5},
-]
-
-
-# --- HELPER FUNCTIES ---
+# ============================================================================
+# CONSTANTS & CONFIGURATION
+# ============================================================================
 
 # Timezone constant
 TZ_BRUSSELS = pytz.timezone("Europe/Brussels")
+
+# Weekdag-namen in het Nederlands voor de "Vandaag:"-sectie van de agenda
+WEEKDAY_NAMES_NL = [
+    "maandag", "dinsdag", "woensdag", "donderdag", 
+    "vrijdag", "zaterdag", "zondag"
+]
+
+# ============================================================================
+# HELPER FUNCTIONS - General Utilities
+# ============================================================================
+
+# Currency symbolen mapping (constant, niet elke keer opnieuw maken)
+CURRENCY_SYMBOLS = {
+    'EUR': '€',
+    'USD': '$',
+    'GBP': '£',
+    'CAD': 'C$',
+    'DKK': 'kr',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'CHF': 'CHF',
+    'JPY': '¥',
+    'CNY': '¥',
+    'HKD': 'HK$',
+}
+
+def normalize_ticker_for_yfinance(ticker: str) -> list:
+    """
+    Normaliseer ticker en genereer varianten om te proberen voor Yahoo Finance
+    
+    Args:
+        ticker: Originele ticker string
+        
+    Returns:
+        Lijst van ticker varianten om te proberen
+    """
+    import urllib.parse
+    ticker = urllib.parse.unquote(ticker)
+    original_ticker = ticker.strip()
+    normalized_ticker = original_ticker.replace(" ", "-").replace(".", "-").replace("--", "-")
+    
+    tickers_to_try = [
+        original_ticker.upper(),
+        normalized_ticker.upper(),
+        original_ticker,
+        normalized_ticker,
+    ]
+    
+    # Voeg variant zonder punten/dashes toe
+    if "." in original_ticker or "-" in original_ticker:
+        clean_ticker = original_ticker.replace(".", "").replace("-", "").upper()
+        if clean_ticker not in [t.upper() for t in tickers_to_try]:
+            tickers_to_try.append(clean_ticker)
+    
+    # Verwijder duplicaten maar behoud volgorde
+    seen = set()
+    return [t for t in tickers_to_try if not (t in seen or seen.add(t))]
+
+def fetch_company_info_from_yfinance(tickers_to_try: list, logger) -> tuple:
+    """
+    Haal company info op via Yahoo Finance API
+    
+    Args:
+        tickers_to_try: Lijst van ticker varianten om te proberen
+        logger: Logger instance
+        
+    Returns:
+        Tuple van (info_dict, error_message) - info_dict is None bij error
+    """
+    last_error = None
+    
+    for ticker_variant in tickers_to_try:
+        try:
+            ticker_obj = yf.Ticker(ticker_variant)
+            yf_info = ticker_obj.info
+            
+            # Check of we geldige data hebben
+            if yf_info and isinstance(yf_info, dict) and len(yf_info) > 0:
+                if any(key in yf_info for key in ['symbol', 'longName', 'shortName', 'name']):
+                    logger.debug(f"Company info opgehaald voor {ticker_variant}")
+                    return yf_info, None
+                else:
+                    logger.debug(f"Lege of ongeldige data voor {ticker_variant}")
+            else:
+                logger.debug(f"Geen data voor {ticker_variant}")
+        except Exception as yf_error:
+            error_str = str(yf_error)
+            last_error = yf_error
+            logger.debug(f"Error bij ophalen data voor {ticker_variant}: {error_str}")
+            continue
+    
+    # Geen data gevonden
+    error_msg = 'Ticker not found or no data available.'
+    if last_error:
+        error_str = str(last_error)
+        if '429' in error_str or 'Too Many Requests' in error_str:
+            error_msg = 'Yahoo Finance is rate limiting requests. Please try again in a few minutes.'
+        elif '404' in error_str or 'Not Found' in error_str:
+            error_msg = 'This ticker may not exist or may be delisted.'
+    
+    return None, error_msg
+
+def format_financial_value(value, format_type='number', currency_symbol='€'):
+    """
+    Format een financial waarde met juiste formatting
+    
+    Args:
+        value: Waarde om te formatteren
+        format_type: 'number', 'currency', 'percentage', 'dividend_yield'
+        currency_symbol: Currency symbool om te gebruiken
+        
+    Returns:
+        Geformatteerde string
+    """
+    if value is None or value == '':
+        return 'N/A'
+    
+    try:
+        if format_type == 'currency':
+            formatted = format_currency(value)
+            # Vervang € met juiste symbool als nodig
+            if formatted.startswith('€') and currency_symbol != '€':
+                return formatted.replace('€', currency_symbol, 1)
+            return formatted
+        elif format_type == 'percentage':
+            return f"{(float(value) * 100):.2f}%"
+        elif format_type == 'dividend_yield':
+            val = float(value)
+            if 0 < abs(val) < 1:
+                return f"{(val * 100):.2f}%"
+            elif 1 <= abs(val) <= 100:
+                return f"{val:.2f}%"
+            elif abs(val) > 100:
+                return f"{(val / 100):.2f}%"
+            return 'N/A'
+        else:  # number
+            return f"{float(value):.2f}"
+    except (ValueError, TypeError):
+        return 'N/A'
+
+def safe_get_from_info(info: dict, key: str, default='N/A', format_func=None, alt_keys=None):
+    """
+    Haal waarde op uit info dict met fallback naar alternatieve keys
+    
+    Args:
+        info: Dictionary met company info
+        key: Primaire key om te zoeken
+        default: Default waarde als niet gevonden
+        format_func: Functie om waarde te formatteren
+        alt_keys: Lijst van alternatieve keys om te proberen
+        
+    Returns:
+        Waarde of default
+    """
+    # Probeer eerst primaire key
+    value = info.get(key)
+    
+    # Als niet gevonden en alternatieve keys zijn gegeven, probeer die
+    if (value is None or value == '') and alt_keys:
+        for alt_key in alt_keys:
+            alt_value = info.get(alt_key)
+            if alt_value is not None and alt_value != '':
+                value = alt_value
+                break
+    
+    if value is None or value == '':
+        return default
+    
+    if format_func:
+        try:
+            return format_func(value)
+        except:
+            return default
+    return value
 
 def handle_db_error(exc, error_message="Database operatie mislukt"):
     """Helper functie voor database error handling"""
     db.session.rollback()
     flash(error_message, "error")
+
+def validate_required_field(value, field_name, redirect_url):
+    """
+    Valideer of een verplicht veld is ingevuld
+    
+    Args:
+        value: Waarde om te valideren
+        field_name: Naam van het veld (voor error message)
+        redirect_url: URL om naar te redirecten bij error
+        
+    Returns:
+        Tuple (is_valid, error_message) - is_valid is True als veld geldig is
+    """
+    if not value or not value.strip():
+        return False, f"{field_name} is verplicht."
+    return True, None
+
+def commit_with_error_handling(success_message, error_message="Fout bij database operatie", redirect_url=None):
+    """
+    Commit database changes met error handling
+    
+    Args:
+        success_message: Flash message bij succes
+        error_message: Flash message bij error
+        redirect_url: URL om naar te redirecten (optioneel)
+        
+    Returns:
+        True bij succes, False bij error
+    """
+    try:
+        db.session.commit()
+        flash(success_message, "success")
+        return True
+    except Exception as e:
+        handle_db_error(e, error_message)
+        return False
 
 def parse_deadline_date(date_str):
     """
@@ -149,12 +323,116 @@ def ensure_timezone(dt):
 
 # Oude get_vote_counts functie verwijderd - gebruik nu VotingProposal.get_vote_counts() method
 
-# Import utility functions (backward compatibility - functions remain for existing code)
-from .utils import format_currency as _format_currency_util, format_transaction_date as _format_transaction_date_util
+# ============================================================================
+# FORMATTING FUNCTIONS (verplaatst van utils.py)
+# ============================================================================
 
 def format_currency(value):
-    """Formats a float to a European currency string (e.g., 1.234,56) - Uses utils module"""
-    return _format_currency_util(value)
+    """
+    Formats a float to a European currency string (e.g., 1.234,56)
+    
+    Args:
+        value: Float value to format, or None
+        
+    Returns:
+        Formatted currency string (e.g., "1.234,56")
+    """
+    if value is None:
+        return "0,00"
+    try:
+        return "{:,.2f}".format(float(value)).replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return "0,00"
+
+def format_number(value, decimals=2):
+    """
+    Format a number with European formatting (comma as decimal separator)
+    
+    Args:
+        value: Number to format
+        decimals: Number of decimal places
+        
+    Returns:
+        Formatted number string
+    """
+    if value is None:
+        return "0" + ("," + "0" * decimals if decimals > 0 else "")
+    try:
+        return f"{float(value):,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return "0" + ("," + "0" * decimals if decimals > 0 else "")
+
+def format_percentage(value, decimals=2, show_sign=False):
+    """
+    Format a percentage value
+    
+    Args:
+        value: Percentage value (e.g., 5.5 for 5.5%)
+        decimals: Number of decimal places
+        show_sign: Whether to show + sign for positive values
+        
+    Returns:
+        Formatted percentage string (e.g., "5,50%")
+    """
+    if value is None:
+        return "0,00%"
+    try:
+        sign = "+" if show_sign and float(value) >= 0 else ""
+        return f"{sign}{format_number(value, decimals)}%"
+    except (ValueError, TypeError):
+        return "0,00%"
+
+def format_date(date_obj, format_str="%d-%m-%Y", remove_leading_zeros=False):
+    """
+    Format a date object to string
+    
+    Args:
+        date_obj: Date object (datetime, date, or None)
+        format_str: Format string (default: "%d-%m-%Y")
+        remove_leading_zeros: Remove leading zeros from day/month
+        
+    Returns:
+        Formatted date string
+    """
+    from datetime import datetime
+    if date_obj is None:
+        date_obj = datetime.now()
+    
+    if hasattr(date_obj, 'strftime'):
+        date_str = date_obj.strftime(format_str)
+        if remove_leading_zeros:
+            # Remove leading zeros from day and month
+            parts = date_str.split('-')
+            if len(parts) >= 2:
+                day = str(int(parts[0])) if parts[0].isdigit() else parts[0]
+                month = str(int(parts[1])) if parts[1].isdigit() else parts[1]
+                date_str = f"{day}-{month}-{parts[2]}" if len(parts) > 2 else f"{day}-{month}"
+        return date_str
+    return str(date_obj)
+
+def format_transaction_date(date_obj):
+    """
+    Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022')
+    Supports datetime objects, date strings, and ISO format strings
+    """
+    from datetime import datetime
+    if date_obj is None:
+        return format_date(None, format_str="%d-%m-%Y", remove_leading_zeros=True)
+    
+    if isinstance(date_obj, str):
+        # Probeer ISO format te parsen
+        try:
+            # Probeer verschillende formaten
+            for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
+                try:
+                    parsed_date = datetime.strptime(date_obj.split('+')[0].split('Z')[0], fmt)
+                    return format_date(parsed_date, format_str="%d-%m-%Y", remove_leading_zeros=True)
+                except ValueError:
+                    continue
+        except Exception:
+            pass
+    
+    return format_date(date_obj, format_str="%d-%m-%Y", remove_leading_zeros=True)
 
 # Exchange rates voor currency conversie (approximatieve rates)
 # Deze rates worden gebruikt om transacties te sorteren op grootte, rekening houdend met wisselkoersen
@@ -246,9 +524,6 @@ def parse_float_from_form(form_data, field_name, min_value=0, field_label=None):
     except (ValueError, TypeError):
         return None, f"Ongeldige {field_label.lower()}."
 
-def format_transaction_date(date_obj):
-    """Formats a date to 'd-m-Y' format without leading zeros (e.g., '1-9-2022') - Uses utils module"""
-    return _format_transaction_date_util(date_obj)
 
 # Mapping van tickers naar asset namen, exchanges en sectoren (uit de Supabase data)
 TICKER_TO_ASSET = {
@@ -278,6 +553,24 @@ def _get_asset_info(ticker):
     if ticker and ticker in TICKER_TO_ASSET:
         return TICKER_TO_ASSET[ticker]
     return {"name": ticker or "Onbekend", "exchange": "", "sector": "Unknown"}
+
+def _get_empty_portfolio_data(cash_amount=0.0):
+    """
+    Helper functie om lege portfolio data te genereren (geen posities).
+    Gebruikt wanneer database leeg is of geen posities bevat.
+    
+    Args:
+        cash_amount: Cash bedrag in portfolio
+        
+    Returns:
+        Tuple van (portfolio_data_formatted, portfolio_value, total_market_value, total_unrealized_gain)
+    """
+    portfolio_data_formatted = []
+    total_market_value = 0.0
+    total_unrealized_gain = 0.0
+    portfolio_value = cash_amount
+    
+    return portfolio_data_formatted, portfolio_value, total_market_value, total_unrealized_gain
 
 def _normalize_transactions(records):
     """Normalize transaction records from Supabase to a consistent format"""
@@ -440,7 +733,7 @@ def _get_next_event_number():
             return latest_event.event_number + 1
         return 1
     except Exception:
-        return len(MOCK_UPCOMING_EVENTS) + 1
+        return 1
 
 def _format_event_date(date_str, time_str):
     if not date_str:
@@ -535,7 +828,7 @@ def _fetch_announcements():
     except Exception:
         pass
     
-    return MOCK_ANNOUNCEMENTS
+    return []
 
 def _fetch_events():
     """
@@ -591,18 +884,8 @@ def _fetch_events():
     except Exception:
         pass
 
-    # 2) Laatste fallback naar mock-data (gebruikt dezelfde normalisatie)
-    for row in MOCK_UPCOMING_EVENTS:
-        dt = _ensure_datetime(row.get("date"), row.get("time"))
-        normalized.append({
-            "id": None,
-            "title": row.get("title", ""),
-            "datetime": dt,
-            "date": dt.strftime("%d/%m/%Y"),
-            "time": dt.strftime("%H:%M"),
-            "location": row.get("location", "Onbekende locatie"),
-        })
-    return normalized
+    # Geen events gevonden - retourneer lege lijst
+    return []
 
 
 def _group_events_by_date(events):
@@ -702,7 +985,24 @@ def board_or_analist_required(view):
     """Decorator: vereist dat gebruiker board member of analist is."""
     return role_required('board', 'analist')(view)
 
-# --- ROUTES ---
+def admin_or_board_required(view):
+    """Decorator: vereist dat gebruiker admin of board member is."""
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if g.user is None:
+            flash("Je moet ingelogd zijn om deze pagina te bekijken.", "info")
+            return redirect(url_for('main.home'))
+        
+        if not g.user.is_admin_or_board():
+            flash("Alleen admins en bestuursleden kunnen deze actie uitvoeren.", "error")
+            return redirect(url_for('main.dashboard'))
+        
+        return view(*args, **kwargs)
+    return wrapped_view
+
+# ============================================================================
+# ROUTES - DASHBOARD & ANNOUNCEMENTS
+# ============================================================================
 
 # Dashboard pagina
 @main.route("/dashboard")
@@ -727,7 +1027,7 @@ def dashboard():
     )
 
 @main.route("/dashboard/announcements", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_announcement():
     title = request.form.get("title", "").strip()
     body = request.form.get("body", "").strip()
@@ -741,12 +1041,6 @@ def add_announcement():
     persisted = _persist_announcement_supabase(title, body, author)
     if not persisted:
         flash("Bericht lokaal toegevoegd; Supabase opslag mislukt.", "warning")
-        MOCK_ANNOUNCEMENTS.insert(0, {
-            "title": title,
-            "body": body,
-            "date": date_str,
-            "author": author
-        })
     flash("Bericht toegevoegd.", "success")
     return redirect(url_for("main.dashboard"))
 
@@ -796,7 +1090,7 @@ def get_announcement_details(announcement_id):
         return jsonify({'error': 'Fout bij ophalen van announcement details.'}), 500
 
 @main.route("/announcements/update", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_announcement():
     """Update een announcement"""
     try:
@@ -838,7 +1132,7 @@ def update_announcement():
     return redirect(url_for("main.dashboard"))
 
 @main.route("/announcements/delete", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_announcement():
     """Verwijder een announcement"""
     try:
@@ -867,7 +1161,7 @@ def delete_announcement():
     return redirect(url_for("main.dashboard"))
 
 @main.route("/dashboard/events", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_event():
     title = request.form.get("title", "").strip()
     date = request.form.get("date", "").strip()
@@ -888,12 +1182,6 @@ def add_event():
     persisted = _persist_event_supabase(title, iso_date, location)
     if not persisted:
         flash("Event lokaal toegevoegd; database opslag mislukt.", "warning")
-        MOCK_UPCOMING_EVENTS.insert(0, {
-            "title": title,
-            "date": date,
-            "time": time,
-            "location": location
-        })
     else:
         flash(f"Event '{title}' toegevoegd.", "success")
     return redirect(url_for("main.dashboard"))
@@ -946,7 +1234,7 @@ def get_event_details(event_number):
         return jsonify({'error': 'Fout bij ophalen van event details.'}), 500
 
 @main.route("/events/update", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_event():
     """Update een event"""
     try:
@@ -997,7 +1285,7 @@ def update_event():
     return redirect(url_for("main.dashboard"))
 
 @main.route("/events/delete", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_event():
     """Verwijder een event"""
     try:
@@ -1026,7 +1314,9 @@ def delete_event():
     return redirect(url_for("main.dashboard"))
 
 
-# --- Agenda / Events: iCal export routes ---
+# ============================================================================
+# ROUTES - EVENTS: ICAL EXPORT
+# ============================================================================
 
 @main.route("/events/<int:event_id>/ical")
 @login_required
@@ -1109,14 +1399,17 @@ def export_all_events_ical():
     resp.headers["Content-Disposition"] = "attachment; filename=agenda.ics"
     return resp
 
-# Portfolio pagina
+# ============================================================================
+# PORTFOLIO ROUTES
+# ============================================================================
+
 @main.route("/portfolio")
 @login_required 
 def portfolio():
     try:
         # Haal eerst cash position op uit database (pos_id = 0)
         cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
-        cash_amount = MOCK_CASH_AMOUNT  # Default fallback
+        cash_amount = 0.0  # Default fallback
         
         if cash_position and cash_position.pos_value is not None:
             cash_amount = float(cash_position.pos_value)
@@ -1124,28 +1417,10 @@ def portfolio():
         # Haal alle positions op uit database (exclude cash)
         positions = db.session.query(Position).filter(Position.pos_id != 0).all()
         
-        # Als er geen positions zijn, gebruik mock data als fallback
+        # Als er geen positions zijn, gebruik lege portfolio
         if not positions:
-            total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
-            total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-            portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
-            portfolio_data_formatted = []
-            for p in MOCK_POSITIONS:
-                weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
-                day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
-                pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
-                portfolio_data_formatted.append({
-                    'asset': p['asset'],
-                    'sector': p['sector'],
-                    'ticker': p['ticker'],
-                    'day_change': day_change_str,
-                    'share_price': format_currency(p['share_price']),
-                    'quantity': p['quantity'],
-                    'market_value': format_currency(p['market_value']),
-                    'weight': format_currency(weight),
-                    'pnl_percent': pnl_percent_str,
-                    'pnl_value': format_currency(p['unrealizedGain']),
-                })
+            portfolio_data_formatted, portfolio_value, total_market_value, total_unrealized_gain = _get_empty_portfolio_data(cash_amount)
+            from .models import Sector
             return render_template(
                 "portfolio.html",
                 portfolio_value=format_currency(portfolio_value),
@@ -1153,7 +1428,8 @@ def portfolio():
                 position_value=format_currency(total_market_value),
                 cash_amount=format_currency(cash_amount),
                 cash_amount_raw=cash_amount,
-                portfolio=portfolio_data_formatted
+                portfolio=portfolio_data_formatted,
+                sectors=Sector.get_all_options()
             )
         
         # Gebruik gecachte prijzen uit de database (geüpdatet door scheduler elke 5 minuten)
@@ -1198,17 +1474,31 @@ def portfolio():
             # Format percentage correct (geen currency formatting voor percentages)
             pnl_percent_str = f"{'+' if pnl_percent >= 0 else ''}{pnl_percent:.2f}%"
             
+            # Bereken CSS classes voor template (logica uit template verplaatst)
+            day_change_class = 'positive' if day_change_pct >= 0 else 'negative' if day_change_pct < 0 else ''
+            pnl_percent_class = 'positive' if pnl_percent >= 0 else 'negative' if pnl_percent < 0 else ''
+            
+            # Bereken numerieke waarden voor data attributes (niet strings die geparsed moeten worden)
+            day_change_numeric = day_change_pct  # Al een float
+            pnl_percent_numeric = pnl_percent  # Al een float
+            
             portfolio_data_formatted.append({
                 'pos_id': p.pos_id,  # Add pos_id for deletion functionality
                 'asset': p.pos_name or 'Onbekend',
                 'sector': p.pos_sector or p.pos_type or 'N/A',
                 'ticker': ticker or 'N/A',
                 'day_change': day_change,
+                'day_change_class': day_change_class,  # CSS class voor styling
+                'day_change_numeric': day_change_numeric,  # Numerieke waarde voor data attribute
                 'share_price': format_currency(share_price),
                 'quantity': quantity,
                 'market_value': market_value,
+                'market_value_numeric': market_value,  # Numerieke waarde voor data attribute
                 'pnl_percent': pnl_percent_str,
+                'pnl_percent_class': pnl_percent_class,  # CSS class voor styling
+                'pnl_percent_numeric': pnl_percent_numeric,  # Numerieke waarde voor data attribute
                 'pnl_value': format_currency(pnl_value),
+                'pnl_value_numeric': pnl_value,  # Numerieke waarde voor data attribute
             })
         
         total_unrealized_gain = total_market_value - total_cost
@@ -1237,34 +1527,15 @@ def portfolio():
         )
         
     except Exception as e:
-        # Fallback naar mock data bij database fouten
+        # Fallback naar lege portfolio bij database fouten
         # Probeer eerst cash uit database te halen (pos_id = 0)
         try:
             cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
-            cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else MOCK_CASH_AMOUNT
+            cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else 0.0
         except Exception:
-            cash_amount = MOCK_CASH_AMOUNT
+            cash_amount = 0.0
         
-        total_market_value = sum(p['market_value'] for p in MOCK_POSITIONS)
-        total_unrealized_gain = sum(p['unrealizedGain'] for p in MOCK_POSITIONS)
-        portfolio_value = cash_amount + total_market_value  # Portfolio Value = Cash + Position Value
-        portfolio_data_formatted = []
-        for p in MOCK_POSITIONS:
-            weight = (p['market_value'] / portfolio_value) * 100 if portfolio_value > 0 else 0
-            day_change_str = f"{'+' if p['day_change'].startswith('+') else ''}{p['day_change']}"
-            pnl_percent_str = f"{'+' if p['unrealizedPL'] >= 0 else ''}{format_currency(p['unrealizedPL'])}%"
-            portfolio_data_formatted.append({
-                'asset': p['asset'],
-                'sector': p['sector'],
-                'ticker': p['ticker'],
-                'day_change': day_change_str,
-                'share_price': format_currency(p['share_price']),
-                'quantity': p['quantity'],
-                'market_value': format_currency(p['market_value']),
-                'weight': format_currency(weight),
-                'pnl_percent': pnl_percent_str,
-                'pnl_value': format_currency(p['unrealizedGain']),
-            })
+        portfolio_data_formatted, portfolio_value, total_market_value, total_unrealized_gain = _get_empty_portfolio_data(cash_amount)
         
         from .models import Sector
         return render_template(
@@ -1288,160 +1559,57 @@ def portfolio():
 def get_company_info(ticker):
     """Haal company info en financial ratios op via yfinance met caching"""
     try:
-        # URL decode de ticker
-        import urllib.parse
-        ticker = urllib.parse.unquote(ticker)
-        
-        # Normaliseer ticker - behoud originele formaten voor database lookup
-        original_ticker = ticker.strip()
-        normalized_ticker = original_ticker.replace(" ", "-").replace(".", "-")
-        normalized_ticker = normalized_ticker.replace("--", "-")
-        
-        # requests_cache cached automatisch alle HTTP requests
-        # yf.Ticker().info gebruikt HTTP requests intern, dus wordt automatisch gecached
-        # Geen handmatige cache check nodig - requests_cache handelt dit af
-        
-        info = {}
-        # Probeer verschillende ticker formaten (origineel, genormaliseerd, uppercase, etc.)
-        tickers_to_try = [
-            original_ticker.upper(),  # Origineel uppercase (voor database)
-            normalized_ticker.upper(),  # Genormaliseerd uppercase
-            original_ticker,  # Origineel zoals is
-            normalized_ticker,  # Genormaliseerd zoals is
-        ]
-        
-        # Voeg ook varianten toe zonder punten/dashes
-        if "." in original_ticker or "-" in original_ticker:
-            clean_ticker = original_ticker.replace(".", "").replace("-", "").upper()
-            if clean_ticker not in [t.upper() for t in tickers_to_try]:
-                tickers_to_try.append(clean_ticker)
-        
-        # Verwijder duplicaten maar behoud volgorde
-        seen = set()
-        tickers_to_try = [t for t in tickers_to_try if not (t in seen or seen.add(t))]
-        
-        # Initialize logger
         logger = logging.getLogger(__name__)
+        
+        # Normaliseer ticker en genereer varianten
+        tickers_to_try = normalize_ticker_for_yfinance(ticker)
         logger.debug(f"Zoeken naar company info voor ticker '{ticker}', probeer varianten: {tickers_to_try}")
         
-        # Probeer verschillende ticker formaten
-        # requests_cache cached automatisch alle HTTP requests, dus geen handmatige cache nodig
-        # Als requests_cache niet beschikbaar is, gebruik in-memory cache fallback
-        last_error = None
-        
-        # Check of we in-memory cache moeten gebruiken (fallback)
+        # Check in-memory cache (fallback als requests_cache niet beschikbaar is)
+        info = None
         use_memory_cache = '_company_info_cache' in globals()
-        cache_key = normalized_ticker.upper() if use_memory_cache else None
+        cache_key = tickers_to_try[0].upper() if use_memory_cache and tickers_to_try else None
         current_time = time.time() if use_memory_cache else None
         
-        # Check in-memory cache eerst (als fallback)
-        if use_memory_cache and cache_key in _company_info_cache:
+        if use_memory_cache and cache_key and cache_key in _company_info_cache:
             cached_data, cache_time = _company_info_cache[cache_key]
             if current_time - cache_time < _cache_ttl_seconds:
                 info = cached_data
-            else:
-                del _company_info_cache[cache_key]
+                logger.debug(f"Gebruik gecachte company info voor {ticker}")
         
-        # Probeer eerst database cache - gebruik service layer voor efficiënte query
+        # Haal company info op via Yahoo Finance API
         if not info:
-            try:
-                from .services.company_info_service import get_company_info_from_cache
-                cached_info, cached_position = get_company_info_from_cache(tickers_to_try)
-                if cached_info:
-                    info = cached_info
-                    position = cached_position
-                    logger.debug(f"Gebruik gecachte database company info voor {ticker}")
-            except Exception as db_error:
-                logger.debug(f"Database cache check failed: {db_error}")
-        
-        # Fallback naar yfinance als database cache niet beschikbaar is of incomplete
-        # Ook als database cache wel bestaat maar sommige financial ratios ontbreken
-        if not info or (info and not all(key in info for key in ['trailingPE', 'priceToBook', 'dividendYield'])):
-            for ticker_variant in tickers_to_try:
-                try:
-                    # yf.Ticker().info wordt automatisch gecached door requests_cache (als beschikbaar)
-                    ticker_obj = yf.Ticker(ticker_variant)
-                    yf_info = ticker_obj.info
-                    
-                    # Als we geldige data hebben
-                    if yf_info and len(yf_info) > 0:
-                        # Als info al bestaat (uit database), vul ontbrekende velden aan
-                        if info:
-                            # Vul ontbrekende financial ratios aan
-                            if 'trailingPE' not in info or info.get('trailingPE') is None:
-                                info['trailingPE'] = yf_info.get('trailingPE')
-                            if 'forwardPE' not in info or info.get('forwardPE') is None:
-                                info['forwardPE'] = yf_info.get('forwardPE')
-                            if 'pegRatio' not in info or info.get('pegRatio') is None:
-                                info['pegRatio'] = yf_info.get('pegRatio')
-                            if 'priceToBook' not in info or info.get('priceToBook') is None:
-                                info['priceToBook'] = yf_info.get('priceToBook')
-                            if 'priceToSalesTrailing12Months' not in info or info.get('priceToSalesTrailing12Months') is None:
-                                info['priceToSalesTrailing12Months'] = yf_info.get('priceToSalesTrailing12Months')
-                            if 'dividendYield' not in info or info.get('dividendYield') is None:
-                                info['dividendYield'] = yf_info.get('dividendYield')
-                            if 'dividendRate' not in info or info.get('dividendRate') is None:
-                                info['dividendRate'] = yf_info.get('dividendRate')
-                            if 'payoutRatio' not in info or info.get('payoutRatio') is None:
-                                info['payoutRatio'] = yf_info.get('payoutRatio')
-                            if 'trailingEps' not in info or info.get('trailingEps') is None:
-                                info['trailingEps'] = yf_info.get('trailingEps')
-                            if 'forwardEps' not in info or info.get('forwardEps') is None:
-                                info['forwardEps'] = yf_info.get('forwardEps')
-                            if 'debtToEquity' not in info or info.get('debtToEquity') is None:
-                                info['debtToEquity'] = yf_info.get('debtToEquity')
-                            if 'currentRatio' not in info or info.get('currentRatio') is None:
-                                info['currentRatio'] = yf_info.get('currentRatio')
-                        else:
-                            # Geen database cache, gebruik volledige yfinance data
-                            info = yf_info
-                        
-                        # Als we geldige data hebben, stop met proberen
-                        if info and len(info) > 0 and ('symbol' in info or 'longName' in info or 'shortName' in info):
-                            if use_memory_cache:
-                                _company_info_cache[cache_key] = (info, current_time)
-                            break
-                except Exception as yf_error:
-                    error_str = str(yf_error)
-                    last_error = yf_error
-                    if use_memory_cache and cache_key in _company_info_cache:
-                        if '429' in error_str or 'Too Many Requests' in error_str:
-                            old_info, _ = _company_info_cache[cache_key]
-                            if old_info:
-                                if not info:
-                                    info = old_info
-                                break
-                    continue
-        
-        # Check if info is available (yfinance returns empty dict if ticker not found)
-        if not info or len(info) == 0:
-            # Geef meer informatieve error message
-            error_msg = f'Ticker "{ticker}" not found or no data available.'
-            if 'last_error' in locals() and last_error:
-                error_str = str(last_error)
-                if '429' in error_str or 'Too Many Requests' in error_str:
-                    error_msg += ' Yahoo Finance is rate limiting requests. Please try again in a few minutes.'
-                elif '404' in error_str or 'Not Found' in error_str:
-                    error_msg += ' This ticker may not exist or may be delisted.'
-                else:
-                    error_msg += f' Error: {error_str[:100]}'
+            info, error_msg = fetch_company_info_from_yfinance(tickers_to_try, logger)
             
-            return jsonify({
-                'success': False,
-                'error': error_msg
-            }), 404
+            if not info:
+                # Probeer oude cache bij rate limiting
+                if use_memory_cache and cache_key and cache_key in _company_info_cache:
+                    if 'rate limiting' in error_msg.lower():
+                        old_info, _ = _company_info_cache[cache_key]
+                        if old_info:
+                            info = old_info
+                            logger.debug(f"Gebruik oude cache data voor {ticker} vanwege rate limiting")
+                
+                if not info:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Ticker "{ticker}" {error_msg}'
+                    }), 404
+            
+            # Cache de data als we in-memory cache gebruiken
+            if use_memory_cache and cache_key:
+                _company_info_cache[cache_key] = (info, current_time)
         
         # Haal portfolio positie op voor "Your Position" data en sector
-        # Gebruik position uit cache als beschikbaar, anders query
         position_data = {}
-        if not position:  # Als niet al uit cache gehaald
-            try:
-                position = db.session.query(Position).filter(
-                    or_(Position.pos_ticker == ticker, Position.pos_name == ticker)
-                ).first()
-            except Exception as e:
-                logger.debug(f"Error fetching position: {e}")
-                position = None
+        position = None
+        try:
+            position = db.session.query(Position).filter(
+                or_(Position.pos_ticker == ticker, Position.pos_name == ticker)
+            ).first()
+        except Exception as e:
+            logger.debug(f"Error fetching position: {e}")
+            position = None
         
         if position:
             try:
@@ -1468,72 +1636,64 @@ def get_company_info(ticker):
             except Exception as e:
                 logger.debug(f"Error processing position data: {e}")
         
-        # Format financial data
-        def safe_get(key, default='N/A', format_func=None, alt_keys=None):
-            """
-            Haal waarde op uit info dict, probeer alternatieve keys als eerste key niet bestaat
-            
-            Args:
-                key: Primaire key om te zoeken
-                default: Default waarde als niet gevonden
-                format_func: Functie om waarde te formatteren
-                alt_keys: Lijst van alternatieve keys om te proberen
-            """
-            # Probeer eerst primaire key
-            value = info.get(key)
-            
-            # Als niet gevonden en alternatieve keys zijn gegeven, probeer die
-            if (value is None or value == '') and alt_keys:
-                for alt_key in alt_keys:
-                    alt_value = info.get(alt_key)
-                    if alt_value is not None and alt_value != '':
-                        value = alt_value
-                        break
-            
-            if value is None or value == '':
+        # Haal currency op voor formatting
+        currency = safe_get_from_info(info, 'currency', 'EUR')
+        currency_symbol = CURRENCY_SYMBOLS.get(currency.upper(), currency.upper())
+        
+        # Helper functie om currency formatting toe te voegen
+        def format_with_currency(value, default='N/A'):
+            if value == default or value == 'N/A' or not value:
                 return default
-            
-            if format_func:
-                try:
-                    return format_func(value)
-                except:
-                    return default
-            return value
+            if isinstance(value, str):
+                # Als al geformatteerd met €, vervang met juiste symbool
+                if value.startswith('€'):
+                    return value.replace('€', currency_symbol, 1)
+                # Als al een currency symbool heeft, return zoals is
+                if any(value.startswith(sym) for sym in CURRENCY_SYMBOLS.values() if sym):
+                    return value
+            # Voeg currency symbool toe
+            return f"{currency_symbol} {value}" if currency_symbol else f"{value} {currency}"
+        
+        # Format description helper
+        def format_description(desc):
+            if not desc or desc == 'No description available.':
+                return 'No description available.'
+            return (desc[:500] + '...') if len(desc) > 500 else desc
         
         # Company info
         company_data = {
-            'name': safe_get('longName', safe_get('shortName', ticker)),
-            'sector': safe_get('sector', 'N/A'),
-            'industry': safe_get('industry', 'N/A'),
-            'country': safe_get('country', 'N/A'),
-            'description': (lambda desc: (desc[:500] + '...' if len(desc) > 500 else desc) if desc and desc != 'No description available.' else 'No description available.')(safe_get('longBusinessSummary', 'No description available.')),
-            'website': safe_get('website', 'N/A'),
-            'employees': safe_get('fullTimeEmployees', 'N/A', lambda x: f"{int(x):,}" if isinstance(x, (int, float)) else x),
-            'market_cap': safe_get('marketCap', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x),
-            'currency': safe_get('currency', 'EUR'),
+            'name': safe_get_from_info(info, 'longName', safe_get_from_info(info, 'shortName', ticker)),
+            'sector': safe_get_from_info(info, 'sector', 'N/A'),
+            'industry': safe_get_from_info(info, 'industry', 'N/A'),
+            'country': safe_get_from_info(info, 'country', 'N/A'),
+            'description': format_description(safe_get_from_info(info, 'longBusinessSummary', 'No description available.')),
+            'website': safe_get_from_info(info, 'website', 'N/A'),
+            'employees': safe_get_from_info(info, 'fullTimeEmployees', 'N/A', lambda x: f"{int(x):,}" if isinstance(x, (int, float)) else x),
+            'market_cap': safe_get_from_info(info, 'marketCap', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) else 'N/A'),
+            'currency': currency,
         }
         
-        # Financial Ratios - probeer alternatieve keys voor betere data coverage
+        # Financial Ratios - gebruik helper functies voor formatting
         ratios = {
-            'pe_ratio': safe_get('trailingPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['peRatio', 'trailingP/E']),
-            'forward_pe': safe_get('forwardPE', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['forwardP/E']),
-            'peg_ratio': safe_get('pegRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A'),
-            'price_to_book': safe_get('priceToBook', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['pbRatio', 'priceToBookRatio']),
-            'price_to_sales': safe_get('priceToSalesTrailing12Months', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['priceToSales', 'priceSalesTrailing12Months']),
-            'dividend_yield': safe_get('dividendYield', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['yield', 'dividendYieldTTM']),
-            'dividend_rate': safe_get('dividendRate', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['annualDividend', 'dividend']),
-            'payout_ratio': safe_get('payoutRatio', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['payout']),
-            'eps': safe_get('trailingEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['epsTrailing12Months', 'eps']),
-            'eps_forward': safe_get('forwardEps', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['epsForward', 'forwardEps']),
-            'return_on_equity': safe_get('returnOnEquity', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['roe', 'returnOnEquityTTM']),
-            'return_on_assets': safe_get('returnOnAssets', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['roa', 'returnOnAssetsTTM']),
-            'profit_margin': safe_get('profitMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['profitMargin', 'netProfitMargin']),
-            'operating_margin': safe_get('operatingMargins', 'N/A', lambda x: f"{(float(x) * 100):.2f}%" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['operatingMargin', 'operatingMarginTTM']),
-            'debt_to_equity': safe_get('debtToEquity', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['debtEquity', 'totalDebt/equity']),
-            'current_ratio': safe_get('currentRatio', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['current']),
-            '52_week_high': safe_get('fiftyTwoWeekHigh', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['52WeekHigh', 'fiftyTwoWeekHigh']),
-            '52_week_low': safe_get('fiftyTwoWeekLow', 'N/A', lambda x: format_currency(x) if isinstance(x, (int, float)) else x, alt_keys=['52WeekLow', 'fiftyTwoWeekLow']),
-            'beta': safe_get('beta', 'N/A', lambda x: f"{float(x):.2f}" if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['beta3Year']),
+            'pe_ratio': safe_get_from_info(info, 'trailingPE', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['peRatio', 'trailingP/E']),
+            'forward_pe': safe_get_from_info(info, 'forwardPE', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['forwardP/E']),
+            'peg_ratio': safe_get_from_info(info, 'pegRatio', 'N/A', lambda x: format_financial_value(x, 'number')),
+            'price_to_book': safe_get_from_info(info, 'priceToBook', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['pbRatio', 'priceToBookRatio']),
+            'price_to_sales': safe_get_from_info(info, 'priceToSalesTrailing12Months', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['priceToSales', 'priceSalesTrailing12Months']),
+            'dividend_yield': safe_get_from_info(info, 'dividendYield', 'N/A', lambda x: format_financial_value(x, 'dividend_yield'), alt_keys=['yield', 'dividendYieldTTM']),
+            'dividend_rate': safe_get_from_info(info, 'dividendRate', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) and x > 0 else 'N/A', alt_keys=['annualDividend', 'dividend']),
+            'payout_ratio': safe_get_from_info(info, 'payoutRatio', 'N/A', lambda x: format_financial_value(x, 'percentage'), alt_keys=['payout']),
+            'eps': safe_get_from_info(info, 'trailingEps', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) else 'N/A', alt_keys=['epsTrailing12Months', 'eps']),
+            'eps_forward': safe_get_from_info(info, 'forwardEps', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) else 'N/A', alt_keys=['epsForward', 'forwardEps']),
+            'return_on_equity': safe_get_from_info(info, 'returnOnEquity', 'N/A', lambda x: format_financial_value(x, 'percentage'), alt_keys=['roe', 'returnOnEquityTTM']),
+            'return_on_assets': safe_get_from_info(info, 'returnOnAssets', 'N/A', lambda x: format_financial_value(x, 'percentage'), alt_keys=['roa', 'returnOnAssetsTTM']),
+            'profit_margin': safe_get_from_info(info, 'profitMargins', 'N/A', lambda x: format_financial_value(x, 'percentage'), alt_keys=['profitMargin', 'netProfitMargin']),
+            'operating_margin': safe_get_from_info(info, 'operatingMargins', 'N/A', lambda x: format_financial_value(x, 'percentage'), alt_keys=['operatingMargin', 'operatingMarginTTM']),
+            'debt_to_equity': safe_get_from_info(info, 'debtToEquity', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['debtEquity', 'totalDebt/equity']),
+            'current_ratio': safe_get_from_info(info, 'currentRatio', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['current']),
+            '52_week_high': safe_get_from_info(info, 'fiftyTwoWeekHigh', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) else 'N/A', alt_keys=['52WeekHigh', 'fiftyTwoWeekHigh']),
+            '52_week_low': safe_get_from_info(info, 'fiftyTwoWeekLow', 'N/A', lambda x: format_with_currency(format_currency(x)) if isinstance(x, (int, float)) else 'N/A', alt_keys=['52WeekLow', 'fiftyTwoWeekLow']),
+            'beta': safe_get_from_info(info, 'beta', 'N/A', lambda x: format_financial_value(x, 'number'), alt_keys=['beta3Year']),
         }
         
         return jsonify({
@@ -1549,12 +1709,9 @@ def get_company_info(ticker):
         logger = logging.getLogger(__name__)
         logger.error(f"Error fetching company info for {ticker}: {e}", exc_info=True)
         
-        # Probeer te debuggen: check of ticker in database staat
+        # Probeer te debuggen: check of ticker in positions staat
         try:
-            all_tickers = db.session.query(CompanyInfo.ticker).all()
-            logger.debug(f"Available tickers in database: {[t[0] for t in all_tickers[:10]]}")
-            
-            # Check of ticker in positions staat
+            from .models import Position
             position = db.session.query(Position).filter(
                 or_(Position.pos_ticker.ilike(f"%{ticker}%"), 
                     Position.pos_name.ilike(f"%{ticker}%"))
@@ -1640,7 +1797,7 @@ def risk_analysis():
 # ============================================================================
 
 @main.route("/portfolio/manual-update-prices", methods=['POST'])
-@login_required
+@admin_or_board_required
 def manual_update_prices():
     """Handmatig prijzen updaten via web interface"""
     try:
@@ -1724,8 +1881,8 @@ def _fetch_transactions():
     except Exception:
         pass
     
-    # Laatste fallback: mock data
-    return _normalize_transactions(MOCK_TRANSACTIONS)
+    # Geen transacties gevonden - retourneer lege lijst
+    return []
 
 # Transactions pagina (Nu de centrale bron voor transactiegegevens)
 @main.route("/transactions")
@@ -1798,7 +1955,9 @@ def voting():
     
     return render_template("voting.html", open_votes=open_votes, results=recent_results, older_results=older_results)
 
-# --- Helper functies voor member categorisering ---
+# ============================================================================
+# ROUTES - VOTING (CONTINUED)
+# ============================================================================
 def categorize_members(members_list):
     """
     Categoriseer members op basis van rol
@@ -1915,7 +2074,7 @@ def deelnemers():
     )
 
 @main.route("/deelnemers/add", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_member():
     """Voeg een nieuwe deelnemer toe"""
     try:
@@ -2010,7 +2169,7 @@ def get_member(member_id):
         return jsonify({"error": "Er is een fout opgetreden bij het ophalen van de deelnemer."}), 500
 
 @main.route("/deelnemers/update", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_member():
     """Update een deelnemer"""
     try:
@@ -2061,7 +2220,7 @@ def update_member():
     return redirect(url_for("main.deelnemers"))
 
 @main.route("/deelnemers/delete", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_member():
     """Verwijder een deelnemer"""
     try:
@@ -2087,12 +2246,14 @@ def delete_member():
 
 # Portfolio: Positie toevoegen
 @main.route("/portfolio/add", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_position():
     pos_name = request.form.get("pos_name", "").strip()
     pos_type = request.form.get("pos_type", "").strip()
     pos_quantity = request.form.get("pos_quantity", "").strip()
-    pos_value = request.form.get("pos_value", "").strip()
+    pos_price = request.form.get("pos_price", "").strip()  # Prijs per aandeel
+    pos_currency = request.form.get("pos_currency", "EUR").strip().upper()  # Currency
+    pos_value = request.form.get("pos_value", "").strip()  # Totaal bedrag (automatisch berekend)
     pos_ticker = request.form.get("pos_ticker", "").strip()
     pos_sector = request.form.get("pos_sector", "").strip()
     
@@ -2103,11 +2264,17 @@ def add_position():
     if not pos_ticker:
         flash("Ticker is verplicht voor prijs updates.", "error")
         return redirect(url_for("main.portfolio"))
+    if not pos_type:
+        flash("Asset Class (Type) is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
     if not pos_quantity:
         flash("Hoeveelheid is verplicht voor berekeningen.", "error")
         return redirect(url_for("main.portfolio"))
+    if not pos_price:
+        flash("Prijs per aandeel is verplicht.", "error")
+        return redirect(url_for("main.portfolio"))
     if not pos_value:
-        flash("Cost Basis is verplicht.", "error")
+        flash("Totaal bedrag is verplicht.", "error")
         return redirect(url_for("main.portfolio"))
     if not pos_sector:
         flash("Sector is verplicht.", "error")
@@ -2125,13 +2292,25 @@ def add_position():
             return redirect(url_for("main.portfolio"))
         
         try:
-            value = float(pos_value)
-            if value <= 0:
-                flash("Cost Basis moet een positief bedrag zijn.", "error")
+            price = float(pos_price)
+            if price <= 0:
+                flash("Prijs per aandeel moet een positief bedrag zijn.", "error")
                 return redirect(url_for("main.portfolio"))
         except (ValueError, TypeError):
-            flash("Cost Basis moet een geldig bedrag zijn.", "error")
+            flash("Prijs per aandeel moet een geldig bedrag zijn.", "error")
             return redirect(url_for("main.portfolio"))
+        
+        try:
+            total_amount = float(pos_value)
+            if total_amount <= 0:
+                flash("Totaal bedrag moet een positief bedrag zijn.", "error")
+                return redirect(url_for("main.portfolio"))
+        except (ValueError, TypeError):
+            flash("Totaal bedrag moet een geldig bedrag zijn.", "error")
+            return redirect(url_for("main.portfolio"))
+        
+        # Converteer totaal bedrag naar EUR als nodig
+        total_amount_eur = convert_to_eur(total_amount, pos_currency) if pos_currency != "EUR" else total_amount
         
         # Zoek of maak een portfolio (gebruik de eerste of maak een nieuwe)
         portfolio = db.session.query(Portfolio).first()
@@ -2144,22 +2323,40 @@ def add_position():
             pos_name=pos_name,
             pos_type=pos_type or None,
             pos_quantity=quantity,
-            pos_value=value,  # Cost basis: wat ze hebben betaald
+            pos_value=total_amount_eur,  # Cost basis: totaal bedrag in EUR
             pos_ticker=pos_ticker or None,
             pos_sector=pos_sector or None,
             portfolio_id=portfolio.portfolio_id
         )
         db.session.add(position)
-        db.session.commit()
-        flash(f"Positie '{pos_name}' toegevoegd.", "success")
-    except Exception:
-        handle_db_error(None, "Fout bij toevoegen van positie.")
+        
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Adding position: name={pos_name}, ticker={pos_ticker}, type={pos_type}, quantity={quantity}, price={price}, total={total_amount_eur}, currency={pos_currency}, sector={pos_sector}")
+        
+        if not commit_with_error_handling(
+            f"Positie '{pos_name}' toegevoegd.",
+            "Fout bij toevoegen van positie."
+        ):
+            return redirect(url_for("main.portfolio"))
+    except (ValueError, TypeError) as e:
+        # Validation errors zijn al afgehandeld
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Validation error in add_position: {e}", exc_info=True)
+        pass
+    except Exception as exc:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error in add_position: {exc}", exc_info=True)
+        handle_db_error(exc, "Fout bij toevoegen van positie.")
     
     return redirect(url_for("main.portfolio"))
 
 # Portfolio: Cash bedrag bijwerken
 @main.route("/portfolio/update-cash", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_cash():
     cash_amount_str = request.form.get("cash_amount", "").strip()
     
@@ -2212,14 +2409,10 @@ def update_cash():
         
         flash(f"Cash bedrag bijgewerkt naar € {format_currency(cash_amount)}.", "success")
         
-    except Exception as exc:
-        print(f"WARNING: Cash update failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij bijwerken van cash bedrag.", "error")
-        db.session.rollback()
     except (ValueError, TypeError):
         flash("Cash bedrag moet een geldig getal zijn.", "error")
+    except Exception as exc:
+        handle_db_error(exc, "Fout bij bijwerken van cash bedrag.")
     
     return redirect(url_for("main.portfolio"))
 
@@ -2313,7 +2506,7 @@ def get_position_details(position_id):
 
 # Portfolio: Update position
 @main.route("/portfolio/update-position", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_position():
     """Update een positie in het portfolio"""
     try:
@@ -2436,7 +2629,7 @@ def get_position_by_name():
         return jsonify({'error': 'Fout bij ophalen positie'}), 500
 
 @main.route("/portfolio/delete-position", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_position():
     """Verwijder een positie uit het portfolio"""
     try:
@@ -2472,17 +2665,13 @@ def delete_position():
         
         flash(f"Positie '{position_name}' is succesvol verwijderd.", "success")
     except Exception as exc:
-        print(f"WARNING: Position deletion failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij verwijderen van positie.", "error")
-        db.session.rollback()
+        handle_db_error(exc, "Fout bij verwijderen van positie.")
     
     return redirect(url_for("main.portfolio"))
 
 # Transactions: Transactie toevoegen
 @main.route("/transactions/add", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_transaction():
     # Haal alle form velden op
     transaction_date = request.form.get("transaction_date", "").strip()
@@ -2581,6 +2770,13 @@ def add_transaction():
                     :transaction_share_price, :asset_type, :asset_class, :sector
                 )
             """)
+            # Gebruik asset_name uit form, of haal uit ticker mapping als leeg
+            final_asset_name = asset_name.strip() if asset_name else ""
+            if not final_asset_name:
+                asset_info = _get_asset_info(transaction_ticker)
+                final_asset_name = asset_info.get("name", transaction_ticker)
+            
+            # Insert transactie
             db.session.execute(sql_query, {
                 "transaction_type": transaction_type.upper(),
                 "transaction_quantity": quantity,
@@ -2593,15 +2789,17 @@ def add_transaction():
                 "asset_class": asset_class,
                 "sector": sector if sector else None
             })
-            db.session.commit()
             print(f"DEBUG: Transaction saved to database via direct SQL")
+            
+            # Commit transactie
+            db.session.commit()
+            flash(f"Transactie '{transaction_type}' voor {final_asset_name} ({transaction_ticker}) toegevoegd.", "success")
         except Exception as sql_exc:
             print(f"WARNING: Direct SQL insert failed: {sql_exc}")
             import traceback
             traceback.print_exc()
             db.session.rollback()
-        
-        flash(f"Transactie '{transaction_type}' voor {asset_name} ({transaction_ticker}) toegevoegd.", "success")
+            flash("Fout bij toevoegen van transactie.", "error")
     except Exception as exc:
         print(f"ERROR: Transaction insert failed: {exc}")
         import traceback
@@ -2706,7 +2904,7 @@ def get_transaction_details(transaction_id):
 
 # Transactions: Update transaction
 @main.route("/transactions/update-transaction", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_transaction():
     """Update een transactie"""
     try:
@@ -2783,9 +2981,9 @@ def update_transaction():
 
 # Transactions: Delete transaction
 @main.route("/transactions/delete-transaction", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_transaction():
-    """Verwijder een transactie"""
+    """Verwijder een transactie op basis van transaction_id"""
     try:
         # Parse en valideer transaction ID
         transaction_id, error = parse_id_from_form(request.form, "transaction_id", "Transactie", url_for("main.transactions"))
@@ -2803,19 +3001,15 @@ def delete_transaction():
         db.session.delete(transaction)
         db.session.commit()
         
-        flash(f"Transactie is succesvol verwijderd.", "success")
+        flash(f"Transactie (ID: {transaction_id}) is succesvol verwijderd.", "success")
     except Exception as exc:
-        print(f"WARNING: Transaction deletion failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij verwijderen van transactie.", "error")
-        db.session.rollback()
+        handle_db_error(exc, "Fout bij verwijderen van transactie.")
     
     return redirect(url_for("main.transactions"))
 
 # Voting: Stemming toevoegen
 @main.route("/voting/add", methods=["POST"])
-@login_required
+@admin_or_board_required
 def add_voting_proposal():
     proposal_type = request.form.get("proposal_type", "").strip()
     stock_name = request.form.get("stock_name", "").strip()
@@ -2924,7 +3118,7 @@ def get_voting_proposal_details(proposal_id):
 
 # Voting: Update proposal
 @main.route("/voting/update", methods=["POST"])
-@login_required
+@admin_or_board_required
 def update_voting_proposal():
     """Update een voting proposal"""
     try:
@@ -2977,17 +3171,13 @@ def update_voting_proposal():
     except ValueError:
         flash("Ongeldige deadline datum. Gebruik formaat dd/mm/yyyy.", "error")
     except Exception as exc:
-        print(f"WARNING: Voting proposal update failed: {exc}")
-        import traceback
-        traceback.print_exc()
-        flash("Fout bij bijwerken van voting proposal.", "error")
-        db.session.rollback()
+        handle_db_error(exc, "Fout bij bijwerken van voting proposal.")
     
     return redirect(url_for("main.voting"))
 
 # Voting: Delete proposal
 @main.route("/voting/delete", methods=["POST"])
-@login_required
+@admin_or_board_required
 def delete_voting_proposal():
     """Verwijder een voting proposal"""
     try:
@@ -3769,7 +3959,7 @@ def bestanden_folder(folder_id):
         return redirect(url_for("main.bestanden"))
 
 @main.route("/bestanden/create-folder", methods=["POST"])
-@login_required
+@admin_or_board_required
 def create_folder():
     """Maak een nieuwe folder aan"""
     try:
@@ -3824,7 +4014,7 @@ def create_folder():
     return redirect(url_for("main.bestanden"))
 
 @main.route("/bestanden/upload-file", methods=["POST"])
-@login_required
+@admin_or_board_required
 def upload_file():
     """Upload een bestand naar lokaal filesystem"""
     try:
@@ -4084,7 +4274,7 @@ def download_file(file_id):
         return redirect(url_for("main.bestanden"))
 
 @main.route("/bestanden/edit/<int:file_id>", methods=["POST"])
-@login_required
+@admin_or_board_required
 def edit_file(file_id):
     """Bewerk een bestand (naam wijzigen)"""
     try:
@@ -4141,11 +4331,7 @@ def edit_file(file_id):
         flash(f"Bestand '{old_name}' is hernoemd naar '{new_name}'.", "success")
         
     except Exception as exc:
-        print(f"ERROR: Fout bij bewerken van bestand: {exc}")
-        import traceback
-        traceback.print_exc()
-        db.session.rollback()
-        flash("Fout bij bewerken van bestand.", "error")
+        handle_db_error(exc, "Fout bij bewerken van bestand.")
     
     # Redirect terug naar folder of root
     file_item = db.session.query(FileItem).filter(FileItem.item_id == file_id).first()
@@ -4154,7 +4340,7 @@ def edit_file(file_id):
     return redirect(url_for("main.bestanden"))
 
 @main.route("/bestanden/delete/<int:file_id>")
-@login_required
+@admin_or_board_required
 def delete_file(file_id):
     """Verwijder een bestand"""
     try:

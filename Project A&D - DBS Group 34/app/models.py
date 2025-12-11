@@ -284,6 +284,17 @@ class Member(UserMixin, db.Model):
             return None
         return int(id_str[1:3])
     
+    def is_admin(self):
+        """Check of gebruiker admin is (ID begint met 5 nullen: 00000x)"""
+        if self.member_id is None:
+            return False
+        id_str = str(self.member_id).zfill(6)
+        if len(id_str) < 6:
+            return False
+        # Admin: eerste 5 cijfers zijn nullen (00000x)
+        first_five_digits = int(id_str[:5]) if len(id_str) >= 5 else 0
+        return first_five_digits == 0 and len(id_str) == 6
+    
     def is_board_member(self):
         return self.get_role() == 'board'
     
@@ -298,6 +309,10 @@ class Member(UserMixin, db.Model):
     
     def is_oud_bestuur_analist(self):
         return self.get_role() == 'oud_bestuur_analisten'
+    
+    def is_admin_or_board(self):
+        """Check of gebruiker admin of board member is"""
+        return self.is_admin() or self.is_board_member()
     
     def has_access(self):
         """Bepaalt of gebruiker toegang heeft tot web-app"""
@@ -616,67 +631,6 @@ class Vote(db.Model):
             'vote_option': self.vote_option,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
-
-
-# --- Caching Tables voor Market Data ---
-
-class StockPriceHistory(db.Model):
-    """
-    Cache voor historische dagelijkse sluitingsprijzen.
-    Wordt dagelijks bijgewerkt door een scheduled job.
-    """
-    __tablename__ = 'stock_price_history'
-    
-    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    ticker = db.Column(db.String(50), nullable=False, index=True)
-    price_date = db.Column(db.Date, nullable=False, index=True)
-    close_price = db.Column(db.Float, nullable=False)
-    open_price = db.Column(db.Float)
-    high_price = db.Column(db.Float)
-    low_price = db.Column(db.Float)
-    volume = db.Column(db.BigInteger)
-    created_at = db.Column(db.DateTime(timezone=True), default=db.func.now())
-    updated_at = db.Column(db.DateTime(timezone=True), default=db.func.now(), onupdate=db.func.now())
-    
-    # Unique constraint: één prijs per ticker per dag
-    __table_args__ = (
-        db.UniqueConstraint('ticker', 'price_date', name='uq_stock_price_ticker_date'),
-        db.Index('idx_ticker_date', 'ticker', 'price_date'),
-    )
-    
-    def __repr__(self):
-        return f'<StockPriceHistory {self.ticker} {self.price_date} {self.close_price}>'
-
-
-class CompanyInfo(db.Model):
-    """
-    Cache voor company informatie (fundamentals).
-    Wordt dagelijks bijgewerkt door een scheduled job.
-    """
-    __tablename__ = 'company_info'
-    
-    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    ticker = db.Column(db.String(50), nullable=False, unique=True, index=True)
-    name = db.Column(db.Text)
-    long_name = db.Column(db.Text)
-    sector = db.Column(db.String(100))
-    industry = db.Column(db.String(200))
-    country = db.Column(db.String(100))
-    description = db.Column(db.Text)
-    website = db.Column(db.String(500))
-    employees = db.Column(db.Integer)
-    market_cap = db.Column(db.BigInteger)
-    currency = db.Column(db.String(10))
-    exchange = db.Column(db.String(50))
-    
-    # Financial ratios (JSON voor flexibiliteit)
-    financial_data = db.Column(db.JSON)  # PE ratio, dividend yield, beta, etc.
-    
-    created_at = db.Column(db.DateTime(timezone=True), default=db.func.now())
-    updated_at = db.Column(db.DateTime(timezone=True), default=db.func.now(), onupdate=db.func.now())
-    
-    def __repr__(self):
-        return f'<CompanyInfo {self.ticker} {self.name}>'
 
 
 class Announcement(db.Model):

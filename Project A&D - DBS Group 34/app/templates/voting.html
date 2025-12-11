@@ -9,6 +9,7 @@
   <div class="voting-section">
     <div class="section-head">
       <h3>Openstaande Stemmingen</h3>
+      {% if g.user and g.user.is_admin_or_board() %}
       <div class="header-actions">
         <button class="add-vote-btn" type="button" onclick="openAddVotingModal()">
           + Vote
@@ -26,6 +27,7 @@
           </svg>
         </button>
       </div>
+      {% endif %}
     </div>
 
     <div class="voting-cards">
@@ -82,6 +84,7 @@
   <div class="results-section">
     <div class="section-head">
       <h3>Resultaten</h3>
+      {% if g.user and g.user.is_admin_or_board() %}
       <div class="header-actions">
         <button class="action-btn-delete" type="button" onclick="openDeleteResultModal()" title="Resultaat verwijderen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -90,6 +93,7 @@
           </svg>
         </button>
       </div>
+      {% endif %}
     </div>
 
     <div class="results-cards">

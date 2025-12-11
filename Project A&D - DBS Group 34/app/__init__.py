@@ -28,7 +28,7 @@ def create_app():
     # Database setup
     db.init_app(app)
     migrate.init_app(app, db)
-    from .jobs import update_portfolio_prices, update_historical_prices, update_company_info
+    from .jobs import update_portfolio_prices
     
     # Configureer de scheduler (optioneel, maar goed voor opstart)
     app.config['SCHEDULER_API_ENABLED'] = False 
@@ -46,28 +46,6 @@ def create_app():
             minutes=5, 
             max_instances=1,
             misfire_grace_time=30
-        )
-        
-        # Historische prijzen: dagelijks om 2:00 AM (voor risk analysis)
-        scheduler.add_job(
-            id='update_historical_prices_job',
-            func=lambda: update_historical_prices(app, lookback_days=365),
-            trigger='cron',
-            hour=2,
-            minute=0,
-            max_instances=1,
-            misfire_grace_time=3600  # 1 uur grace time
-        )
-        
-        # Company info: dagelijks om 2:30 AM
-        scheduler.add_job(
-            id='update_company_info_job',
-            func=lambda: update_company_info(app),
-            trigger='cron',
-            hour=2,
-            minute=30,
-            max_instances=1,
-            misfire_grace_time=3600
         )
         
         scheduler.start()
@@ -88,8 +66,8 @@ def create_app():
     from .routes import main
     app.register_blueprint(main)
 
-    # Template filters registreren
-    from .utils import format_currency, format_number, format_percentage, format_date, format_transaction_date
+    # Template filters registreren (functies zijn nu in routes.py)
+    from .routes import format_currency, format_number, format_percentage, format_date, format_transaction_date
     app.jinja_env.filters['currency'] = format_currency
     app.jinja_env.filters['number'] = format_number
     app.jinja_env.filters['percentage'] = format_percentage
@@ -117,7 +95,7 @@ def create_app():
     @app.context_processor
     def inject_utils():
         """Maakt utility functies beschikbaar in templates."""
-        from .utils import format_currency, format_number, format_percentage, format_date
+        from .routes import format_currency, format_number, format_percentage, format_date
         return dict(
             format_currency=format_currency,
             format_number=format_number,
@@ -167,40 +145,5 @@ def create_app():
             click.echo(f"✗ Error updating prices: {e}", err=True)
             raise
 
-    @app.cli.command("populate-cache")
-    @click.option("--lookback-days", default=365, help="Number of days of historical data to fetch (default: 365)")
-    def populate_cache_cli(lookback_days):
-        """Populate database cache with historical prices and company info for all current positions."""
-        click.echo("Populating database cache with data for current positions...")
-        click.echo(f"Fetching {lookback_days} days of historical data...")
-        
-        try:
-            # Update historical prices
-            click.echo("\n[1/2] Fetching historical prices...")
-            update_historical_prices(app, lookback_days=lookback_days)
-            click.echo("✓ Historical prices populated!")
-            
-            # Update company info
-            click.echo("\n[2/2] Fetching company info...")
-            update_company_info(app)
-            click.echo("✓ Company info populated!")
-            
-            click.echo("\n✓ Database cache populated successfully!")
-            click.echo("You can now use risk analysis and company info features without API calls.")
-        except Exception as e:
-            click.echo(f"✗ Error populating cache: {e}", err=True)
-            raise
-
-    @app.cli.command("update-company-info")
-    def update_company_info_cli():
-        """Update company info in database cache (useful after adding new financial ratios)."""
-        click.echo("Updating company info in database cache...")
-        try:
-            update_company_info(app)
-            click.echo("✓ Company info updated successfully!")
-            click.echo("All financial ratios should now be available.")
-        except Exception as e:
-            click.echo(f"✗ Error updating company info: {e}", err=True)
-            raise
 
     return app

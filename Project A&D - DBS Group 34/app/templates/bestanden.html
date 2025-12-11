@@ -8,6 +8,7 @@
     <div class="card">
         <div class="bestanden-header">
             <h2 class="bestanden-title">Bestanden</h2>
+            {% if g.user and g.user.is_admin_or_board() %}
             <div class="bestanden-actions">
                 <button type="button" class="add-transaction-btn" onclick="openNewFolderModal()">
                     + Nieuwe map
@@ -16,6 +17,7 @@
                     + Bestand
                 </button>
             </div>
+            {% endif %}
         </div>
 
         {% if breadcrumbs and breadcrumbs|length > 1 %}

@@ -8,6 +8,7 @@
   <section class="leftcol card">
     <div class="section-head">
       <h3>Aankondigingen</h3>
+      {% if g.user and g.user.is_admin_or_board() %}
       <div class="agenda-actions">
         <button class="add-transaction-btn" type="button" onclick="openAnnouncementModal()">
           + Bericht
@@ -26,6 +27,7 @@
           </svg>
         </button>
       </div>
+      {% endif %}
     </div>
 
     <div id="announcements-container">
@@ -61,6 +63,7 @@
     <!-- AGENDA LAYOUT: header met acties (alleen iconen) -->
     <div class="section-head">
       <h3>Agenda</h3>
+      {% if g.user and g.user.is_admin_or_board() %}
       <div class="agenda-actions">
         <button class="add-transaction-btn" type="button" onclick="openEventModal()">
           + Event
@@ -87,6 +90,7 @@
           </svg>
         </a>
       </div>
+      {% endif %}
     </div>
 
     <!-- AGENDA LAYOUT: Toekomstige Events -->
@@ -143,7 +147,7 @@
         </div>
         {% endif %}
         
-        <div id="hidden-past-events" style="display: none;">
+        <div id="hidden-past-events" class="hidden">
           {% for ev in past_events[5:] %}
           <div class="agenda-event-card agenda-event-past" data-event-index="{{ loop.index0 + 5 }}">
             <strong>{{ ev.title }}</strong>
@@ -161,14 +165,14 @@
 </div>
 
 <!-- Announcement Modal -->
-<div id="announcementModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="announcementModal" class="modal dashboard-modal">
+  <div class="modal-content modal-medium">
     <div class="modal-header">
       <h2>Nieuwe Aankondiging</h2>
       <span class="modal-close" onclick="closeAnnouncementModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted);">Voeg een nieuwe aankondiging toe.</p>
+      <p class="text-description">Voeg een nieuwe aankondiging toe.</p>
       <form method="post" action="{{ url_for('main.add_announcement') }}">
         <div class="form-group">
           <label>Titel *</label>
@@ -180,13 +184,13 @@
         </div>
         <div class="form-group">
           <label>Datum</label>
-          <input type="text" id="announcementDate" readonly style="background: #f5f5f5;">
+          <input type="text" id="announcementDate" readonly class="input-disabled">
         </div>
         <div class="form-group">
           <label>Auteur</label>
-          <input type="text" value="{{ g.user.member_name if g.user else 'Onbekend' }}" readonly style="background: #f5f5f5;">
+          <input type="text" value="{{ g.user.member_name if g.user else 'Onbekend' }}" readonly class="input-disabled">
         </div>
-        <div class="form-actions" style="margin-top: 20px;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeAnnouncementModal()">Annuleren</button>
           <button type="submit" class="add-transaction-btn">Toevoegen</button>
         </div>
@@ -196,8 +200,8 @@
 </div>
 
 <!-- Edit Announcement Modal (stap 1: dropdown selecteren) -->
-<div id="editAnnouncementModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="editAnnouncementModal" class="modal dashboard-modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Aankondiging Wijzigen</h2>
       <span class="modal-close" onclick="closeEditAnnouncementModal()">&times;</span>
@@ -206,10 +210,10 @@
       <form id="editAnnouncementForm" onsubmit="fetchAnnouncementForEditing(event)">
         <div class="form-group">
           <label>Selecteer Aankondiging *</label>
-          <select name="announcement_id" id="editAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="announcement_id" id="editAnnouncementSelect" required>
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer de aankondiging die je wilt wijzigen</small>
+          <small class="text-muted">Selecteer de aankondiging die je wilt wijzigen</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn">Volgende</button>
@@ -221,27 +225,27 @@
 </div>
 
 <!-- Edit Announcement Form Modal (stap 2: formulier) -->
-<div id="editAnnouncementFormModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="editAnnouncementFormModal" class="modal dashboard-modal">
+  <div class="modal-content modal-medium">
     <div class="modal-header">
       <h2>Aankondiging Wijzigen</h2>
       <span class="modal-close" onclick="closeEditAnnouncementFormModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas de aankondiging aan.</p>
+      <p class="text-description">Pas de aankondiging aan.</p>
       <form id="editAnnouncementFormSubmit" method="POST" action="{{ url_for('main.update_announcement') }}">
         <input type="hidden" name="announcement_id" id="editAnnouncementId">
         <div class="form-group">
           <label>Titel *</label>
-          <input type="text" name="title" id="editAnnouncementTitle" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <input type="text" name="title" id="editAnnouncementTitle" required>
         </div>
         <div class="form-group">
           <label>Bericht *</label>
-          <textarea name="body" id="editAnnouncementBody" rows="4" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;"></textarea>
+          <textarea name="body" id="editAnnouncementBody" rows="4" required></textarea>
         </div>
-        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeEditAnnouncementFormModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+          <button type="submit" class="btn btn-warning">Opslaan</button>
         </div>
       </form>
     </div>
@@ -249,8 +253,8 @@
 </div>
 
 <!-- Delete Announcement Modal (stap 1: dropdown selecteren) -->
-<div id="deleteAnnouncementModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="deleteAnnouncementModal" class="modal dashboard-modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Aankondiging Verwijderen</h2>
       <span class="modal-close" onclick="closeDeleteAnnouncementModal()">&times;</span>
@@ -259,13 +263,13 @@
       <form id="deleteAnnouncementForm" onsubmit="fetchAnnouncementForDeletion(event)">
         <div class="form-group">
           <label>Selecteer Aankondiging *</label>
-          <select name="announcement_id" id="deleteAnnouncementSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="announcement_id" id="deleteAnnouncementSelect" required>
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer de aankondiging die je wilt verwijderen</small>
+          <small class="text-muted">Selecteer de aankondiging die je wilt verwijderen</small>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="submit" class="btn btn-danger">Volgende</button>
           <button type="button" class="btn ghost" onclick="closeDeleteAnnouncementModal()">Annuleren</button>
         </div>
       </form>
@@ -274,23 +278,23 @@
 </div>
 
 <!-- Delete Announcement Confirmation Modal (stap 2: bevestiging) -->
-<div id="deleteAnnouncementConfirmModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:500px;">
+<div id="deleteAnnouncementConfirmModal" class="modal dashboard-modal">
+  <div class="modal-content">
     <div class="modal-header">
       <h2>Aankondiging Verwijderen Bevestigen</h2>
       <span class="modal-close" onclick="closeDeleteAnnouncementConfirmModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je deze aankondiging wilt verwijderen?</p>
-      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+      <p class="text-description">Weet je zeker dat je deze aankondiging wilt verwijderen?</p>
+      <div class="warning-box">
         <strong id="deleteAnnouncementTitleDisplay"></strong>
-        <div style="margin-top: 5px; font-size: 14px; color: #666;" id="deleteAnnouncementDetailsDisplay"></div>
+        <div class="text-muted" style="margin-top: var(--spacing-xs, 5px);" id="deleteAnnouncementDetailsDisplay"></div>
       </div>
       <form id="deleteAnnouncementConfirmForm" method="POST" action="{{ url_for('main.delete_announcement') }}">
         <input type="hidden" name="announcement_id" id="deleteAnnouncementId">
-        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeDeleteAnnouncementConfirmModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #f44336; color: white; padding: 10px 20px;">Verwijderen</button>
+          <button type="submit" class="btn btn-danger">Verwijderen</button>
         </div>
       </form>
     </div>
@@ -298,14 +302,14 @@
 </div>
 
 <!-- Event Modal -->
-<div id="eventModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="eventModal" class="modal dashboard-modal">
+  <div class="modal-content modal-medium">
     <div class="modal-header">
       <h2>Event Toevoegen</h2>
       <span class="modal-close" onclick="closeEventModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted);">Voeg een nieuw event toe aan de agenda.</p>
+      <p class="text-description">Voeg een nieuw event toe aan de agenda.</p>
       <form method="post" action="{{ url_for('main.add_event') }}">
         <div class="form-group">
           <label>Event titel *</label>
@@ -327,7 +331,7 @@
           <label>locatie (optioneel)</label>
           <input type="text" name="location" id="eventLocation" placeholder="Event locatie">
         </div>
-        <div class="form-actions" style="margin-top: 20px;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeEventModal()">Annuleren</button>
           <button type="submit" class="add-transaction-btn">Toevoegen</button>
         </div>
@@ -337,8 +341,8 @@
 </div>
 
 <!-- Edit Event Modal (stap 1: dropdown selecteren) -->
-<div id="editEventModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="editEventModal" class="modal dashboard-modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Event Wijzigen</h2>
       <span class="modal-close" onclick="closeEditEventModal()">&times;</span>
@@ -347,10 +351,10 @@
       <form id="editEventForm" onsubmit="fetchEventForEditing(event)">
         <div class="form-group">
           <label>Selecteer Event *</label>
-          <select name="event_number" id="editEventSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="event_number" id="editEventSelect" required>
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer het event dat je wilt wijzigen</small>
+          <small class="text-muted">Selecteer het event dat je wilt wijzigen</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn">Volgende</button>
@@ -362,35 +366,35 @@
 </div>
 
 <!-- Edit Event Form Modal (stap 2: formulier) -->
-<div id="editEventFormModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:600px;">
+<div id="editEventFormModal" class="modal dashboard-modal">
+  <div class="modal-content modal-medium">
     <div class="modal-header">
       <h2>Event Wijzigen</h2>
       <span class="modal-close" onclick="closeEditEventFormModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted); font-size: 14px;">Pas het event aan.</p>
+      <p class="text-description">Pas het event aan.</p>
       <form id="editEventFormSubmit" method="POST" action="{{ url_for('main.update_event') }}">
         <input type="hidden" name="event_number" id="editEventNumber">
         <div class="form-group">
           <label>Event titel *</label>
-          <input type="text" name="event_name" id="editEventName" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <input type="text" name="event_name" id="editEventName" required>
         </div>
         <div class="form-group">
           <label>Datum *</label>
-          <input type="text" name="event_date" id="editEventDate" required placeholder="dd/mm/yyyy" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <input type="text" name="event_date" id="editEventDate" required placeholder="dd/mm/yyyy">
         </div>
         <div class="form-group">
           <label>Start uur *</label>
-          <input type="text" name="event_time" id="editEventTime" required placeholder="HH:MM" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <input type="text" name="event_time" id="editEventTime" required placeholder="HH:MM">
         </div>
         <div class="form-group">
           <label>Locatie (optioneel)</label>
-          <input type="text" name="location" id="editEventLocation" placeholder="Event locatie" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <input type="text" name="location" id="editEventLocation" placeholder="Event locatie">
         </div>
-        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeEditEventFormModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #ff9800; color: white; padding: 10px 20px;">Opslaan</button>
+          <button type="submit" class="btn btn-warning">Opslaan</button>
         </div>
       </form>
     </div>
@@ -398,8 +402,8 @@
 </div>
 
 <!-- Delete Event Modal (stap 1: dropdown selecteren) -->
-<div id="deleteEventModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:400px;">
+<div id="deleteEventModal" class="modal dashboard-modal">
+  <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Event Verwijderen</h2>
       <span class="modal-close" onclick="closeDeleteEventModal()">&times;</span>
@@ -408,13 +412,13 @@
       <form id="deleteEventForm" onsubmit="fetchEventForDeletion(event)">
         <div class="form-group">
           <label>Selecteer Event *</label>
-          <select name="event_number" id="deleteEventSelect" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+          <select name="event_number" id="deleteEventSelect" required>
             <option value="">Laden...</option>
           </select>
-          <small style="color: #666; font-size: 12px;">Selecteer het event dat je wilt verwijderen</small>
+          <small class="text-muted">Selecteer het event dat je wilt verwijderen</small>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn" style="background: #f44336; color: white;">Volgende</button>
+          <button type="submit" class="btn btn-danger">Volgende</button>
           <button type="button" class="btn ghost" onclick="closeDeleteEventModal()">Annuleren</button>
         </div>
       </form>
@@ -423,23 +427,23 @@
 </div>
 
 <!-- Delete Event Confirmation Modal (stap 2: bevestiging) -->
-<div id="deleteEventConfirmModal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width:500px;">
+<div id="deleteEventConfirmModal" class="modal dashboard-modal">
+  <div class="modal-content">
     <div class="modal-header">
       <h2>Event Verwijderen Bevestigen</h2>
       <span class="modal-close" onclick="closeDeleteEventConfirmModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom: 20px; color: var(--muted);">Weet je zeker dat je dit event wilt verwijderen?</p>
-      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+      <p class="text-description">Weet je zeker dat je dit event wilt verwijderen?</p>
+      <div class="warning-box">
         <strong id="deleteEventNameDisplay"></strong>
-        <div style="margin-top: 5px; font-size: 14px; color: #666;" id="deleteEventDetailsDisplay"></div>
+        <div class="text-muted" style="margin-top: var(--spacing-xs, 5px);" id="deleteEventDetailsDisplay"></div>
       </div>
       <form id="deleteEventConfirmForm" method="POST" action="{{ url_for('main.delete_event') }}">
         <input type="hidden" name="event_number" id="deleteEventNumber">
-        <div class="form-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+        <div class="form-actions">
           <button type="button" class="btn ghost" onclick="closeDeleteEventConfirmModal()">Annuleren</button>
-          <button type="submit" class="btn" style="background: #f44336; color: white; padding: 10px 20px;">Verwijderen</button>
+          <button type="submit" class="btn btn-danger">Verwijderen</button>
         </div>
       </form>
     </div>
@@ -447,9 +451,19 @@
 </div>
 
 <script>
+// Helper functions voor modal management
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('show');
+}
+
+function hideModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('show');
+}
+
 function openAnnouncementModal() {
-    const modal = document.getElementById('announcementModal');
-    modal.style.display = 'flex';
+    showModal('announcementModal');
     // Set current date
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
@@ -459,17 +473,17 @@ function openAnnouncementModal() {
 }
 
 function closeAnnouncementModal() {
-    document.getElementById('announcementModal').style.display = 'none';
+    hideModal('announcementModal');
     document.getElementById('announcementTitle').value = '';
     document.getElementById('announcementBody').value = '';
 }
 
 function openEventModal() {
-    document.getElementById('eventModal').style.display = 'flex';
+    showModal('eventModal');
 }
 
 function closeEventModal() {
-    document.getElementById('eventModal').style.display = 'none';
+    hideModal('eventModal');
     document.getElementById('eventTitle').value = '';
     document.getElementById('eventMessage').value = '';
     document.getElementById('eventDate').value = '';

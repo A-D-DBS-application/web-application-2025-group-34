@@ -9,27 +9,27 @@
 .action-btn-delete {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm, 8px);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
 }
 
 /* Edit button - Oranje */
 .action-btn-edit {
-    background: #ff9800;
-    color: white;
+    background: var(--edit-btn);
+    color: var(--white);
 }
 
 .action-btn-edit:hover {
-    background: #f57c00;
+    background: var(--edit-btn-hover);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .action-btn-edit:active {
@@ -38,14 +38,14 @@
 
 /* Delete button - Rood */
 .action-btn-delete {
-    background: #f44336;
-    color: white;
+    background: var(--delete-btn);
+    color: var(--white);
 }
 
 .action-btn-delete:hover {
-    background: #d32f2f;
+    background: var(--delete-btn-hover);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .action-btn-delete:active {
@@ -57,7 +57,7 @@
 .action-btn-delete svg {
     width: 18px;
     height: 18px;
-    stroke: white;
+    stroke: var(--white);
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -109,17 +109,17 @@
 .action-edit {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: #ff9800;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--edit-btn);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
-    color: white;
+    color: var(--white);
 }
 
 .edit-position-btn:hover,
@@ -127,9 +127,9 @@
 .agenda-edit-btn:hover,
 .cash-edit-btn:hover,
 .action-edit:hover {
-    background: #f57c00;
+    background: var(--edit-btn-hover);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .edit-position-btn:active,
@@ -155,17 +155,17 @@
 .action-delete {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: #f44336;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--delete-btn);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
-    color: white;
+    color: var(--white);
 }
 
 .delete-position-btn:hover,
@@ -173,9 +173,9 @@
 .delete-result-btn:hover,
 .agenda-delete-btn:hover,
 .action-delete:hover {
-    background: #d32f2f;
+    background: var(--delete-btn-hover);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .delete-position-btn:active,
@@ -199,7 +199,7 @@
 .action-delete svg {
     width: 18px;
     height: 18px;
-    stroke: white;
+    stroke: var(--white);
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;

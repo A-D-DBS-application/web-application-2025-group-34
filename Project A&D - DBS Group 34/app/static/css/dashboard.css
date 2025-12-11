@@ -1,13 +1,13 @@
 .dashboard-grid{display:grid;grid-template-columns:1fr 420px;gap:18px}
-.leftcol .announcement{border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 2px 4px rgba(37,91,72,0.05)}
-.leftcol .announcement:nth-child(odd){background:white}
-.leftcol .announcement:nth-child(even){background:#f7faf8}
+.leftcol .announcement{border-radius:var(--radius-md,10px);padding:14px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 2px 4px rgba(var(--green-rgb),0.05)}
+.leftcol .announcement:nth-child(odd){background:var(--white)}
+.leftcol .announcement:nth-child(even){background:var(--bg-lighter)}
 .leftcol .announcement h4{margin:0 0 8px;color:var(--green);font-weight:600;font-size:16px}
 .leftcol .announcement .meta{font-size:13px;color:var(--muted);margin-top:10px}
 
-.rightcol .event{border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 2px 4px rgba(37,91,72,0.05)}
-.rightcol .event:nth-child(odd){background:#fff}
-.rightcol .event:nth-child(even){background:#f7faf8}
+.rightcol .event{border-radius:var(--radius-md,10px);padding:12px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 2px 4px rgba(var(--green-rgb),0.05)}
+.rightcol .event:nth-child(odd){background:var(--white)}
+.rightcol .event:nth-child(even){background:var(--bg-lighter)}
 .rightcol .event strong{display:block;margin-bottom:6px;color:var(--green);font-weight:600;font-size:15px}
 
 .btn.small{padding:8px 10px}
@@ -16,17 +16,18 @@
 }
 /* Dashboard-specific card override */
 .dashboard-grid .card {
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(37,91,72,0.08);
+    padding: var(--spacing-lg, 20px);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: 0 2px 8px rgba(var(--green-rgb),0.08);
 }
 
 /* Dashboard-specific section-head override */
 .dashboard-grid .section-head {
     margin-bottom: 18px;
     padding: 12px 14px;
-    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
-    border: 1px solid rgba(37,91,72,0.3);
+    background: var(--green-gradient);
+    border: 1px solid rgba(var(--green-rgb),0.3);
+    border-radius: var(--radius-lg, 12px);
 }
 
 .dashboard-grid .section-head h3 {
@@ -46,22 +47,22 @@
 .agenda-add-btn {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: var(--cta, #1976d2);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--cta);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
 }
 
 .agenda-add-btn:hover {
-    background: #1565c0;
+    background: var(--cta-dark);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .agenda-add-btn:active {
@@ -71,22 +72,22 @@
 .agenda-edit-btn {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: #ff9800;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--edit-btn);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
 }
 
 .agenda-edit-btn:hover {
-    background: #f57c00;
+    background: var(--edit-btn-hover);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .agenda-edit-btn:active {
@@ -96,22 +97,22 @@
 .agenda-delete-btn {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: #d32f2f;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--delete-btn-hover);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
 }
 
 .agenda-delete-btn:hover {
-    background: #b71c1c;
+    background: var(--error-dark);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .agenda-delete-btn:active {
@@ -121,23 +122,23 @@
 .agenda-ical-btn {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: #66bb6a;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--success-light);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(var(--black-rgba),0.2);
     padding: 0;
     text-decoration: none;
 }
 
 .agenda-ical-btn:hover {
-    background: #4caf50;
+    background: var(--success-lighter);
     transform: scale(1.05);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 6px rgba(var(--black-rgba),0.3);
 }
 
 .agenda-ical-btn:active {
@@ -151,29 +152,29 @@
 .agenda-section-title {
     font-weight: 600;
     font-size: 14px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid rgba(37,91,72,0.3);
-    background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95));
-    color: white;
+    padding: var(--spacing-sm, 10px) 12px;
+    border-radius: var(--radius-sm, 8px);
+    border: 1px solid rgba(var(--green-rgb),0.3);
+    background: var(--green-gradient);
+    color: var(--white);
     margin-bottom: 8px;
 }
 
 .agenda-event-card {
-    border-radius: 10px;
+    border-radius: var(--radius-md, 10px);
     padding: 12px;
     margin-bottom: 8px;
     border: 1px solid var(--border);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 4px 10px rgba(var(--black-rgba), 0.02);
 }
 
 /* Zebra striping voor event cards - alleen de cards zelf, niet de titel */
 .agenda-section .agenda-event-card:nth-of-type(odd) {
-    background: #ffffff;
+    background: var(--white);
 }
 
 .agenda-section .agenda-event-card:nth-of-type(even) {
-    background: #f7faf8;
+    background: var(--bg-lighter);
 }
 
 .agenda-event-card strong {
@@ -192,123 +193,90 @@
 }
 
 /* ===== MODAL STYLES ===== */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
+/* Modal styles zijn gedefinieerd in main.css - gebruik die in plaats van duplicatie */
+/* Alleen dashboard-specifieke modal overrides hier */
+
+.modal-content.modal-medium {
+    max-width: var(--modal-medium, 600px);
+}
+
+.modal-content.modal-small {
+    max-width: var(--modal-small, 400px);
+}
+
+.modal-content.modal-large {
+    max-width: var(--modal-large, 900px);
+}
+
+/* Dashboard-specifieke form styling */
+.dashboard-modal .form-group input,
+.dashboard-modal .form-group textarea,
+.dashboard-modal .form-group select {
     width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0, 0, 0, 0.5);
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: auto;
-    padding: 0;
-    border: 1px solid #888;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 900px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-    background-color: var(--green);
-    color: white;
-    padding: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-radius: 8px 8px 0 0;
-}
-
-.modal-header h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-}
-
-.modal-close {
-    color: white;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.modal-close:hover,
-.modal-close:focus {
-    color: #f0f0f0;
-    text-decoration: none;
-}
-
-.modal-body {
-    padding: 20px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 16px;
-}
-
-.form-group label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--green);
-}
-
-.form-group input,
-.form-group textarea {
-    padding: 10px;
-    border-radius: 8px;
+    padding: var(--spacing-sm, 10px) var(--spacing-md, 12px);
+    border-radius: var(--radius-sm, 8px);
     border: 1px solid var(--border);
-    font-family: var(--font);
     font-size: 14px;
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: var(--green);
-    box-shadow: 0 0 0 2px rgba(37, 91, 72, 0.1);
+.dashboard-modal .form-actions {
+    display: flex;
+    gap: var(--spacing-sm, 10px);
+    justify-content: flex-end;
+    margin-top: var(--spacing-lg, 20px);
 }
 
-.form-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
+.dashboard-modal .btn-warning {
+    background: var(--edit-btn, #ff9800);
+    color: white;
+    padding: var(--spacing-sm, 10px) var(--spacing-lg, 20px);
+}
+
+.dashboard-modal .btn-danger {
+    background: var(--delete-btn, #f44336);
+    color: white;
+    padding: var(--spacing-sm, 10px) var(--spacing-lg, 20px);
+}
+
+.dashboard-modal .warning-box {
+    background: var(--warning-bg, #fff3e0);
+    padding: var(--spacing-md, 15px);
+    border-radius: var(--radius-sm, 8px);
+    margin-bottom: var(--spacing-lg, 20px);
+    border-left: 4px solid var(--edit-btn, #ff9800);
+}
+
+.dashboard-modal .text-muted {
+    color: var(--text-muted, #666);
+    font-size: 12px;
+}
+
+.dashboard-modal .text-description {
+    margin-bottom: var(--spacing-lg, 20px);
+    color: var(--muted);
+    font-size: 14px;
 }
 
 /* Load More Buttons - Styling voor beide knoppen */
 #load-more-announcements,
 #load-more-past-events {
-    background: #246F59;
-    color: white;
-    padding: 10px 20px;
+    background: var(--green-2);
+    color: var(--white);
+    padding: var(--spacing-sm, 10px) var(--spacing-lg, 20px);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm, 8px);
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(37,91,72,0.2);
+    box-shadow: 0 2px 4px rgba(var(--green-rgb),0.2);
 }
 
 #load-more-announcements:hover,
 #load-more-past-events:hover {
-    background: #1d5a48;
+    background: var(--green-dark);
     transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(37,91,72,0.3);
+    box-shadow: 0 3px 6px rgba(var(--green-rgb),0.3);
 }
 
 #load-more-announcements:active,

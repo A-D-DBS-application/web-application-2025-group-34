@@ -7,9 +7,10 @@
     delete_modal_func: JavaScript functie naam voor delete modal (bijv. "openDeletePositionModal")
     add_label: Label voor add button (bijv. "+ Positie")
   #}
+  {% if g.user and g.user.is_admin_or_board() %}
   <div style="display: flex; gap: 10px; align-items: center;">
     {% if add_form_id %}
-    <button class="add-transaction-btn" onclick="document.getElementById('{{ add_form_id }}').style.display='block'">
+    <button class="add-transaction-btn" onclick="document.getElementById('{{ add_form_id }}').style.display='flex'">
       {% if add_label %}
         {{ add_label }}
       {% else %}
@@ -37,5 +38,6 @@
     </button>
     {% endif %}
   </div>
+  {% endif %}
 {% endmacro %}
 

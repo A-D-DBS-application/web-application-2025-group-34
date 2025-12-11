@@ -37,6 +37,33 @@
     --error-text:#c62828;
     --info:#1976d2;
     
+    /* Action button colors */
+    --edit-btn:#ff9800;
+    --edit-btn-hover:#f57c00;
+    --delete-btn:#f44336;
+    --delete-btn-hover:#d32f2f;
+    
+    /* Success colors (voor iCal button en realized summary) */
+    --success-light:#66bb6a;
+    --success-lighter:#4caf50;
+    
+    /* Modal sizes */
+    --modal-small:400px;
+    --modal-medium:600px;
+    --modal-large:900px;
+    
+    /* Common spacing */
+    --spacing-xs:5px;
+    --spacing-sm:10px;
+    --spacing-md:15px;
+    --spacing-lg:20px;
+    
+    /* Common border radius */
+    --radius-sm:8px;
+    --radius-md:10px;
+    --radius-lg:12px;
+    --radius-xl:22px; /* Voor tabs en filter buttons */
+    
     /* Neutral colors */
     --gray-light:#f5f5f5;
     --gray:#888;
@@ -50,7 +77,7 @@
   }
   
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);font-family:var(--font);color:#10261b}
+  html,body{height:100%;margin:0;background:var(--bg);font-family:var(--font);color:var(--text)}
   a{color:inherit;text-decoration:none}
   
   .topbar{
@@ -117,9 +144,9 @@
   }
   
   .tabs{display:flex;justify-content:center;gap:18px;padding:12px 8px;border-bottom:1px solid var(--border);background:transparent;flex-wrap:wrap}
-  .tab{padding:10px 18px;border-radius:22px;background:#fff;border:1px solid var(--border);font-weight:600;transition:all .2s;cursor:pointer}
-  .tab:hover:not(.active){background:#f8fffc;border-color:var(--green)}
-  .tab.active{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 6px 12px rgba(31,90,71,0.25)}
+  .tab{padding:var(--spacing-sm, 10px) 18px;border-radius:var(--radius-xl, 22px);background:var(--white);border:1px solid var(--border);font-weight:600;transition:all .2s;cursor:pointer}
+  .tab:hover:not(.active){background:var(--bg-light);border-color:var(--green)}
+  .tab.active{background:var(--green);color:var(--white);border-color:var(--green);box-shadow:0 6px 12px rgba(31,90,71,0.25)}
   
   .content{max-width:var(--maxw);margin:22px auto;padding:0 18px}
   
@@ -136,7 +163,7 @@
   .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
   .quick-links{margin-bottom:18px}
   .quick-link-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:10px}
-  .quick-link{display:flex;align-items:center;justify-content:center;padding:14px;border-radius:var(--radius);border:1px dashed var(--border);font-weight:600;background:#f8fffc}
+  .quick-link{display:flex;align-items:center;justify-content:center;padding:14px;border-radius:var(--radius);border:1px dashed var(--border);font-weight:600;background:var(--bg-light)}
   .inline-form{margin-top:18px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
   .inline-form label{display:flex;flex-direction:column;font-size:14px;gap:6px;font-weight:600}
   .inline-form input,
@@ -241,6 +268,15 @@
   .modal.show {
     display: flex;
   }
+  
+  /* Dashboard modal visibility - use JavaScript to toggle .show class */
+  .dashboard-modal {
+    display: none;
+  }
+  
+  .dashboard-modal.show {
+    display: flex;
+  }
 
   .modal-content {
     background-color: white;
@@ -308,30 +344,30 @@
   }
 
   .btn-warning {
-    background: #ff9800;
-    color: white;
+    background: var(--edit-btn);
+    color: var(--white);
   }
 
   .btn-warning:hover {
-    background: #f57c00;
+    background: var(--edit-btn-hover);
   }
 
   .btn-danger {
-    background: #f44336;
-    color: white;
+    background: var(--delete-btn);
+    color: var(--white);
   }
 
   .btn-danger:hover {
-    background: #d32f2f;
+    background: var(--delete-btn-hover);
   }
 
   /* Alert/Warning boxes */
   .alert-warning {
-    background: #fff3cd;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border: 1px solid #ffc107;
+    background: var(--warning-bg);
+    padding: var(--spacing-md, 15px);
+    border-radius: var(--radius-sm, 8px);
+    margin-bottom: var(--spacing-lg, 20px);
+    border: 1px solid var(--warning-border);
   }
 
   .modal-body p {

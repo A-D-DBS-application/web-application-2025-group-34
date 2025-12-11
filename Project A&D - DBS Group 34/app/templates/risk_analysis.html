@@ -339,108 +339,6 @@
   color: #c62828;
 }
 
-.correlation-matrix-wrapper {
-  overflow-x: auto;
-  margin-top: 15px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: white;
-}
-
-.correlation-matrix {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  min-width: 400px;
-}
-
-.correlation-header {
-  padding: 12px 10px;
-  background: #f8f9fa;
-  border: 1px solid var(--border);
-  font-weight: 600;
-  color: var(--green);
-  text-align: center;
-  font-size: 12px;
-}
-
-.correlation-row-header {
-  padding: 12px 10px;
-  background: #f8f9fa;
-  border: 1px solid var(--border);
-  font-weight: 600;
-  color: var(--green);
-  font-size: 12px;
-}
-
-.correlation-cell {
-  padding: 10px;
-  border: 1px solid var(--border);
-  text-align: center;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.correlation-cell.diagonal {
-  background: #e3f2fd;
-  font-weight: 700;
-  color: #1976d2;
-}
-
-.correlation-cell.low {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.correlation-cell.medium {
-  background: #fff3e0;
-  color: #f57c00;
-}
-
-.correlation-cell.high {
-  background: #ffebee;
-  color: #c62828;
-}
-
-.correlation-cell:hover {
-  opacity: 0.8;
-  cursor: help;
-}
-
-.correlation-legend {
-  display: flex;
-  gap: 20px;
-  margin-top: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.legend-color {
-  width: 20px;
-  height: 12px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-}
-
-.legend-color.low {
-  background: #e8f5e9;
-}
-
-.legend-color.medium {
-  background: #fff3e0;
-}
-
-.legend-color.high {
-  background: #ffebee;
-}
 
 .risk-error {
   text-align: center;
@@ -530,6 +428,61 @@
 
 .benchmark-comparison-table td.benchmark-rank.benchmark-rank-first {
   color: #f57c00;
+  font-weight: 700;
+}
+
+/* Loss color classes */
+.loss-critical {
+  color: #c62828 !important;
+  font-weight: 600;
+}
+
+.loss-high {
+  color: #e65100 !important;
+  font-weight: 600;
+}
+
+.loss-medium {
+  color: #f57c00 !important;
+  font-weight: 600;
+}
+
+.loss-low {
+  color: #ff9800 !important;
+  font-weight: 500;
+}
+
+/* Severity classes */
+.severity-critical {
+  color: #c62828;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.severity-high {
+  color: #e65100;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.severity-medium {
+  color: #f57c00;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.severity-low {
+  color: #ff9800;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
 .benchmark-comparison-table td.benchmark-name {
@@ -586,20 +539,6 @@
     grid-template-columns: 1fr;
   }
   
-  .correlation-matrix-wrapper {
-    font-size: 11px;
-  }
-  
-  .correlation-header,
-  .correlation-row-header {
-    padding: 8px 6px;
-    font-size: 10px;
-  }
-  
-  .correlation-cell {
-    padding: 6px;
-    font-size: 11px;
-  }
   
   .positions-table {
     font-size: 12px;
@@ -737,7 +676,7 @@ function displayRiskAnalysis(summary) {
     html += '<div class="risk-section">';
     html += '<div class="risk-section-header">';
     html += '<h4>Diversificatie Analyse</h4>';
-    html += '<p class="risk-section-description">Hoe goed gespreid is je portfolio over verschillende sectoren en posities?</p>';
+    html += '<p class="risk-section-description">Hoe goed gespreid is je portfolio over verschillende posities? (Sector spreiding wordt getoond in portfolio tabblad)</p>';
     html += '</div>';
     
     html += '<div class="risk-metrics-grid">';
@@ -753,13 +692,6 @@ function displayRiskAnalysis(summary) {
       <div class="risk-metric-hint">${getDiversificationDescription(divScore)}</div>
     </div>`;
     
-    const hhi = div.sector_concentration || 0;
-    html += `<div class="risk-metric-card">
-      <div class="risk-metric-label">Sector Concentratie (HHI)</div>
-      <div class="risk-metric-value ${hhi > 2500 ? 'negative' : hhi > 1500 ? '' : 'positive'}">${hhi.toFixed(0)}</div>
-      <div class="risk-metric-hint">${getHHIDescription(hhi)}</div>
-    </div>`;
-    
     const maxWeight = (div.max_weight || 0) * 100;
     html += `<div class="risk-metric-card">
       <div class="risk-metric-label">Grootste Positie</div>
@@ -767,102 +699,106 @@ function displayRiskAnalysis(summary) {
       <div class="risk-metric-hint">${maxWeight > 30 ? 'Te geconcentreerd' : maxWeight > 15 ? 'Matig geconcentreerd' : 'Goed gespreid'}</div>
     </div>`;
     
-    html += '</div>';
-    
-    if (div.sector_weights && Object.keys(div.sector_weights).length > 0) {
-      html += '<div class="sector-allocation-section">';
-      html += '<h5 class="sector-allocation-title">Sector Allocatie</h5>';
-      html += '<div class="sector-allocation-grid">';
-      
-      const sortedSectors = Object.entries(div.sector_weights)
-        .sort((a, b) => b[1] - a[1]);
-      
-      for (const [sector, weight] of sortedSectors) {
-        const weightPct = weight * 100;
-        html += `<div class="sector-allocation-item">
-          <div class="sector-allocation-header">
-            <span class="sector-name">${sector}</span>
-            <span class="sector-weight">${weightPct.toFixed(1)}%</span>
-          </div>
-          <div class="sector-bar-container">
-            <div class="sector-bar" style="width: ${weightPct}%; background: ${getSectorColor(sector)}"></div>
-          </div>
-        </div>`;
-      }
-      
-      html += '</div></div>';
-    }
-    
-    html += '</div>';
+    html += '</div></div>';
   }
   
-  if (summary.top_positions && summary.top_positions.length > 0) {
+  // Max Drawdown
+  if (summary.max_drawdown) {
+    const mdd = summary.max_drawdown;
     html += '<div class="risk-section">';
     html += '<div class="risk-section-header">';
-    html += '<h4>Top Posities</h4>';
-    html += '<p class="risk-section-description">Grootste posities in je portfolio (gesorteerd op waarde)</p>';
+    html += '<h4>Maximum Drawdown</h4>';
+    html += '<p class="risk-section-description">Grootste daling van piek naar dal in de afgelopen periode</p>';
+    html += '</div>';
+    html += '<div class="risk-metrics-grid">';
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">MDD Percentage</div>
+      <div class="risk-metric-value negative">${mdd.mdd_percentage?.toFixed(2) || 0}%</div>
+      <div class="risk-metric-hint">${mdd.peak_date ? `Peak: ${mdd.peak_date}` : ''} ${mdd.trough_date ? `| Trough: ${mdd.trough_date}` : ''}</div>
+    </div>`;
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">MDD Absoluut</div>
+      <div class="risk-metric-value negative">€ ${formatNumber(mdd.mdd_absolute || 0)}</div>
+      <div class="risk-metric-hint">Verlies in EUR</div>
+    </div>`;
+    html += '</div></div>';
+  }
+  
+  // CVaR
+  if (summary.cvar_95) {
+    const cvar = summary.cvar_95;
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Conditional Value at Risk (CVaR)</h4>';
+    html += '<p class="risk-section-description">Verwacht verlies gegeven dat VaR wordt overschreden (Expected Shortfall)</p>';
+    html += '</div>';
+    html += '<div class="risk-metrics-grid">';
+    html += `<div class="risk-metric-card var-card">
+      <div class="risk-metric-label">CVaR (95%)</div>
+      <div class="risk-metric-value ${cvar.cvar_percentage > 5 ? 'negative' : cvar.cvar_percentage > 2 ? '' : 'positive'}">€ ${formatNumber(cvar.cvar_absolute || 0)}</div>
+      <div class="risk-metric-percentage">${cvar.cvar_percentage?.toFixed(2) || 0}% van portfolio</div>
+      <div class="risk-metric-hint">Verwacht verlies bij extreme events</div>
+    </div>`;
+    html += '</div></div>';
+  }
+  
+  // Portfolio Beta
+  if (summary.portfolio_beta !== null && summary.portfolio_beta !== undefined) {
+    const beta = summary.portfolio_beta;
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Portfolio Beta</h4>';
+    html += '<p class="risk-section-description">Gevoeligheid voor marktbewegingen (t.o.v. S&P 500)</p>';
+    html += '</div>';
+    html += '<div class="risk-metrics-grid">';
+    html += `<div class="risk-metric-card">
+      <div class="risk-metric-label">Beta</div>
+      <div class="risk-metric-value ${beta > 1.2 ? 'negative' : beta < 0.8 ? 'positive' : ''}">${beta.toFixed(2)}</div>
+      <div class="risk-metric-hint">${beta > 1 ? 'Volatieler dan markt' : beta < 1 ? 'Minder volatiel dan markt' : 'Gelijk aan markt'}</div>
+    </div>`;
+    html += '</div></div>';
+  }
+  
+  // Stress Test
+  if (summary.stress_test && summary.stress_test.scenarios && summary.stress_test.scenarios.length > 0) {
+    html += '<div class="risk-section">';
+    html += '<div class="risk-section-header">';
+    html += '<h4>Stress Test / Scenario Analyse</h4>';
+    html += '<p class="risk-section-description">Impact van extreme marktgebeurtenissen op portfolio waarde</p>';
     html += '</div>';
     html += '<div class="top-positions-table">';
     html += '<table class="positions-table">';
     html += '<thead><tr>';
-    html += '<th>#</th><th>Ticker</th><th>Naam</th><th>Sector</th><th>Waarde</th><th>Gewicht</th>';
-    if (summary.position_volatilities) {
-      html += '<th>Volatiliteit</th>';
-    }
+    html += '<th>Scenario</th><th>Beschrijving</th><th>Portfolio Waarde</th><th>Verlies</th><th>Severity</th>';
     html += '</tr></thead><tbody>';
     
-    summary.top_positions.forEach((pos, index) => {
-      const vol = summary.position_volatilities?.[pos.ticker];
-      const volColor = vol ? (vol > 30 ? 'negative' : vol > 20 ? '' : 'positive') : '';
+    summary.stress_test.scenarios.forEach((scenario) => {
+      // Bepaal kleur op basis van loss percentage
+      const lossPct = scenario.loss_percentage || 0;
+      let lossColorClass = '';
+      if (lossPct >= 15) {
+        lossColorClass = 'loss-critical'; // Rood
+      } else if (lossPct >= 8) {
+        lossColorClass = 'loss-high'; // Donker oranje
+      } else if (lossPct >= 3) {
+        lossColorClass = 'loss-medium'; // Oranje
+      } else {
+        lossColorClass = 'loss-low'; // Licht oranje
+      }
+      
+      const severityClass = scenario.severity === 'Critical' ? 'severity-critical' : 
+                           scenario.severity === 'High' ? 'severity-high' : 
+                           scenario.severity === 'Medium' ? 'severity-medium' : 'severity-low';
       html += `<tr>
-        <td>${index + 1}</td>
-        <td class="ticker-cell"><strong>${pos.ticker}</strong></td>
-        <td>${pos.name || pos.ticker}</td>
-        <td>${pos.sector || 'Unknown'}</td>
-        <td class="value-cell">€ ${formatNumber(pos.value)}</td>
-        <td class="weight-cell">${pos.weight.toFixed(1)}%</td>
-        ${vol ? `<td class="vol-cell ${volColor}">${vol.toFixed(2)}%</td>` : '<td>-</td>'}
+        <td class="ticker-cell"><strong>${scenario.name}</strong></td>
+        <td>${scenario.description || ''}</td>
+        <td class="value-cell">€ ${formatNumber(scenario.total_value_after || 0)}</td>
+        <td class="value-cell ${lossColorClass}">€ ${formatNumber(scenario.loss_absolute || 0)} (${scenario.loss_percentage?.toFixed(2) || 0}%)</td>
+        <td><span class="${severityClass}">${scenario.severity || 'Medium'}</span></td>
       </tr>`;
     });
     
     html += '</tbody></table></div></div>';
-  }
-  
-  if (summary.correlation && summary.correlation.matrix) {
-    const avgCorr = summary.correlation.average_correlation || 0;
-    html += '<div class="risk-section">';
-    html += '<div class="risk-section-header">';
-    html += '<h4>Correlatie Analyse</h4>';
-    html += `<p class="risk-section-description">Hoe bewegen je posities ten opzichte van elkaar? Gemiddelde correlatie: <strong class="${avgCorr > 0.7 ? 'negative' : avgCorr > 0.3 ? '' : 'positive'}">${avgCorr.toFixed(3)}</strong> ${avgCorr < 0.3 ? '(goed gediversifieerd)' : avgCorr < 0.7 ? '(matig gediversifieerd)' : '(weinig gediversifieerd)'}</p>`;
-    html += '</div>';
-    
-    html += '<div class="correlation-matrix-wrapper">';
-    html += '<table class="correlation-matrix">';
-    html += '<thead><tr><th class="correlation-header"></th>';
-    for (const ticker of summary.correlation.tickers) {
-      html += `<th class="correlation-header">${ticker}</th>`;
-    }
-    html += '</tr></thead><tbody>';
-    
-    for (const ticker1 of summary.correlation.tickers) {
-      html += `<tr><td class="correlation-row-header">${ticker1}</td>`;
-      for (const ticker2 of summary.correlation.tickers) {
-        const corr = summary.correlation.matrix[ticker1]?.[ticker2] || 0;
-        const isDiagonal = ticker1 === ticker2;
-        const cellClass = isDiagonal ? 'correlation-cell diagonal' : 
-                         corr > 0.7 ? 'correlation-cell high' : 
-                         corr > 0.3 ? 'correlation-cell medium' : 'correlation-cell low';
-        html += `<td class="${cellClass}" title="${ticker1} vs ${ticker2}: ${corr.toFixed(3)}">${corr.toFixed(2)}</td>`;
-      }
-      html += '</tr>';
-    }
-    
-    html += '</tbody></table></div>';
-    html += '<div class="correlation-legend">';
-    html += '<span class="legend-item"><span class="legend-color low"></span> Laag (&lt;0.3)</span>';
-    html += '<span class="legend-item"><span class="legend-color medium"></span> Matig (0.3-0.7)</span>';
-    html += '<span class="legend-item"><span class="legend-color high"></span> Hoog (&gt;0.7)</span>';
-    html += '</div></div>';
   }
   
   // Benchmark Vergelijking
@@ -892,8 +828,8 @@ function displayRiskAnalysis(summary) {
       const sharpeStr = sharpe !== null && sharpe !== undefined ? sharpe.toFixed(3) : 'N/A';
       
       html += `<tr class="${rowClass}">`;
-      html += `<td class="benchmark-rank ${rankClass}">${index === 0 ? '🏆' : index + 1}</td>`;
-      html += `<td class="benchmark-name"><strong>${isVek ? '★ ' : ''}${benchmark.name}</strong></td>`;
+      html += `<td class="benchmark-rank ${rankClass}">${index + 1}</td>`;
+      html += `<td class="benchmark-name"><strong>${isVek ? '[VEK] ' : ''}${benchmark.name}</strong></td>`;
       html += `<td class="benchmark-metric ${benchmark.annual_return >= 0 ? 'positive' : 'negative'}">${benchmark.annual_return.toFixed(2)}%</td>`;
       html += `<td class="benchmark-metric">${benchmark.volatility.toFixed(2)}%</td>`;
       html += `<td class="benchmark-metric ${sharpeColor}">${sharpeStr}</td>`;
@@ -902,7 +838,7 @@ function displayRiskAnalysis(summary) {
     
     html += '</tbody></table></div>';
     html += '<div class="benchmark-legend">';
-    html += '<p class="benchmark-legend-text"><strong>★</strong> = Jouw VEK Portefeuille | <strong>🏆</strong> = Beste Sharpe Ratio</p>';
+    html += '<p class="benchmark-legend-text"><strong>[VEK]</strong> = Jouw VEK Portefeuille | <strong>#1</strong> = Beste Sharpe Ratio</p>';
     html += '</div></div>';
   }
   
@@ -950,22 +886,6 @@ function getDiversificationDescription(score) {
   return 'Weinig gediversifieerd - overweeg meer spreiding';
 }
 
-function getHHIDescription(hhi) {
-  if (hhi < 1500) return 'Goed gespreid';
-  if (hhi < 2500) return 'Matig geconcentreerd';
-  return 'Sterk geconcentreerd';
-}
-
-function getSectorColor(sector) {
-  const colors = {
-    'Tech': '#43A047',
-    'Cons. & Health': '#E53935',
-    'Ind., E. & R.M.': '#FB8C00',
-    'RE, F. & Hold.': '#7CB342',
-    'ETF': '#1E88E5'
-  };
-  return colors[sector] || '#607D8B';
-}
 
 function showError(elementId, message) {
   const element = document.getElementById(elementId);
