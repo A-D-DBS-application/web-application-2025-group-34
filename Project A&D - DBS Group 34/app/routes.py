@@ -1324,7 +1324,8 @@ def export_single_event_ical(event_id):
     """
     Genereer een RFC5545-compliant .ics-bestand voor één event.
     SUMMARY, DTSTART, DTEND (+1u), LOCATION en DESCRIPTION worden gevuld.
-    Alleen toekomstige events worden geëxporteerd.
+    Alleen events van vandaag of in de toekomst worden geëxporteerd.
+    Events uit het verleden worden niet geëxporteerd.
     """
     from icalendar import Calendar, Event as ICalEvent
 
@@ -1335,10 +1336,13 @@ def export_single_event_ical(event_id):
 
     event_dt = ensure_timezone(event.event_date or datetime.now(TZ_BRUSSELS))
     
-    # Check of event in de toekomst ligt
+    # Check of event vandaag of in de toekomst ligt
+    # Gebruik start van vandaag (middernacht) zodat events van vandaag ook worden meegenomen
     now = datetime.now(TZ_BRUSSELS)
-    if event_dt < now:
-        flash("Alleen toekomstige events kunnen worden geëxporteerd.", "error")
+    today_start = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=TZ_BRUSSELS)
+    
+    if event_dt < today_start:
+        flash("Alleen events van vandaag of in de toekomst kunnen worden geëxporteerd.", "error")
         return redirect(url_for("main.dashboard"))
 
     cal = Calendar()
@@ -1366,7 +1370,8 @@ def export_single_event_ical(event_id):
 def export_all_events_ical():
     """
     Genereer één .ics-bestand met alle toekomstige events in de database.
-    Alleen events die in de toekomst liggen worden geëxporteerd.
+    Alleen events die vandaag of in de toekomst liggen worden geëxporteerd.
+    Events uit het verleden worden niet meegenomen.
     De events worden in een enkele agenda gegroepeerd.
     """
     from icalendar import Calendar, Event as ICalEvent
@@ -1375,10 +1380,13 @@ def export_all_events_ical():
     cal.add("prodid", "-//VIC Agenda Alle Events//NL")
     cal.add("version", "2.0")
 
-    # Haal alleen toekomstige events op
+    # Haal alleen events van vandaag en in de toekomst op
+    # Gebruik start van vandaag (middernacht) zodat events van vandaag ook worden meegenomen
     now = datetime.now(TZ_BRUSSELS)
+    today_start = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=TZ_BRUSSELS)
+    
     events = db.session.query(Event).filter(
-        Event.event_date >= now
+        Event.event_date >= today_start
     ).order_by(Event.event_date.asc()).all()
 
     # Gebruik alleen SQLAlchemy ORM
