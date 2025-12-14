@@ -566,7 +566,7 @@
 
 .breakdown-total-row {
     background: linear-gradient(90deg, rgba(37,91,72,0.95), rgba(37,91,72,0.95)) !important;
-    font-weight: 600;
+    font-weight: 400;
     border-top: 2px solid rgba(var(--white-rgba), 0.2) !important;
     color: white;
 }

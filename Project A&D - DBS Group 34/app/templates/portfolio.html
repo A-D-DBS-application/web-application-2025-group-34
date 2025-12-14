@@ -1089,9 +1089,9 @@ function renderAllSectorsBreakdown() {
     const totalRow = document.createElement('tr');
     totalRow.className = 'breakdown-total-row';
     totalRow.innerHTML = `
-        <td><strong>Total Portfolio Value</strong></td>
-        <td><strong>${totalWeight.toFixed(1)}%</strong></td>
-        <td><strong>€ ${formatBreakdownCurrency(totalValue)}</strong></td>
+        <td>Total Portfolio Value</td>
+        <td>${totalWeight.toFixed(1)}%</td>
+        <td>€ ${formatBreakdownCurrency(totalValue)}</td>
     `;
     tbody.appendChild(totalRow);
     
@@ -1147,9 +1147,9 @@ function renderSectorDetail(sectorName) {
     const totalRow = document.createElement('tr');
     totalRow.className = 'breakdown-total-row';
     totalRow.innerHTML = `
-        <td><strong>Total ${sectorName}</strong></td>
-        <td><strong>${totalWeight.toFixed(1)}%</strong></td>
-        <td><strong>€ ${formatBreakdownCurrency(totalValue)}</strong></td>
+        <td>Total ${sectorName}</td>
+        <td>${totalWeight.toFixed(1)}%</td>
+        <td>€ ${formatBreakdownCurrency(totalValue)}</td>
     `;
     tbody.appendChild(totalRow);
     
