@@ -13,35 +13,6 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 - Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-id=6-46&t=FgQ0gUWEgC4LtVk5-0
 - Render: https://vek-investment-club.onrender.com/
 
-
-## User Stories
-
-| **As a <user>** | **I want to <action>** | **So that <benefit>** | **Prio** |
-|-----------------|------------------------|----------------------|----------|
-| User | Register & login | I can access the portfolio management system and participate in voting | 1 |
-| Board Member | Create and manage portfolio positions | I can track all investments in the portfolio with real-time prices | 2 |
-| Board Member | Create and manage transactions | I can record buy/sell transactions with multi-currency support | 2 |
-| Board Member | Create voting proposals | Members can vote on investment decisions | 3 |
-| Board Member | Manage members (create, edit, view) | I can maintain an up-to-date member directory with role-based access | 2 |
-| Board Member | Create announcements | I can inform all members about important updates | 3 |
-| Board Member | Create and manage events | Members can stay informed about upcoming activities | 3 |
-| Board Member | View risk analysis reports | I can assess portfolio risk using VaR, CVaR, and volatility metrics | 3 |
-| Analist | View portfolio positions in my sector | I can analyze investments relevant to my expertise area | 3 |
-| Analist | View risk analysis for my sector | I can provide informed recommendations based on risk metrics | 3 |
-| Lid (Member) | View portfolio overview | I can see the current state of our investments | 3 |
-| Lid (Member) | Vote on proposals | I can participate in investment decision-making | 3 |
-| Lid (Member) | View announcements | I can stay informed about club updates | 3 |
-| Lid (Member) | View and export events | I can plan my schedule and add events to my calendar | 3 |
-| Lid (Member) | View transaction history | I can see all buy/sell transactions that have been executed | 3 |
-| Kapitaalverschaffer | View portfolio performance | I can monitor the return on my capital contribution | 3 |
-| Kapitaalverschaffer | View risk analysis | I can assess the risk level of the portfolio | 3 |
-| User | Upload and organize files | I can store and access important documents in a structured way | 4 |
-| User | Download files | I can access stored documents when needed | 4 |
-| Board Member | View member directory | I can see all members with their roles and contact information | 3 |
-| User | Edit my profile | I can keep my personal information up to date | 3 |
-| Board Member | View real-time portfolio analytics | I can make informed decisions based on current portfolio value and profit/loss | 2 |
-| User | View diversification metrics | I can understand portfolio diversification and position relationships | 4 |
-
 ## Core Features
 
 ### Portfolio Management
@@ -321,6 +292,8 @@ These limitations are by design to focus on core functionality validation.
 
 This project was developed in collaboration with the VEK student association as an external partner. The system has been validated with real-world usage scenarios and requirements from the investment club.
 
+- Meeting 1: https://ugentbe-my.sharepoint.com/:u:/g/personal/jibbe_schiettecatte_ugent_be/IQBcNtSbAnTXQZ6TZsjDQbxVAdvO4CIRzMpmIWV1ScjPQ5U?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=va6Dcq
+- Meeting 2: 
 ## Team
 
 **Group 34** - Project A&D, DBS

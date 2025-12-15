@@ -1,0 +1,126 @@
+item_id,name,item_type,parent_id,file_path,file_size,created_at,created_by
+1,VIC Leden,folder,,,,2025-12-05 16:49:43.118592+00,1
+2,Leerpaden & materiaal,folder,1,,,2025-12-05 16:49:43.118592+00,1
+3,Leerpaden,folder,2,,,2025-12-05 16:49:43.118592+00,1
+4,Carrière- en Sectorinformatie,folder,3,,,2025-12-05 16:49:43.118592+00,1
+5,Leerpaden & Tools,folder,3,,,2025-12-05 16:49:43.118592+00,1
+6,Advanced Investment Leerpad.docx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/Advanced Investment Leerpad.docx,42761,2025-12-05 16:49:43.118592+00,1
+7,Financiële Ratio's,folder,5,,,2025-12-05 16:49:43.118592+00,1
+8,Analysis_RatioCalc_VIC.xlsx,file,7,VIC Leden\Leerpaden & materiaal\Leerpaden\Leerpaden & Tools\Financiële Ratio's\Analysis_RatioCalc_VIC.xlsx,24972,2025-12-05 16:49:43.118592+00,1
+9,Fin_metrics_excel.xlsx,file,7,VIC Leden\Leerpaden & materiaal\Leerpaden\Leerpaden & Tools\Financiële Ratio's\Fin_metrics_excel.xlsx,9944,2025-12-05 16:49:43.118592+00,1
+10,Gratis Tools Investeringclub.docx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/Gratis Tools Investeringclub.docx,89334,2025-12-05 16:49:43.118592+00,1
+11,interessante filmpjes en links.docx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/interessante filmpjes en links.docx,16412,2025-12-05 16:49:43.118592+00,1
+12,Interne_Workshop_1.pptx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/Interne_Workshop_1.pptx,2435719,2025-12-05 16:49:43.118592+00,1
+13,PE_evaluator.xlsx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/PE_evaluator.xlsx,17976,2025-12-05 16:49:43.118592+00,1
+14,Valuation Leerpad.docx,file,5,VIC Leden/Leerpaden & materiaal/Leerpaden/Leerpaden & Tools/Valuation Leerpad.docx,432821,2025-12-05 16:49:43.118592+00,1
+15,Start2Invest,folder,3,,,2025-12-05 16:49:43.118592+00,1
+16,Financial Statements School - Brian Feroldi.docx,file,15,VIC Leden/Leerpaden & materiaal/Leerpaden/Start2Invest/Financial Statements School - Brian Feroldi.docx,1602352,2025-12-05 16:49:43.118592+00,1
+17,Hoe een bedrijf analyseren.docx,file,15,VIC Leden/Leerpaden & materiaal/Leerpaden/Start2Invest/Hoe een bedrijf analyseren.docx,370476,2025-12-05 16:49:43.118592+00,1
+18,Links.docx,file,15,VIC Leden/Leerpaden & materiaal/Leerpaden/Start2Invest/Links.docx,141568,2025-12-05 16:49:43.118592+00,1
+19,Start To Invest Leerpad.docx,file,15,VIC Leden/Leerpaden & materiaal/Leerpaden/Start2Invest/Start To Invest Leerpad.docx,23244,2025-12-05 16:49:43.118592+00,1
+20,Templates,folder,2,,,2025-12-05 16:49:43.118592+00,1
+21,Sjabloon-VIC-Analyse_LEEG_HOUDEN_AUB.docx,file,20,VIC Leden/Leerpaden & materiaal/Templates/Sjabloon-VIC-Analyse_LEEG_HOUDEN_AUB.docx,109913,2025-12-05 16:49:43.118592+00,1
+22,VICPPT_Template_Aandelen.ppt,file,20,VIC Leden/Leerpaden & materiaal/Templates/VICPPT_Template_Aandelen.ppt,293340,2025-12-05 16:49:43.118592+00,1
+23,Macro AV's,folder,1,,,2025-12-05 16:49:43.118592+00,1
+24,AV5 - VIC.pptx,file,23,VIC Leden/Macro AV's/AV5 - VIC.pptx,2278325,2025-12-05 16:49:43.118592+00,1
+25,Macro Alg Verg 3.pptx,file,23,VIC Leden/Macro AV's/Macro Alg Verg 3.pptx,7025671,2025-12-05 16:49:43.118592+00,1
+26,MACRO_AV4.pptx,file,23,VIC Leden/Macro AV's/MACRO_AV4.pptx,11581931,2025-12-05 16:49:43.118592+00,1
+27,MacroVICAV2 2025.pptx,file,23,VIC Leden/Macro AV's/MacroVICAV2 2025.pptx,13019942,2025-12-05 16:49:43.118592+00,1
+28,Powerpoints Lezingen,folder,1,,,2025-12-05 16:49:43.118592+00,1
+29,LYC_PPT.pdf,file,28,VIC Leden/Powerpoints Lezingen/LYC_PPT.pdf,1468469,2025-12-05 16:49:43.118592+00,1
+30,Statuten,folder,1,,,2025-12-05 16:49:43.118592+00,1
+31,Algemeen Clubreglement - VEK Investment Club.pdf,file,30,VIC Leden/Statuten/Algemeen Clubreglement - VEK Investment Club.pdf,203337,2025-12-05 16:49:43.118592+00,1
+32,Beleggingsstatuut-VEK-Investment-Club.pdf,file,30,VIC Leden/Statuten/Beleggingsstatuut-VEK-Investment-Club.pdf,205221,2025-12-05 16:49:43.118592+00,1
+33,Voorstellen 2025-2026,folder,1,,,2025-12-05 16:49:43.118592+00,1
+34,Hoofdportefeuille,folder,33,,,2025-12-05 16:49:43.118592+00,1
+35,Voorstellen Aandelen,folder,34,,,2025-12-05 16:49:43.118592+00,1
+36,PDF voorstel,folder,35,,,2025-12-05 16:49:43.118592+00,1
+37,Analyse Inditex.pdf,file,36,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PDF voorstel/Analyse Inditex.pdf,711218,2025-12-05 16:49:43.118592+00,1
+38,analyse_Novo.pdf,file,36,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PDF voorstel/analyse_Novo.pdf,969695,2025-12-05 16:49:43.118592+00,1
+39,Analyse_Sanlorenzo.pdf,file,36,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PDF voorstel/Analyse_Sanlorenzo.pdf,822984,2025-12-05 16:49:43.118592+00,1
+40,VIC_EliaGroup_Analyse_WP.docx,file,36,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PDF voorstel/VIC_EliaGroup_Analyse_WP.docx,101307,2025-12-05 16:49:43.118592+00,1
+41,PPT voorstel,folder,35,,,2025-12-05 16:49:43.118592+00,1
+42,AGI_presentatie.pptx,file,41,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PPT voorstel/AGI_presentatie.pptx,3526434,2025-12-05 16:49:43.118592+00,1
+43,PPT-Industrials Valeo.pdf,file,41,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PPT voorstel/PPT-Industrials Valeo.pdf,911128,2025-12-05 16:49:43.118592+00,1
+44,Voorstellen AV2.pptx,file,41,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PPT voorstel/Voorstellen AV2.pptx,27070117,2025-12-05 16:49:43.118592+00,1
+45,Voorstellen_AV5.pptx,file,41,VIC Leden/Voorstellen 2025-2026/Hoofdportefeuille/Voorstellen Aandelen/PPT voorstel/Voorstellen_AV5.pptx,10613992,2025-12-05 16:49:43.118592+00,1
+46,Voorstellen obligaties,folder,34,,,2025-12-05 16:49:43.118592+00,1
+47,Satelietportefeuille,folder,33,,,2025-12-05 16:49:43.118592+00,1
+48,Voorstellen aandelen,folder,47,,,2025-12-05 16:49:43.118592+00,1
+49,BancaSistema.pptx,file,48,VIC Leden/Voorstellen 2025-2026/Satelietportefeuille/Voorstellen aandelen/BancaSistema.pptx,4387376,2025-12-05 16:49:43.118592+00,1
+50,Voorstellen obligaties,folder,47,,,2025-12-05 16:49:43.118592+00,1
+51,Voorstellen opties,folder,47,,,2025-12-05 16:49:43.118592+00,1
+52,Voorstellen Vorige Jaren,folder,1,,,2025-12-05 16:49:43.118592+00,1
+53,2020-2021,folder,52,,,2025-12-05 16:49:43.118592+00,1
+54,Aandeel_VIC_AMD.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/Aandeel_VIC_AMD.pdf,195797,2025-12-05 16:49:43.118592+00,1
+55,Aankoopvoorstel_Walt_Disney.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/Aankoopvoorstel_Walt_Disney.pdf,1292497,2025-12-05 16:49:43.118592+00,1
+56,GIMV-VoorstelVIC-geconverteerd.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/GIMV-VoorstelVIC-geconverteerd.pdf,221466,2025-12-05 16:49:43.118592+00,1
+57,microsoft-VIC_1.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/microsoft-VIC_1.pdf,428185,2025-12-05 16:49:43.118592+00,1
+58,VIC_VolkswagenGroup.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/VIC_VolkswagenGroup.pdf,481358,2025-12-05 16:49:43.118592+00,1
+59,Voorstel_Prosus.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/Voorstel_Prosus.pdf,80346,2025-12-05 16:49:43.118592+00,1
+60,Warehouses-De-Pauw.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/Warehouses-De-Pauw.pdf,651400,2025-12-05 16:49:43.118592+00,1
+61,waste_management_pdf_af.pdf,file,53,VIC Leden/Voorstellen Vorige Jaren/2020-2021/waste_management_pdf_af.pdf,296806,2025-12-05 16:49:43.118592+00,1
+62,2021-2022,folder,52,,,2025-12-05 16:49:43.118592+00,1
+63,2022-2023,folder,52,,,2025-12-05 16:49:43.118592+00,1
+64,Aankoopvoorstel Pfizer.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Aankoopvoorstel Pfizer.pdf,2192511,2025-12-05 16:49:43.118592+00,1
+65,Aankoopvoorstelvoorstel_VIC_Adyen.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Aankoopvoorstelvoorstel_VIC_Adyen.pdf,1494416,2025-12-05 16:49:43.118592+00,1
+66,Analyse NVIDIA.docx (1).pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Analyse NVIDIA.docx (1).pdf,1662188,2025-12-05 16:49:43.118592+00,1
+67,Bijkoopvoorstel X-FAB.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Bijkoopvoorstel X-FAB.pdf,467606,2025-12-05 16:49:43.118592+00,1
+68,InMode Ltd PPT.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/InMode Ltd PPT.pdf,1927890,2025-12-05 16:49:43.118592+00,1
+69,Suncor Energy Inc..pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Suncor Energy Inc..pdf,2656226,2025-12-05 16:49:43.118592+00,1
+70,VIC Analyse AEHR Test Systems.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/VIC Analyse AEHR Test Systems.pdf,1112896,2025-12-05 16:49:43.118592+00,1
+71,VIC Voorstel_ Aedifica (AED).docx,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/VIC Voorstel_ Aedifica (AED).docx,3013971,2025-12-05 16:49:43.118592+00,1
+72,Voorstel AB Inbev.docx,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel AB Inbev.docx,798422,2025-12-05 16:49:43.118592+00,1
+73,Voorstel Adobe - Carlo Follesa - Timo Nuyttens.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel Adobe - Carlo Follesa - Timo Nuyttens.pdf,1949367,2025-12-05 16:49:43.118592+00,1
+74,Voorstel Recticel.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel Recticel.pdf,786560,2025-12-05 16:49:43.118592+00,1
+75,Voorstel Volkswagen VIC-1.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel Volkswagen VIC-1.pdf,800482,2025-12-05 16:49:43.118592+00,1
+76,Voorstel ZPRV - Carlo Follesa.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel ZPRV - Carlo Follesa.pdf,1798355,2025-12-05 16:49:43.118592+00,1
+77,Voorstel-Schneider-Electric.pdf,file,63,VIC Leden/Voorstellen Vorige Jaren/2022-2023/Voorstel-Schneider-Electric.pdf,956169,2025-12-05 16:49:43.118592+00,1
+78,2023-2024,folder,52,,,2025-12-05 16:49:43.118592+00,1
+79,EVS-presentation.pptx,file,78,VIC Leden/Voorstellen Vorige Jaren/2023-2024/EVS-presentation.pptx,842802,2025-12-05 16:49:43.118592+00,1
+80,fagron pp voorstel.pptx,file,78,VIC Leden/Voorstellen Vorige Jaren/2023-2024/fagron pp voorstel.pptx,13828198,2025-12-05 16:49:43.118592+00,1
+81,Presentatie UCB.pptx,file,78,VIC Leden/Voorstellen Vorige Jaren/2023-2024/Presentatie UCB.pptx,2467412,2025-12-05 16:49:43.118592+00,1
+82,Uitgeschreven,folder,78,,,2025-12-05 16:49:43.118592+00,1
+83,"Put Optie voorstel $XHB, $ARKK.pdf",file,82,"VIC Leden/Voorstellen Vorige Jaren/2023-2024/Uitgeschreven/Put Optie voorstel $XHB, $ARKK.pdf",470956,2025-12-05 16:49:43.118592+00,1
+84,Voorstel Barco - BAR.pdf,file,82,VIC Leden/Voorstellen Vorige Jaren/2023-2024/Uitgeschreven/Voorstel Barco - BAR.pdf,2894651,2025-12-05 16:49:43.118592+00,1
+85,Voorstel UCB.pdf,file,82,VIC Leden/Voorstellen Vorige Jaren/2023-2024/Uitgeschreven/Voorstel UCB.pdf,742633,2025-12-05 16:49:43.118592+00,1
+86,Voorstel Xior.docx,file,82,VIC Leden/Voorstellen Vorige Jaren/2023-2024/Uitgeschreven/Voorstel Xior.docx,3108933,2025-12-05 16:49:43.118592+00,1
+87,Voorstel KONE OYJ.pptx,file,78,VIC Leden/Voorstellen Vorige Jaren/2023-2024/Voorstel KONE OYJ.pptx,6395726,2025-12-05 16:49:43.118592+00,1
+88,2024-2025,folder,52,,,2025-12-05 16:49:43.118592+00,1
+89,In progress,folder,88,,,2025-12-05 16:49:43.118592+00,1
+90,Barco,folder,89,,,2025-12-05 16:49:43.118592+00,1
+91,Voorstel Barco - BAR.pdf,file,90,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Barco/Voorstel Barco - BAR.pdf,2894651,2025-12-05 16:49:43.118592+00,1
+92,Barco Verkoopvoorstel.pptx,file,89,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Barco Verkoopvoorstel.pptx,1631015,2025-12-05 16:49:43.118592+00,1
+93,Electronics Arts,folder,89,,,2025-12-05 16:49:43.118592+00,1
+94,EA voorstel.docx,file,93,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Electronics Arts/EA voorstel.docx,209067,2025-12-05 16:49:43.118592+00,1
+95,EA voorstel.pptx,file,93,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Electronics Arts/EA voorstel.pptx,3646197,2025-12-05 16:49:43.118592+00,1
+96,Novo Nordisk,folder,89,,,2025-12-05 16:49:43.118592+00,1
+97,Analyse Novo.pdf,file,96,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Novo Nordisk/Analyse Novo.pdf,2477505,2025-12-05 16:49:43.118592+00,1
+98,novo-nordisk-annual-report-2023.pdf,file,96,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Novo Nordisk/novo-nordisk-annual-report-2023.pdf,9814150,2025-12-05 16:49:43.118592+00,1
+99,Novo.pptx,file,96,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Novo Nordisk/Novo.pptx,290732,2025-12-05 16:49:43.118592+00,1
+100,Sipef,folder,89,,,2025-12-05 16:49:43.118592+00,1
+101,Socfinasia.pptx,file,100,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Sipef/Socfinasia.pptx,2770469,2025-12-05 16:49:43.118592+00,1
+102,Template Presentatie Voorstel.pptx,file,100,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Sipef/Template Presentatie Voorstel.pptx,591856,2025-12-05 16:49:43.118592+00,1
+103,Sofi,folder,89,,,2025-12-05 16:49:43.118592+00,1
+104,Template Presentatie Voorstel.pptx,file,103,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Sofi/Template Presentatie Voorstel.pptx,291401,2025-12-05 16:49:43.118592+00,1
+105,Template Voorstel Word (1).docx,file,103,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Sofi/Template Voorstel Word (1).docx,1250124,2025-12-05 16:49:43.118592+00,1
+106,Warehouses De Pauw,folder,89,,,2025-12-05 16:49:43.118592+00,1
+107,Template Presentatie Voorstel.pptx,file,106,VIC Leden/Voorstellen Vorige Jaren/2024-2025/In progress/Warehouses De Pauw/Template Presentatie Voorstel.pptx,478746,2025-12-05 16:49:43.118592+00,1
+108,Presentaties,folder,88,,,2025-12-05 16:49:43.118592+00,1
+109,Alimentation Couche-Tard.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Alimentation Couche-Tard.pptx,13665801,2025-12-05 16:49:43.118592+00,1
+110,Alphabet.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Alphabet.pptx,3254530,2025-12-05 16:49:43.118592+00,1
+111,Arcod Dorados.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Arcod Dorados.pptx,14617139,2025-12-05 16:49:43.118592+00,1
+112,Evolution.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Evolution.pptx,2238826,2025-12-05 16:49:43.118592+00,1
+113,Inditex.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Inditex.pptx,800293,2025-12-05 16:49:43.118592+00,1
+114,Novo & Lilly.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Novo & Lilly.pptx,858825,2025-12-05 16:49:43.118592+00,1
+115,Puig.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Puig.pptx,5025816,2025-12-05 16:49:43.118592+00,1
+116,Sofina.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Sofina.pptx,2034858,2025-12-05 16:49:43.118592+00,1
+117,Tubize.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Tubize.pptx,403430,2025-12-05 16:49:43.118592+00,1
+118,Verkoop Barco.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Verkoop Barco.pptx,1427368,2025-12-05 16:49:43.118592+00,1
+119,Verkoop Gimv.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Verkoop Gimv.pptx,857964,2025-12-05 16:49:43.118592+00,1
+120,Verkoop VW.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Verkoop VW.pptx,11839637,2025-12-05 16:49:43.118592+00,1
+121,Verkoop WDP.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Verkoop WDP.pptx,300810,2025-12-05 16:49:43.118592+00,1
+122,Verkoop XFAB & STMI.pptx,file,108,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Presentaties/Verkoop XFAB & STMI.pptx,483561,2025-12-05 16:49:43.118592+00,1
+123,Templates,folder,88,,,2025-12-05 16:49:43.118592+00,1
+124,Template Presentatie Voorstel.pptx,file,123,VIC Leden/Voorstellen Vorige Jaren/2024-2025/Templates/Template Presentatie Voorstel.pptx,291401,2025-12-05 16:49:43.118592+00,1
+125,Uitgeschreven Analyses,folder,88,,,2025-12-05 16:49:43.118592+00,1

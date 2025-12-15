@@ -1,0 +1,9 @@
+proposal_id,proposal_date,proposal_type,minimum_requirements,stock_name,deadline,created_at
+3,2025-12-06 11:29:28.551974+00,Algemene Vergadering 3,Aankoop prijs aan 1.80 euro/aandeel,Banca Sistema,2025-12-07 22:59:59+00,2025-12-06 11:29:28.551974+00
+4,2025-12-06 11:30:35.363845+00,Algemene Vergadering 3,,Elia,2025-12-07 22:59:59+00,2025-12-06 11:30:35.363845+00
+5,2025-12-06 11:32:14.006225+00,Algemene Vergadering 4,40 aandelen aan marktprijs,Alamos Gold,2025-12-07 22:59:59+00,2025-12-06 11:32:14.006225+00
+6,2025-12-06 11:33:03.428651+00,Algemene Vergadering 4,11.5 euro/aandeel voor 100 aandelen,Valeo,2025-12-07 22:59:59+00,2025-12-06 11:33:03.428651+00
+7,2025-12-06 11:34:19.679551+00,Algemene Vergadering 5,20 aandelen aan marktprijs,Exor,2025-12-07 22:59:59+00,2025-12-06 11:34:19.679551+00
+8,2025-12-06 11:35:20.978181+00,Algemene Vergadering 5,40 aandelen aan marktprijs,San Lorenzo,2025-12-07 22:59:59+00,2025-12-06 11:35:20.978181+00
+9,2025-12-06 11:48:50.475484+00,"Algemene Vergadering ""Test""","Niet Stemmen, dit is een voorbeeld van hoe niet ingevulde voting eruit ziet.",Voorbeeld voting. Niet invullen,2026-12-07 22:59:59+00,2025-12-06 11:48:50.475484+00
+10,2025-12-06 11:50:09.716775+00,"Algemene Vergadering ""test""",voorbeeld om te tonen hoe ingevulde vote eruit ziet,"Probeer hier eens te stemmen, deadline ver",2026-12-07 22:59:59+00,2025-12-06 11:50:09.716775+00
