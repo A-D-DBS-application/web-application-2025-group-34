@@ -1,12 +1,44 @@
 # VEK Portfolio Management System
 
-A comprehensive web-based portfolio management system for the VEK (Vereniging voor Economie en Krediet) student association at Ghent University.
+A comprehensive web-based portfolio management system for the VEK student association at Ghent University.
 
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/DxqGQVx4)
 
 ## Project Overview
 
 This project is a **Minimum Viable Product (MVP)** designed to manage investment portfolios, transactions, voting procedures, member administration, and risk analysis for the VEK student association. The system provides a complete solution for tracking portfolio performance, managing transactions, conducting voting procedures, and analyzing investment risks.
+
+## Links
+Figma: https://www.figma.com/make/sFxaBZzVdXEJMN3CYkF9JS/Investment-Club-MVP-Web-App?node-id=0-1&t=bmMzAAqkkwYEjWoB-1 
+Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-id=6-46&t=FgQ0gUWEgC4LtVk5-0
+
+## User Stories
+
+| **As a <user>** | **I want to <action>** | **So that <benefit>** | **Prio** |
+|-----------------|------------------------|----------------------|----------|
+| User | Register & login | I can access the portfolio management system and participate in voting | 1 |
+| Board Member | Create and manage portfolio positions | I can track all investments in the portfolio with real-time prices | 2 |
+| Board Member | Create and manage transactions | I can record buy/sell transactions with multi-currency support | 2 |
+| Board Member | Create voting proposals | Members can vote on investment decisions | 3 |
+| Board Member | Manage members (create, edit, view) | I can maintain an up-to-date member directory with role-based access | 2 |
+| Board Member | Create announcements | I can inform all members about important updates | 3 |
+| Board Member | Create and manage events | Members can stay informed about upcoming activities | 3 |
+| Board Member | View risk analysis reports | I can assess portfolio risk using VaR, CVaR, and volatility metrics | 3 |
+| Analist | View portfolio positions in my sector | I can analyze investments relevant to my expertise area | 3 |
+| Analist | View risk analysis for my sector | I can provide informed recommendations based on risk metrics | 3 |
+| Lid (Member) | View portfolio overview | I can see the current state of our investments | 3 |
+| Lid (Member) | Vote on proposals | I can participate in investment decision-making | 3 |
+| Lid (Member) | View announcements | I can stay informed about club updates | 3 |
+| Lid (Member) | View and export events | I can plan my schedule and add events to my calendar | 3 |
+| Lid (Member) | View transaction history | I can see all buy/sell transactions that have been executed | 3 |
+| Kapitaalverschaffer | View portfolio performance | I can monitor the return on my capital contribution | 3 |
+| Kapitaalverschaffer | View risk analysis | I can assess the risk level of the portfolio | 3 |
+| User | Upload and organize files | I can store and access important documents in a structured way | 4 |
+| User | Download files | I can access stored documents when needed | 4 |
+| Board Member | View member directory | I can see all members with their roles and contact information | 3 |
+| User | Edit my profile | I can keep my personal information up to date | 3 |
+| Board Member | View real-time portfolio analytics | I can make informed decisions based on current portfolio value and profit/loss | 2 |
+| User | View diversification metrics | I can understand portfolio diversification and position relationships | 4 |
 
 ## Core Features
 
@@ -90,32 +122,6 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 - Gunicorn 21.2.0 - WSGI HTTP server
 - Alembic 1.17.1 - Database migration tool
 
-### Project Structure
-
-```
-Project A&D - DBS Group 34/
-├── app/
-│   ├── __init__.py              # Flask application factory
-│   ├── models.py                # SQLAlchemy database models
-│   ├── routes.py                # Route handlers and business logic
-│   ├── utils.py                 # Utility functions and helpers
-│   ├── jobs.py                  # Scheduled background tasks
-│   ├── config.py                # Application configuration
-│   ├── algorithms/
-│   │   └── risk_analysis.py     # Risk analysis algorithms
-│   ├── templates/               # Jinja2 HTML templates
-│   │   ├── partials/           # Reusable template components
-│   │   └── *.html               # Page templates
-│   ├── static/                  # Static assets
-│   │   ├── css/                 # Stylesheets
-│   │   └── img/                 # Images
-│   └── services/                # Service layer (optional)
-├── migrations/                  # Alembic database migrations
-│   └── versions/                # Migration version files
-├── requirements.txt             # Python dependencies
-├── run.py                       # Application entry point
-└── README.md                    # This file
-```
 
 ### Design Patterns & Architecture
 
@@ -153,62 +159,6 @@ Project A&D - DBS Group 34/
 - Virtual environment (recommended)
 - pip package manager
 
-### Installation Steps
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd "Project A&D - DBS Group 34"
-   ```
-
-2. **Create and activate virtual environment**
-   ```bash
-   # Windows
-   python -m venv .venv
-   .venv\Scripts\activate
-   
-   # Linux/macOS
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**
-   
-   Create a `.env` file or set environment variables:
-   ```env
-   DATABASE_URL=postgresql://username:password@localhost:5432/dbname
-   SECRET_KEY=your-secret-key-here
-   SUPABASE_URL=your-supabase-url  # Optional
-   SUPABASE_KEY=your-supabase-key  # Optional
-   ```
-
-5. **Initialize database**
-   ```bash
-   # Create database migrations
-   flask db upgrade
-   ```
-
-6. **Run the application**
-   ```bash
-   python run.py
-   ```
-   
-   The application will be available at `http://localhost:5000`
-
-### Database Configuration
-
-The application uses PostgreSQL as the primary database. Connection settings are configured via the `DATABASE_URL` environment variable.
-
-**Database Migrations**
-- All schema changes are managed through Alembic migrations
-- Create new migration: `flask db revision -m "description"`
-- Apply migrations: `flask db upgrade`
-- Rollback migration: `flask db downgrade`
 
 ## Database Schema
 
@@ -373,6 +323,4 @@ This project was developed in collaboration with the VEK student association as 
 
 ---
 
-**Status**: MVP - Minimum Viable Product  
-**Version**: 1.0  
-**Last Updated**: January 2025
+
