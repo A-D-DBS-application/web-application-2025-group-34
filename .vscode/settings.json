@@ -1,8 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "./Project A&D - DBS Group 34/app"
-    ],
-    "cursorpyright.analysis.extraPaths": [
-        "./Project A&D - DBS Group 34/app"
-    ]
-}
