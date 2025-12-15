@@ -6,3 +6,10 @@ __pycache__/
 
 # Cache directory (lokaal, maar niet op Render)
 .cache/
+
+# IDE settings (persoonlijke configuratie)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
