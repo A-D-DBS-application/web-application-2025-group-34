@@ -9,8 +9,8 @@ A comprehensive web-based portfolio management system for the VEK student associ
 This project is a **Minimum Viable Product (MVP)** designed to manage investment portfolios, transactions, voting procedures, member administration, and risk analysis for the VEK student association. The system provides a complete solution for tracking portfolio performance, managing transactions, conducting voting procedures, and analyzing investment risks.
 
 ## Links
-Figma: https://www.figma.com/make/sFxaBZzVdXEJMN3CYkF9JS/Investment-Club-MVP-Web-App?node-id=0-1&t=bmMzAAqkkwYEjWoB-1 
-Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-id=6-46&t=FgQ0gUWEgC4LtVk5-0
+- Figma: https://www.figma.com/make/sFxaBZzVdXEJMN3CYkF9JS/Investment-Club-MVP-Web-App?node-id=0-1&t=bmMzAAqkkwYEjWoB-1 
+- Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-id=6-46&t=FgQ0gUWEgC4LtVk5-0
 
 ## User Stories
 
@@ -48,12 +48,14 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 - **Cash Management**: Cash balance tracking and updates
 - **Company Information**: Detailed company profiles and financial ratios via Yahoo Finance integration
 - **Portfolio Analytics**: Real-time portfolio value, profit/loss calculations, and position weights
+- **Manual Price Updates**: On-demand price refresh functionality for immediate updates
 
 ### Transaction Management
 - **Transaction Tracking**: Complete transaction history with full CRUD capabilities
 - **Multi-Currency Support**: Support for EUR, USD, CAD, DKK with automatic exchange rate handling
 - **Transaction History**: Comprehensive audit trail of all buy/sell transactions
 - **Asset Classification**: Support for stocks, ETFs, bonds, crypto, and other asset classes
+- **Sector Tracking**: Automatic sector assignment for portfolio analysis
 
 ### Voting System
 - **Proposal Management**: Create and manage voting proposals with deadlines
@@ -61,13 +63,13 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 - **Deadline Tracking**: Automated deadline management and enforcement
 - **Real-time Results**: Live vote counting and result visualization
 - **Stock-Specific Voting**: Support for stock purchase/sale voting procedures
+- **Vote History**: Track individual member votes and proposal outcomes
 
 ### Risk Analysis
 - **Value at Risk (VaR)**: VaR calculations at 95% and 99% confidence levels
 - **Conditional VaR (CVaR)**: Expected shortfall beyond VaR threshold
 - **Volatility Analysis**: Portfolio and individual position volatility metrics
-- **Correlation Matrix**: Correlation analysis between portfolio positions
-- **Benchmark Comparison**: Performance comparison against benchmark portfolios
+- **Benchmark Comparison**: Performance comparison against benchmark portfolios (Defensief, Gebalanceerd, Agressief)
 - **Diversification Metrics**: Diversification scores, sector concentration, and Herfindahl-Hirschman Index
 - **Sharpe Ratio**: Risk-adjusted return calculations
 - **Stress Testing**: Scenario analysis with market crashes, volatility spikes, and correlation breakdowns
@@ -77,18 +79,22 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 - **Profile Management**: User profile editing and account management
 - **Member Directory**: Comprehensive member overview with role-based filtering
 - **Custom ID System**: Structured member ID system encoding role, function, and year
+- **Member CRUD Operations**: Full create, read, update, delete functionality for board members
 
 ### Dashboard & Events
 - **Announcements System**: Create, update, and manage announcements
 - **Event Management**: Event scheduling with iCal export functionality
 - **Activity Overview**: Dashboard with recent activities and key metrics
 - **Calendar Integration**: Export events to Google Calendar, Apple Calendar, Outlook
+- **Individual Event Export**: Single event iCal download
+- **Bulk Event Export**: Export all events as a single calendar file
 
 ### File Management
 - **Hierarchical Structure**: Folder-based file organization
-- **File Upload/Download**: Secure file upload and download functionality
+- **File Upload/Download**: Secure file upload and download functionality via Supabase storage
 - **ZIP Import**: Bulk file import via ZIP archives
 - **Document Organization**: Structured document management system
+- **File Metadata**: Track file size, creation date, and creator information
 
 ## Technical Architecture
 
@@ -109,19 +115,23 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 - Bootstrap - Responsive CSS framework
 - JavaScript - Client-side interactivity
 
-**External APIs**
-- Yahoo Finance API (yfinance 0.2.40) - Market data and company information
-- Supabase 2.10.0 - Optional cloud services integration
+**External APIs & Services**
+- Yahoo Finance API (yfinance 0.2.66) - Market data and company information
+- Supabase 2.10.0 - Cloud storage for file management
+- curl-cffi >= 0.5.10 - HTTP client for yfinance (improved compatibility)
 
 **Data Processing**
-- Pandas 2.0.0+ - Data manipulation and analysis
-- NumPy 1.24.0+ - Numerical computations
-- requests-cache 1.2.0+ - HTTP request caching
+- Pandas >= 2.0.0 - Data manipulation and analysis
+- NumPy >= 1.24.0 - Numerical computations
+- requests-cache >= 1.2.0 - HTTP request caching (24-hour TTL)
+
+**Calendar & Timezone**
+- icalendar 5.0.11 - iCal file generation for event exports
+- pytz 2024.1 - Timezone handling (Europe/Brussels)
 
 **Deployment**
 - Gunicorn 21.2.0 - WSGI HTTP server
 - Alembic 1.17.1 - Database migration tool
-
 
 ### Design Patterns & Architecture
 
@@ -146,18 +156,9 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 - Helper functions for common operations
 
 **Scheduled Jobs**
-- Background task processing
-- Automated price updates
+- Background task processing via Flask-APScheduler
+- Automated price updates every 5 minutes
 - Time-based task execution
-
-## Installation & Setup
-
-### Prerequisites
-
-- Python 3.8 or higher
-- PostgreSQL database server
-- Virtual environment (recommended)
-- pip package manager
 
 
 ## Database Schema
@@ -165,36 +166,51 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 ### Core Tables
 
 **Members (`members`)**
-- Unified table for all member types (board, analist, lid, kapitaalverschaffers)
+- Unified table for all member types (board, analist, lid, kapitaalverschaffers, oud_bestuur_analisten)
 - Role-based access control
-- Custom ID system encoding role and year
+- Custom ID system encoding role, function/sector, and year
+- Email and password authentication
+- Voting rights tracking
 
 **Portfolio (`portfolio`)**
 - Portfolio snapshots with timestamps
 - Profit/loss tracking
+- One-to-many relationship with positions
 
 **Positions (`positions`)**
 - Portfolio positions with real-time price data
-- Current price and day change percentage
+- Current price and day change percentage (cached)
 - Ticker symbols and sector information
+- Quantity and value tracking
+- Foreign key to portfolio
 
 **Transactions (`transactions`)**
 - Complete transaction history
-- Multi-currency support
+- Multi-currency support (EUR, USD, CAD, DKK)
 - Asset classification and sector tracking
+- Transaction type (BUY/SELL)
+- Share price and quantity tracking
 
 **Voting (`voting_proposal`, `votes`)**
-- Voting proposals with deadlines
-- Individual vote tracking
+- Voting proposals with deadlines and stock names
+- Individual vote tracking (voor/tegen/onthouding)
 - Vote result calculations
+- Unique constraint: one vote per member per proposal
 
 **Events & Announcements (`events`, `announcements`)**
 - Event management with iCal export
-- Announcement system
+- Announcement system with author tracking
+- Timestamp tracking for all entries
 
 **File Management (`file_items`)**
-- Hierarchical file structure
-- File metadata and organization
+- Hierarchical file structure with parent-child relationships
+- File metadata (size, path, creation date)
+- Creator tracking
+- Support for folders and files
+
+**Club Management (`Iv_club`)**
+- Club information and location tracking
+- Relationship to members
 
 ## Configuration
 
@@ -206,43 +222,23 @@ Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-
 | `SECRET_KEY` | Flask secret key for sessions | Yes |
 | `SUPABASE_URL` | Supabase project URL | No |
 | `SUPABASE_KEY` | Supabase API key | No |
+| `SUPABASE_BUCKET` | Supabase storage bucket name | No (default: 'files') |
 
 ### Scheduled Jobs
 
 The application includes automated background tasks:
 
 - **Price Updates**: Every 5 minutes - Updates live stock prices for all positions
-- Configuration: `app/__init__.py`
+- Configuration: `app/jobs.py` and `app/__init__.py`
+- Uses requests-cache to prevent rate limiting
 
-## Development
+### File Upload Configuration
 
-### Code Organization
+- **Max File Size**: 500MB
+- **Allowed Extensions**: zip, pdf, doc, docx, xls, xlsx, txt, png, jpg, jpeg, gif
+- **Storage**: Supabase cloud storage (not local filesystem)
 
-**Best Practices**
-- Helper functions organized in `routes.py` or `utils.py`
-- No code duplication - reusable functions for shared logic
-- Clean route handlers - business logic separated from routes
-- Type safety through Enums and SQLAlchemy models
 
-**Database Guidelines**
-- Use ORM (SQLAlchemy) instead of direct SQL queries
-- All schema changes through database migrations
-- Enums for type safety and validation
-
-**Template Structure**
-- Reusable partials in `partials/` directory
-- Base templates for consistency
-- Jinja2 macros for repeated components
-
-### Running in Development Mode
-
-```bash
-# Development server with auto-reload
-python run.py
-
-# Or using Flask CLI
-flask run --debug
-```
 
 ## Scalability & Performance
 
@@ -251,17 +247,11 @@ flask run --debug
 - **Modular Architecture**: App factory pattern for flexible deployment
 - **Database Migrations**: Alembic for schema versioning
 - **ORM Layer**: Type-safe database queries
-- **Caching**: HTTP request caching via requests-cache
+- **Caching**: HTTP request caching via requests-cache (24-hour TTL)
 - **Background Tasks**: Scheduled jobs for automated updates
 - **Code Reusability**: Helper functions and service layer
+- **Rate Limiting Protection**: Caching prevents Yahoo Finance API rate limits
 
-### Future Enhancements
-
-- API endpoints for external integrations
-- Real-time updates via WebSockets
-- Advanced caching strategies (Redis)
-- Microservices architecture (if needed)
-- Horizontal scaling support
 
 ## Value-Adding Algorithm
 
@@ -275,7 +265,8 @@ The system includes a **self-implemented risk analysis algorithm** that provides
 - **Correlation Analysis**: Correlation matrix between portfolio positions
 - **Diversification Metrics**: Herfindahl-Hirschman Index and diversification scores
 - **Sharpe Ratio**: Risk-adjusted return calculations
-- **Benchmark Comparison**: Performance comparison against benchmark portfolios
+- **Benchmark Comparison**: Performance comparison against benchmark portfolios (Defensief, Gebalanceerd, Agressief)
+- **Stress Testing**: Scenario analysis with market crashes, volatility spikes, and correlation breakdowns
 
 **Algorithm Implementation**:
 - All core calculations (VaR, volatility, correlation, Sharpe ratio) are **implemented from scratch** by the team
@@ -291,15 +282,24 @@ The system includes a **self-implemented risk analysis algorithm** that provides
 - Data source: Historical prices from Yahoo Finance → team calculates returns → team calculates correlations
 - **No external correlation service used** - all calculations performed locally
 
-For detailed algorithm documentation, see `app/algorithms/ALGORITHM_DOCUMENTATION.md`.
+**Benchmark Portfolios**:
+- **Defensief (ETF Mix)**: VTI (30%), VEA (25%), BND (25%), GLD (20%)
+- **Gebalanceerd (Global Index)**: VTI (40%), VEA (30%), VWO (20%), BND (10%)
+- **Agressief (Tech & Growth)**: QQQ (35%), VUG (25%), ARKK (20%), VTI (20%)
 
 ### External API Usage
 
-**Yahoo Finance API (yfinance)**
+**Yahoo Finance API (yfinance 0.2.66)**
 - **Purpose**: Data retrieval only (non-core task)
-- **Usage**: Historical stock prices and market data
+- **Usage**: Historical stock prices, current prices, company information, exchange rates
 - **Not used for**: Calculations, predictions, rankings, or classifications
 - **Caching Strategy**: HTTP request caching (24-hour TTL), in-memory fallback cache, rate limiting protection
+- **HTTP Client**: curl-cffi for improved compatibility and performance
+
+**Supabase**
+- **Purpose**: Cloud file storage
+- **Usage**: Secure file upload, download, and organization
+- **Not used for**: Core application logic or calculations
 
 ## Known Limitations (MVP Scope)
 
@@ -310,17 +310,17 @@ As an MVP, the following features are intentionally limited:
 - No real-time notifications
 - Basic analytics dashboard
 - No mobile application
+- No API documentation
+- Limited user documentation
 
 These limitations are by design to focus on core functionality validation.
 
 ## Partner Validation
 
-This project was developed in collaboration with the VEK student association as an external partner.
+This project was developed in collaboration with the VEK student association as an external partner. The system has been validated with real-world usage scenarios and requirements from the investment club.
 
 ## Team
 
 **Group 34** - Project A&D, DBS
 
 ---
-
-
