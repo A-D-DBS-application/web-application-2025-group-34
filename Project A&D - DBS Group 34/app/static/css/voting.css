@@ -380,6 +380,10 @@
   justify-content: center;
 }
 
+.modal.show {
+  display: flex;
+}
+
 .modal-content {
   background-color: white;
   border-radius: 8px;
@@ -398,6 +402,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
 }
 
 .modal-header h2 {
@@ -411,10 +416,21 @@
   font-weight: bold;
   cursor: pointer;
   line-height: 1;
+  padding: 5px 10px;
+  display: inline-block;
+  position: relative;
+  z-index: 10;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
 }
 
 .modal-close:hover {
   opacity: 0.7;
+}
+
+.modal-close:active {
+  opacity: 0.5;
 }
 
 .modal-body {

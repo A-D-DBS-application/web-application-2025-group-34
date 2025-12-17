@@ -762,17 +762,26 @@ def _persist_event_supabase(title, event_date_iso, location=None):
         # Parse de ISO date string naar datetime object
         try:
             if isinstance(event_date_iso, str):
-                # Handle verschillende datetime formats
-                if 'T' in event_date_iso:
-                    event_date = datetime.fromisoformat(event_date_iso.replace('Z', '+00:00'))
-                else:
-                    event_date = datetime.fromisoformat(event_date_iso)
+                # Verwijder timezone info (Z, +00:00, etc.) en parse als naive datetime
+                # Dan localizen we naar Brussels timezone (niet UTC)
+                iso_clean = event_date_iso
+                if 'Z' in iso_clean:
+                    iso_clean = iso_clean.replace('Z', '')
+                if '+' in iso_clean:
+                    iso_clean = iso_clean.split('+')[0]
+                if '-' in iso_clean and iso_clean.count('-') > 2:  # Timezone offset zoals -05:00
+                    parts = iso_clean.rsplit('-', 1)
+                    if ':' in parts[-1]:  # Check of laatste deel tijdzone offset is
+                        iso_clean = parts[0]
+                
+                event_date = datetime.fromisoformat(iso_clean)
             else:
                 event_date = event_date_iso
         except (ValueError, AttributeError):
             event_date = datetime.now()
         
-        # Zorg dat event_date timezone-aware is
+        # Zorg dat event_date timezone-aware is (Europe/Brussels)
+        # Als het al timezone-aware is, converteer naar Brussels; anders localize naar Brussels
         event_date = ensure_timezone(event_date)
         
         # event_number wordt automatisch gegenereerd door de database (autoincrement)
@@ -1268,12 +1277,34 @@ def update_event():
         if not event_time:
             event_time = "00:00"
         
-        # Parse and format date
-        iso_date = _format_event_date(event_date, event_time)
+        # Parse date and time strings directly naar Brussels timezone
+        # Parse datum string
+        parsed_date = None
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                parsed_date = datetime.strptime(event_date, fmt)
+                break
+            except ValueError:
+                continue
+        
+        if parsed_date is None:
+            flash("Ongeldige datum formaat.", "error")
+            return redirect(url_for("main.dashboard"))
+        
+        # Parse tijd string en combineer met datum
+        if event_time:
+            try:
+                parsed_time = datetime.strptime(event_time, "%H:%M")
+                parsed_date = parsed_date.replace(hour=parsed_time.hour, minute=parsed_time.minute)
+            except ValueError:
+                pass
+        
+        # Zorg dat datetime timezone-aware is (Europe/Brussels)
+        parsed_date = ensure_timezone(parsed_date)
         
         # Update event
         event.event_name = event_name
-        event.event_date = datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
+        event.event_date = parsed_date
         event.location = location or "Onbekende locatie"
         
         db.session.commit()
@@ -1805,7 +1836,7 @@ def risk_analysis():
 # ============================================================================
 
 @main.route("/portfolio/manual-update-prices", methods=['POST'])
-@admin_or_board_required
+@login_required
 def manual_update_prices():
     """Handmatig prijzen updaten via web interface"""
     try:

@@ -69,42 +69,56 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 - **Document Organization**: Structured document management system
 - **File Metadata**: Track file size, creation date, and creator information
 
-## Technical Architecture
+### ID-numbering
 
-### Technology Stack
+Het systeem gebruikt een gestructureerd 6-cijferig ID-systeem voor alle leden. Het ID-codeert de rol, functie/sector, en het jaar van toetreding.
 
-**Backend Framework**
-- Flask 3.1.2 - Web application framework
-- SQLAlchemy 2.0.44 - ORM for database operations
-- Flask-Migrate 4.1.0 - Database migration management
-- Flask-Login 0.6.3 - User session management
-- Flask-APScheduler 1.13.1 - Background task scheduling
+**ID-structuur:**
+- **Eerste cijfer (rol)**: Bepaalt het type lid
+  - `0` = Board member (bestuurslid)
+  - `1` = Analist
+  - `2` = Lid (gewone member)
+  - `3` = Kapitaalverschaffer
+  - `4` = Oud-bestuur/analist (geconverteerd van origineel ID)
 
-**Database**
-- PostgreSQL - Primary database (production)
+**Board Members (0[FUNCTIE][JAAR]):**
+- Format: `0XXYYY` waarbij:
+  - `XX` = Functiecode (01-06): Voorzitter, Vice-voorzitter, Penningmeester, Secretaris, etc.
+  - `YYY` = Jaar suffix (laatste 3 cijfers van jaar, bijv. 2025 → 025)
+- Voorbeeld: `001025` = Voorzitter uit 2025
 
-**Frontend**
-- Jinja2 3.1.6 - Template engine
-- Bootstrap - Responsive CSS framework
-- JavaScript - Client-side interactivity
+**Analisten (1[SECTOR][NUMMER][JAAR]):**
+- Format: `1XNYYY` waarbij:
+  - `X` = Sectornummer (1-4): Cons. & Health, Ind., E. & R.M., etc.
+  - `N` = Analist nummer binnen sector (1-9)
+  - `YYY` = Jaar suffix
+- Voorbeeld: `112025` = Eerste analist in sector 1 (Cons. & Health) uit 2025
 
-**External APIs & Services**
-- Yahoo Finance API (yfinance 0.2.66) - Market data and company information
-- Supabase 2.10.0 - Cloud storage for file management
-- curl-cffi >= 0.5.10 - HTTP client for yfinance (improved compatibility)
+**Leden (2[NUMMER][JAAR]):**
+- Format: `2NNYYY` waarbij:
+  - `NN` = Volgnummer binnen jaar (00-99, max 100 leden per jaar)
+  - `YYY` = Jaar suffix
+- Voorbeeld: `200025` = Eerste lid uit 2025
 
-**Data Processing**
-- Pandas >= 2.0.0 - Data manipulation and analysis
-- NumPy >= 1.24.0 - Numerical computations
-- requests-cache >= 1.2.0 - HTTP request caching (24-hour TTL)
+**Kapitaalverschaffers (3[NUMMER][JAAR]):**
+- Format: `3NNYYY` waarbij:
+  - `NN` = Volgnummer binnen jaar (00-99, max 100 per jaar)
+  - `YYY` = Jaar suffix
+- Voorbeeld: `300025` = Eerste kapitaalverschaffer uit 2025
 
-**Calendar & Timezone**
-- icalendar 5.0.11 - iCal file generation for event exports
-- pytz 2024.1 - Timezone handling (Europe/Brussels)
+**Oud-bestuur/Analisten (4[ORIGINEEL]):**
+- Wanneer een board member of analist het bestuur verlaat, wordt hun ID geconverteerd:
+  - Eerste cijfer wordt veranderd naar `4`
+  - Rest van het ID blijft hetzelfde
+- Voorbeeld: `001025` → `401025` (voormalig voorzitter uit 2025)
 
-**Deployment**
-- Gunicorn 21.2.0 - WSGI HTTP server
-- Alembic 1.17.1 - Database migration tool
+**Automatische ID-generatie:**
+- Het systeem genereert automatisch het volgende beschikbare ID op basis van:
+  - Rol van het lid
+  - Functie (voor board) of sector (voor analisten)
+  - Huidige jaar (of opgegeven jaar)
+  - Bestaande IDs in de database
+- IDs worden altijd weergegeven als 6-cijferig formaat met leading zeros (bijv. `000001`)
 
 ### Design Patterns & Architecture
 
@@ -185,17 +199,7 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 - Club information and location tracking
 - Relationship to members
 
-## Configuration
 
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `SECRET_KEY` | Flask secret key for sessions | Yes |
-| `SUPABASE_URL` | Supabase project URL | No |
-| `SUPABASE_KEY` | Supabase API key | No |
-| `SUPABASE_BUCKET` | Supabase storage bucket name | No (default: 'files') |
 
 ### Scheduled Jobs
 
@@ -273,20 +277,6 @@ The system includes a **self-implemented risk analysis algorithm** that provides
 - **Purpose**: Cloud file storage
 - **Usage**: Secure file upload, download, and organization
 - **Not used for**: Core application logic or calculations
-
-## Known Limitations (MVP Scope)
-
-As an MVP, the following features are intentionally limited:
-
-- Basic error handling (not production-grade)
-- Limited export functionality
-- No real-time notifications
-- Basic analytics dashboard
-- No mobile application
-- No API documentation
-- Limited user documentation
-
-These limitations are by design to focus on core functionality validation.
 
 ## Partner Validation
 

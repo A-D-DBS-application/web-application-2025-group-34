@@ -186,7 +186,6 @@
   <div class="modal-content">
     <div class="modal-header">
       <h2>Vote Toevoegen</h2>
-      <span class="modal-close" onclick="closeAddVotingModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form method="POST" action="{{ url_for('main.add_voting_proposal') }}">
@@ -221,7 +220,6 @@
   <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Wijzigen</h2>
-      <span class="modal-close" onclick="closeEditVotingModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form id="editVotingForm" onsubmit="fetchVotingForEditing(event)">
@@ -245,7 +243,6 @@
   <div class="modal-content">
     <div class="modal-header">
       <h2>Vote Wijzigen</h2>
-      <span class="modal-close" onclick="closeEditVotingFormModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form id="editVotingFormSubmit" method="POST" action="{{ url_for('main.update_voting_proposal') }}">
@@ -280,7 +277,6 @@
   <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Verwijderen</h2>
-      <span class="modal-close" onclick="closeDeleteVotingModal()">&times;</span>
     </div>
     <div class="modal-body">
       <form id="deleteVotingForm" onsubmit="fetchVotingForDeletion(event)">
@@ -304,7 +300,6 @@
   <div class="modal-content modal-small">
     <div class="modal-header">
       <h2>Vote Verwijderen Bevestigen</h2>
-      <span class="modal-close" onclick="closeDeleteVotingConfirmModal()">&times;</span>
     </div>
     <div class="modal-body">
       <p>Weet je zeker dat je deze vote wilt verwijderen?</p>
@@ -431,7 +426,7 @@ function openDeleteResultModal() {
     // Toon dropdown modal om resultaat te selecteren (alleen deadline verstreken)
     const modal = document.getElementById('deleteVotingModal');
     const select = document.getElementById('deleteVotingSelect');
-    modal.style.display = 'flex';
+    modal.classList.add('show');
     
     fetch('/voting/get-all?only_closed=true')
         .then(response => response.json())
@@ -455,7 +450,9 @@ function openDeleteResultModal() {
 }
 
 function closeDeleteVotingModal() {
-    document.getElementById('deleteVotingModal').classList.remove('show');
+    const modal = document.getElementById('deleteVotingModal');
+    modal.classList.remove('show');
+    modal.style.display = ''; // Verwijder ook inline style als die er is
 }
 
 function closeDeleteVotingConfirmModal() {
@@ -494,6 +491,11 @@ function fetchVotingForDeletion(event) {
 
 // Close modals when clicking outside
 window.onclick = function(event) {
+    // Sluit modal niet als je klikt op modal-content
+    if (event.target.closest('.modal-content')) {
+        return;
+    }
+    
     const modals = ['addVotingModal', 'editVotingModal', 'editVotingFormModal', 'deleteVotingModal', 'deleteVotingConfirmModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
