@@ -71,54 +71,54 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 
 ### ID-numbering
 
-Het systeem gebruikt een gestructureerd 6-cijferig ID-systeem voor alle leden. Het ID-codeert de rol, functie/sector, en het jaar van toetreding.
+The system uses a structured 6-digit ID system for all members. The ID encodes the role, function/sector, and year of joining.
 
-**ID-structuur:**
-- **Eerste cijfer (rol)**: Bepaalt het type lid
+**ID Structure:**
+- **First digit (role)**: Determines the member type
   - `0` = Board member (bestuurslid)
   - `1` = Analist
-  - `2` = Lid (gewone member)
+  - `2` = Lid (regular member)
   - `3` = Kapitaalverschaffer
-  - `4` = Oud-bestuur/analist (geconverteerd van origineel ID)
+  - `4` = Former board/analist (converted from original ID)
 
-**Board Members (0[FUNCTIE][JAAR]):**
-- Format: `0XXYYY` waarbij:
-  - `XX` = Functiecode (01-06): Voorzitter, Vice-voorzitter, Penningmeester, Secretaris, etc.
-  - `YYY` = Jaar suffix (laatste 3 cijfers van jaar, bijv. 2025 → 025)
-- Voorbeeld: `001025` = Voorzitter uit 2025
+**Board Members (0[FUNCTION][YEAR]):**
+- Format: `0XXYYY` where:
+  - `XX` = Function code (01-06): Voorzitter, Vice-voorzitter, Penningmeester, Secretaris, etc.
+  - `YYY` = Year suffix (last 3 digits of year, e.g. 2025 → 025)
+- Example: `001025` = Voorzitter from 2025
 
-**Analisten (1[SECTOR][NUMMER][JAAR]):**
-- Format: `1XNYYY` waarbij:
-  - `X` = Sectornummer (1-4): Cons. & Health, Ind., E. & R.M., etc.
-  - `N` = Analist nummer binnen sector (1-9)
-  - `YYY` = Jaar suffix
-- Voorbeeld: `112025` = Eerste analist in sector 1 (Cons. & Health) uit 2025
+**Analisten (1[SECTOR][NUMBER][YEAR]):**
+- Format: `1XNYYY` where:
+  - `X` = Sector number (1-4): Cons. & Health, Ind., E. & R.M., etc.
+  - `N` = Analist number within sector (1-9)
+  - `YYY` = Year suffix
+- Example: `112025` = First analist in sector 1 (Cons. & Health) from 2025
 
-**Leden (2[NUMMER][JAAR]):**
-- Format: `2NNYYY` waarbij:
-  - `NN` = Volgnummer binnen jaar (00-99, max 100 leden per jaar)
-  - `YYY` = Jaar suffix
-- Voorbeeld: `200025` = Eerste lid uit 2025
+**Leden (2[NUMBER][YEAR]):**
+- Format: `2NNYYY` where:
+  - `NN` = Sequential number within year (00-99, max 100 members per year)
+  - `YYY` = Year suffix
+- Example: `200025` = First member from 2025
 
-**Kapitaalverschaffers (3[NUMMER][JAAR]):**
-- Format: `3NNYYY` waarbij:
-  - `NN` = Volgnummer binnen jaar (00-99, max 100 per jaar)
-  - `YYY` = Jaar suffix
-- Voorbeeld: `300025` = Eerste kapitaalverschaffer uit 2025
+**Kapitaalverschaffers (3[NUMBER][YEAR]):**
+- Format: `3NNYYY` where:
+  - `NN` = Sequential number within year (00-99, max 100 per year)
+  - `YYY` = Year suffix
+- Example: `300025` = First kapitaalverschaffer from 2025
 
-**Oud-bestuur/Analisten (4[ORIGINEEL]):**
-- Wanneer een board member of analist het bestuur verlaat, wordt hun ID geconverteerd:
-  - Eerste cijfer wordt veranderd naar `4`
-  - Rest van het ID blijft hetzelfde
-- Voorbeeld: `001025` → `401025` (voormalig voorzitter uit 2025)
+**Former Board/Analisten (4[ORIGINAL]):**
+- When a board member or analist leaves the board, their ID is converted:
+  - First digit is changed to `4`
+  - Rest of the ID remains the same
+- Example: `001025` → `401025` (former voorzitter from 2025)
 
-**Automatische ID-generatie:**
-- Het systeem genereert automatisch het volgende beschikbare ID op basis van:
-  - Rol van het lid
-  - Functie (voor board) of sector (voor analisten)
-  - Huidige jaar (of opgegeven jaar)
-  - Bestaande IDs in de database
-- IDs worden altijd weergegeven als 6-cijferig formaat met leading zeros (bijv. `000001`)
+**Automatic ID Generation:**
+- The system automatically generates the next available ID based on:
+  - Member role
+  - Function (for board) or sector (for analisten)
+  - Current year (or specified year)
+  - Existing IDs in the database
+- IDs are always displayed as 6-digit format with leading zeros (e.g. `000001`)
 
 ### Design Patterns & Architecture
 
