@@ -317,6 +317,42 @@
   </div>
 </div>
 
+<script type="application/json" id="older-results-data">
+{%- if older_results -%}
+[
+    {%- for result in older_results %}
+    {
+        "proposalId": {{ result.proposal_id }},
+        "totalVotes": {{ result.total_votes }},
+        "forVotes": {{ result.for_votes }},
+        "againstVotes": {{ result.against_votes }},
+        "abstainVotes": {{ result.abstain_votes }}
+    }{%- if not loop.last %},{%- endif %}
+    {%- endfor %}
+]
+{%- else -%}
+[]
+{%- endif -%}
+</script>
+
+<script type="application/json" id="results-data">
+{%- if results -%}
+[
+    {%- for result in results %}
+    {
+        "proposalId": {{ result.proposal_id }},
+        "totalVotes": {{ result.total_votes }},
+        "forVotes": {{ result.for_votes }},
+        "againstVotes": {{ result.against_votes }},
+        "abstainVotes": {{ result.abstain_votes }}
+    }{%- if not loop.last %},{%- endif %}
+    {%- endfor %}
+]
+{%- else -%}
+[]
+{%- endif -%}
+</script>
+
 <script>
 // Modal functions
 function openAddVotingModal() {
@@ -527,128 +563,84 @@ function toggleOlderResults() {
     }
 }
 
+// Functie om pie chart te tekenen voor een resultaat
+function drawPieChart(proposalId, totalVotes, forVotes, againstVotes, abstainVotes) {
+    const canvasId = 'pieChart' + proposalId;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const total = totalVotes || 1;
+    const forPct = (forVotes / total) * 100;
+    const againstPct = (againstVotes / total) * 100;
+    const abstainPct = (abstainVotes / total) * 100;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(canvas.width, canvas.height) / 2 - 10;
+    
+    let currentAngle = -Math.PI / 2; // Start at top
+    
+    // Draw "Voor" (blue)
+    if (forPct > 0) {
+        const sliceAngle = (forPct / 100) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = '#1976d2';
+        ctx.fill();
+        currentAngle += sliceAngle;
+    }
+    
+    // Draw "Tegen" (red)
+    if (againstPct > 0) {
+        const sliceAngle = (againstPct / 100) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = '#f44336';
+        ctx.fill();
+        currentAngle += sliceAngle;
+    }
+    
+    // Draw "Onthouding" (orange)
+    if (abstainPct > 0) {
+        const sliceAngle = (abstainPct / 100) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = '#ff9800';
+        ctx.fill();
+    }
+}
+
 // Functie om pie charts te tekenen voor oudere resultaten
 function drawOlderResultsCharts() {
-    {% for result in older_results %}
-    (function() {
-        const canvasId = 'pieChart{{ result.proposal_id }}';
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-        
-        const ctx = canvas.getContext('2d');
-        const total = {{ result.total_votes }} || 1;
-        const forVotes = {{ result.for_votes }};
-        const againstVotes = {{ result.against_votes }};
-        const abstainVotes = {{ result.abstain_votes }};
-        
-        const forPct = (forVotes / total) * 100;
-        const againstPct = (againstVotes / total) * 100;
-        const abstainPct = (abstainVotes / total) * 100;
-        
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const radius = Math.min(canvas.width, canvas.height) / 2 - 10;
-        
-        let currentAngle = -Math.PI / 2; // Start at top
-        
-        // Draw "Voor" (blue)
-        if (forPct > 0) {
-            const sliceAngle = (forPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#1976d2';
-            ctx.fill();
-            currentAngle += sliceAngle;
+    var olderResultsDataElement = document.getElementById('older-results-data');
+    if (olderResultsDataElement) {
+        var olderResultsData = JSON.parse(olderResultsDataElement.textContent);
+        if (olderResultsData && olderResultsData.length > 0) {
+            olderResultsData.forEach(function(result) {
+                drawPieChart(result.proposalId, result.totalVotes, result.forVotes, result.againstVotes, result.abstainVotes);
+            });
         }
-        
-        // Draw "Tegen" (red)
-        if (againstPct > 0) {
-            const sliceAngle = (againstPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#f44336';
-            ctx.fill();
-            currentAngle += sliceAngle;
-        }
-        
-        // Draw "Onthouding" (orange)
-        if (abstainPct > 0) {
-            const sliceAngle = (abstainPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#ff9800';
-            ctx.fill();
-        }
-    })();
-    {% endfor %}
+    }
 }
 
 // Draw pie charts for results
 document.addEventListener('DOMContentLoaded', function() {
-    {% for result in results %}
-    (function() {
-        const canvasId = 'pieChart{{ result.proposal_id }}';
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-        
-        const ctx = canvas.getContext('2d');
-        const total = {{ result.total_votes }} || 1;
-        const forVotes = {{ result.for_votes }};
-        const againstVotes = {{ result.against_votes }};
-        const abstainVotes = {{ result.abstain_votes }};
-        
-        const forPct = (forVotes / total) * 100;
-        const againstPct = (againstVotes / total) * 100;
-        const abstainPct = (abstainVotes / total) * 100;
-        
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const radius = Math.min(canvas.width, canvas.height) / 2 - 10;
-        
-        let currentAngle = -Math.PI / 2; // Start at top
-        
-        // Draw "Voor" (blue)
-        if (forPct > 0) {
-            const sliceAngle = (forPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#1976d2';
-            ctx.fill();
-            currentAngle += sliceAngle;
+    var resultsDataElement = document.getElementById('results-data');
+    if (resultsDataElement) {
+        var resultsData = JSON.parse(resultsDataElement.textContent);
+        if (resultsData && resultsData.length > 0) {
+            resultsData.forEach(function(result) {
+                drawPieChart(result.proposalId, result.totalVotes, result.forVotes, result.againstVotes, result.abstainVotes);
+            });
         }
-        
-        // Draw "Tegen" (red)
-        if (againstPct > 0) {
-            const sliceAngle = (againstPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#f44336';
-            ctx.fill();
-            currentAngle += sliceAngle;
-        }
-        
-        // Draw "Onthouding" (orange)
-        if (abstainPct > 0) {
-            const sliceAngle = (abstainPct / 100) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = '#ff9800';
-            ctx.fill();
-        }
-    })();
-    {% endfor %}
+    }
 });
 </script>
 {% endblock %}
