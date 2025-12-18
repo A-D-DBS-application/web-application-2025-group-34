@@ -189,7 +189,7 @@ For development and testing purposes, passwords for all members can be found in 
 
 Other crucial files for the assignment can be found in the `TaskDocuments` folder. This folder contains important project documentation including:
 - User Stories (UserStories.pdf)
-- Database schema documentation (DDL-ERD/)
+- Database schema documentation (DDL-ERD)
 - Presentation materials
 - Other assignment-related documents
 
