@@ -175,7 +175,15 @@ The system uses a structured 6-digit ID system for all members. The ID encodes t
 - Club information and location tracking
 - Relationship to members
 
+### Authentication & Passwords
 
+For development and testing purposes, passwords for all members can be found in the `Database Dumb/passwords.csv` file. The passwords in this CSV file are stored in plain text format for easy access during development. However, in the actual database, all passwords are stored in hashed format using secure password hashing algorithms. This ensures that passwords are never stored in plain text in the production database, providing security even if the database is compromised.
+
+**Important Notes:**
+- The CSV file contains plain text passwords for development/testing only
+- Database passwords are hashed and cannot be reversed
+- Never commit the passwords.csv file to version control in a production environment
+- Use the CSV file only for local development and testing
 
 ### Scheduled Jobs
 
