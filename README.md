@@ -185,6 +185,14 @@ For development and testing purposes, passwords for all members can be found in 
 - Never commit the passwords.csv file to version control in a production environment
 - Use the CSV file only for local development and testing
 
+### Task Documents
+
+Other crucial files for the assignment can be found in the `TaskDocuments` folder. This folder contains important project documentation including:
+- User Stories (UserStories.pdf)
+- Database schema documentation (DDL-ERD/)
+- Presentation materials
+- Other assignment-related documents
+
 ### Scheduled Jobs
 
 The application includes automated background tasks:
