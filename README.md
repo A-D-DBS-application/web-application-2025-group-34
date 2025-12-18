@@ -9,9 +9,12 @@ A comprehensive web-based portfolio management system for the VEK student associ
 This project is a **Minimum Viable Product (MVP)** designed to manage investment portfolios, transactions, voting procedures, member administration, and risk analysis for the VEK student association. The system provides a complete solution for tracking portfolio performance, managing transactions, conducting voting procedures, and analyzing investment risks.
 
 ## Links
-- Figma: https://www.figma.com/make/sFxaBZzVdXEJMN3CYkF9JS/Investment-Club-MVP-Web-App?node-id=0-1&t=bmMzAAqkkwYEjWoB-1 
+- Canva: https://www.canva.com/design/DAG3EJZI7HQ/E0AwiIPxUjhldjAWlUuQTg/edit?utm_content=DAG3EJZI7HQ&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+- Figma: https://www.figma.com/make/sFxaBZzVdXEJMN3CYkF9JS/Investment-Club-MVP-Web-App?node-id=0-1&t=bmMzAAqkkwYEjWoB-1
 - Kanban: https://www.figma.com/board/CmBkSOEaXPLpsTvoq2Eno3/Kanban-group-34?node-id=6-46&t=FgQ0gUWEgC4LtVk5-0
 - Render: https://vek-investment-club.onrender.com/
+- Supabase: https://supabase.com/dashboard/project/reexofzxklgbyxkwaonu/database/schemas
+- Demo: https://ugentbe-my.sharepoint.com/:v:/g/personal/jibbe_schiettecatte_ugent_be/IQBZvb8RgGL0Qaqk-mpQSZx-AfV1_viRYotkXEXMNDr0zVA?e=rD62m6&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D
 
 ## Core Features
 
@@ -119,33 +122,6 @@ The system uses a structured 6-digit ID system for all members. The ID encodes t
   - Current year (or specified year)
   - Existing IDs in the database
 - IDs are always displayed as 6-digit format with leading zeros (e.g. `000001`)
-
-### Design Patterns & Architecture
-
-**Application Factory Pattern**
-- Modular Flask application initialization
-- Environment-based configuration
-- Extensible architecture for testing and deployment
-
-**ORM Pattern**
-- SQLAlchemy ORM for all database interactions
-- No direct SQL queries in application code
-- Type-safe database operations
-
-**Blueprint Pattern**
-- Organized route structure
-- Separation of concerns
-- Modular route registration
-
-**Service Layer**
-- Reusable business logic
-- Separation of data access and presentation
-- Helper functions for common operations
-
-**Scheduled Jobs**
-- Background task processing via Flask-APScheduler
-- Automated price updates every 5 minutes
-- Time-based task execution
 
 
 ## Database Schema
@@ -282,8 +258,10 @@ The system includes a **self-implemented risk analysis algorithm** that provides
 
 This project was developed in collaboration with the VEK student association as an external partner. The system has been validated with real-world usage scenarios and requirements from the investment club.
 
-- Meeting 1: https://ugentbe-my.sharepoint.com/:u:/g/personal/jibbe_schiettecatte_ugent_be/IQBcNtSbAnTXQZ6TZsjDQbxVAdvO4CIRzMpmIWV1ScjPQ5U?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=va6Dcq
-- Meeting 2: 
+- Meeting 1: https://ugentbe-my.sharepoint.com/:u:/g/personal/nicholas_vandekerckhove_ugent_be/IQDaWfIPXYB7SoAEu1DczC_JAQ1nfQqsi--7cLxK579EwgU?e=5vidD8&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D
+
+- Meeting 2: https://ugentbe-my.sharepoint.com/:u:/g/personal/jibbe_schiettecatte_ugent_be/IQBcNtSbAnTXQZ6TZsjDQbxVAdvO4CIRzMpmIWV1ScjPQ5U?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=va6Dcq
+
 ## Team
 
 **Group 34** - Project A&D, DBS
