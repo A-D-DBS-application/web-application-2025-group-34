@@ -16,6 +16,65 @@ This project is a **Minimum Viable Product (MVP)** designed to manage investment
 - Supabase: https://supabase.com/dashboard/project/reexofzxklgbyxkwaonu/database/schemas
 - Demo: https://ugentbe-my.sharepoint.com/:v:/g/personal/jibbe_schiettecatte_ugent_be/IQBZvb8RgGL0Qaqk-mpQSZx-AfV1_viRYotkXEXMNDr0zVA?e=rD62m6&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D
 
+## Getting Started
+
+### Installation
+
+1. **Activate virtual environment** (if needed):
+   ```bash
+   # Windows PowerShell
+   .\.venv\Scripts\Activate.ps1
+   
+   # Windows Command Prompt
+   .venv\Scripts\activate.bat
+   
+   # Linux/Mac
+   source .venv/bin/activate
+   ```
+
+2. **Install dependencies** (if not already installed):
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Run database migrations** (if needed):
+   ```bash
+   cd "Project A&D - DBS Group 34"
+   flask db upgrade
+   ```
+
+### Starting the Application
+
+1. **Navigate to the project directory**:
+   ```bash
+   cd "Project A&D - DBS Group 34"
+   ```
+
+2. **Start the application**:
+   ```bash
+   python run.py
+   ```
+
+3. **Open your browser** and go to: `http://localhost:5000` (or the port number displayed)
+
+### Logging in as Admin
+
+To log in as administrator for the first time:
+
+1. **Go to the login page** in your browser (usually `http://localhost:5000/login`)
+
+2. **Use the following admin credentials**:
+   - **ID number**: `1` (displays as `000001`)
+   - **Password**: `test123`
+
+3. **After logging in**, you will have access to all admin functionalities, including:
+   - Full access to all modules (portfolio, transactions, voting, members, etc.)
+   - Ability to add, edit, and delete members
+   - File and document management
+   - All board member privileges
+
+**Note**: For other users (board members, analysts, members), passwords can be found in the `TaskDocuments/Database Dumb/passwords.csv` file. These files contain plain text passwords for development and testing purposes only.
+
 ## Core Features
 
 ### Portfolio Management
