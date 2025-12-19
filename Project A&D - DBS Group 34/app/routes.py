@@ -10,57 +10,39 @@ import os
 from pathlib import Path
 from io import BytesIO
 from . import supabase, db
+from .utils import (
+    normalize_ticker_for_yfinance, 
+    fetch_company_info_from_yfinance,
+    get_cash_position,
+    get_positions,
+    get_portfolio
+)
 import time
 import logging
 
-# Onderdruk yfinance/urllib3 HTTP warnings (404 errors zijn normaal als ticker niet bestaat)
-logging.getLogger('yfinance').setLevel(logging.ERROR)
-logging.getLogger('urllib3').setLevel(logging.ERROR)
+# Logging configuratie wordt nu in __init__.py gedaan
+logger = logging.getLogger(__name__)
 
 # Initialize requests cache voor company info (yfinance rate limiting)
-# Gebruik dezelfde cache als risk_analysis.py voor consistentie
-try:
-    import requests_cache
-    from pathlib import Path
-    
-    # Gebruik dezelfde cache directory als risk_analysis
-    _cache_dir = Path(__file__).parent.parent / '.cache'
-    _cache_dir.mkdir(exist_ok=True)
-    _cache_file = _cache_dir / 'yfinance_cache'
-    
-    # Installeer de cache voor alle requests (werkt automatisch voor yfinance)
-    # Dit cached alle HTTP requests inclusief yf.Ticker().info calls
-    requests_cache.install_cache(
-        cache_name=str(_cache_file),
-        expire_after=86400,  # 24 uur in seconden (zelfde als risk_analysis)
-        backend='sqlite',
-        allowable_methods=['GET', 'POST'],
-        allowable_codes=[200, 429],  # Cache ook 429 errors
-        stale_if_error=True  # Gebruik oude data bij errors
-    )
-    logger = logging.getLogger(__name__)
-    logger.info(f"Company info cache geïnitialiseerd: {_cache_file} (TTL: 24 uur)")
-except ImportError:
-    # requests_cache niet beschikbaar - gebruik fallback in-memory cache
-    _company_info_cache = {}
-    _cache_ttl_seconds = 600  # 10 minuten cache TTL
-    
-    def _cleanup_cache():
-        """Verwijder expired cache entries (fallback als requests_cache niet beschikbaar is)"""
-        current_time = time.time()
-        expired_keys = [
-            key for key, (_, cache_time) in _company_info_cache.items()
-            if current_time - cache_time >= _cache_ttl_seconds
-        ]
-        for key in expired_keys:
-            del _company_info_cache[key]
-        if expired_keys:
-            print(f"Cleaned up {len(expired_keys)} expired cache entries")
-except Exception as e:
-    # Fallback naar in-memory cache bij errors
-    _company_info_cache = {}
-    _cache_ttl_seconds = 600
-    logging.getLogger(__name__).warning(f"Kon requests_cache niet initialiseren: {e}. Gebruik in-memory cache.")
+# Gebruik gecentraliseerde cache initialisatie
+from .cache import initialize_yfinance_cache
+initialize_yfinance_cache()
+
+# Fallback in-memory cache voor als requests_cache niet beschikbaar is
+_company_info_cache = {}
+_cache_ttl_seconds = 600  # 10 minuten cache TTL
+
+def _cleanup_cache():
+    """Verwijder expired cache entries (fallback als requests_cache niet beschikbaar is)"""
+    current_time = time.time()
+    expired_keys = [
+        key for key, (_, cache_time) in _company_info_cache.items()
+        if current_time - cache_time >= _cache_ttl_seconds
+    ]
+    for key in expired_keys:
+        del _company_info_cache[key]
+    if expired_keys:
+        logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
 
 from .models import (
     Member, Announcement, Event, Position, Transaction, VotingProposal, Vote, Portfolio, FileItem,
@@ -102,81 +84,7 @@ CURRENCY_SYMBOLS = {
     'HKD': 'HK$',
 }
 
-def normalize_ticker_for_yfinance(ticker: str) -> list:
-    """
-    Normaliseer ticker en genereer varianten om te proberen voor Yahoo Finance
-    
-    Args:
-        ticker: Originele ticker string
-        
-    Returns:
-        Lijst van ticker varianten om te proberen
-    """
-    import urllib.parse
-    ticker = urllib.parse.unquote(ticker)
-    original_ticker = ticker.strip()
-    normalized_ticker = original_ticker.replace(" ", "-").replace(".", "-").replace("--", "-")
-    
-    tickers_to_try = [
-        original_ticker.upper(),
-        normalized_ticker.upper(),
-        original_ticker,
-        normalized_ticker,
-    ]
-    
-    # Voeg variant zonder punten/dashes toe
-    if "." in original_ticker or "-" in original_ticker:
-        clean_ticker = original_ticker.replace(".", "").replace("-", "").upper()
-        if clean_ticker not in [t.upper() for t in tickers_to_try]:
-            tickers_to_try.append(clean_ticker)
-    
-    # Verwijder duplicaten maar behoud volgorde
-    seen = set()
-    return [t for t in tickers_to_try if not (t in seen or seen.add(t))]
-
-def fetch_company_info_from_yfinance(tickers_to_try: list, logger) -> tuple:
-    """
-    Haal company info op via Yahoo Finance API
-    
-    Args:
-        tickers_to_try: Lijst van ticker varianten om te proberen
-        logger: Logger instance
-        
-    Returns:
-        Tuple van (info_dict, error_message) - info_dict is None bij error
-    """
-    last_error = None
-    
-    for ticker_variant in tickers_to_try:
-        try:
-            ticker_obj = yf.Ticker(ticker_variant)
-            yf_info = ticker_obj.info
-            
-            # Check of we geldige data hebben
-            if yf_info and isinstance(yf_info, dict) and len(yf_info) > 0:
-                if any(key in yf_info for key in ['symbol', 'longName', 'shortName', 'name']):
-                    logger.debug(f"Company info opgehaald voor {ticker_variant}")
-                    return yf_info, None
-                else:
-                    logger.debug(f"Lege of ongeldige data voor {ticker_variant}")
-            else:
-                logger.debug(f"Geen data voor {ticker_variant}")
-        except Exception as yf_error:
-            error_str = str(yf_error)
-            last_error = yf_error
-            logger.debug(f"Error bij ophalen data voor {ticker_variant}: {error_str}")
-            continue
-    
-    # Geen data gevonden
-    error_msg = 'Ticker not found or no data available.'
-    if last_error:
-        error_str = str(last_error)
-        if '429' in error_str or 'Too Many Requests' in error_str:
-            error_msg = 'Yahoo Finance is rate limiting requests. Please try again in a few minutes.'
-        elif '404' in error_str or 'Not Found' in error_str:
-            error_msg = 'This ticker may not exist or may be delisted.'
-    
-    return None, error_msg
+# normalize_ticker_for_yfinance en fetch_company_info_from_yfinance zijn nu in utils.py
 
 def format_financial_value(value, format_type='number', currency_symbol='€'):
     """
@@ -1447,14 +1355,14 @@ def export_all_events_ical():
 def portfolio():
     try:
         # Haal eerst cash position op uit database (pos_id = 0)
-        cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
+        cash_position = get_cash_position()
         cash_amount = 0.0  # Default fallback
         
         if cash_position and cash_position.pos_value is not None:
             cash_amount = float(cash_position.pos_value)
         
         # Haal alle positions op uit database (exclude cash)
-        positions = db.session.query(Position).filter(Position.pos_id != 0).all()
+        positions = get_positions(exclude_cash=True)
         
         # Als er geen positions zijn, gebruik lege portfolio
         if not positions:
@@ -1479,7 +1387,10 @@ def portfolio():
         total_cost = 0.0
         
         portfolio_data_formatted = []
-        for p in positions:
+        # Sorteer posities op pos_id voor consistente volgorde (zoals get_position_by_number)
+        positions_sorted = sorted(positions, key=lambda p: p.pos_id)
+        
+        for idx, p in enumerate(positions_sorted, start=1):
             ticker = p.pos_ticker or p.pos_name  # Gebruik pos_ticker als die bestaat, anders pos_name
             quantity = p.pos_quantity or 0
             # Cost basis = wat ze hebben betaald (pos_value uit database)
@@ -1522,6 +1433,7 @@ def portfolio():
             pnl_percent_numeric = pnl_percent  # Al een float
             
             portfolio_data_formatted.append({
+                'number': idx,  # Volgnummer (1, 2, 3, ...) voor consistentie met edit functionaliteit
                 'pos_id': p.pos_id,  # Add pos_id for deletion functionality
                 'asset': p.pos_name or 'Onbekend',
                 'sector': p.pos_sector or p.pos_type or 'N/A',
@@ -1786,7 +1698,7 @@ def portfolio_risk_analysis():
         cash_amount = float(cash_position.pos_value) if cash_position and cash_position.pos_value is not None else 0.0
         
         # Haal alle posities op (exclude cash)
-        portfolio = db.session.query(Portfolio).first()
+        portfolio = get_portfolio()
         if not portfolio:
             positions = []
         else:
@@ -2352,7 +2264,7 @@ def add_position():
         total_amount_eur = convert_to_eur(total_amount, pos_currency) if pos_currency != "EUR" else total_amount
         
         # Zoek of maak een portfolio (gebruik de eerste of maak een nieuwe)
-        portfolio = db.session.query(Portfolio).first()
+        portfolio = get_portfolio()
         if not portfolio:
             portfolio = Portfolio()
             db.session.add(portfolio)
@@ -2413,7 +2325,7 @@ def update_cash():
         cash_position = db.session.query(Position).filter(Position.pos_id == 0).first()
         
         # Eerst portfolio ophalen of aanmaken (nodig voor portfolio_id)
-        central_portfolio = db.session.query(Portfolio).first()
+        central_portfolio = get_portfolio()
         if not central_portfolio:
             central_portfolio = Portfolio()
             db.session.add(central_portfolio)
@@ -2463,7 +2375,7 @@ def get_positions_list():
     try:
         from .models import Position, Portfolio
         
-        portfolio = db.session.query(Portfolio).first()
+        portfolio = get_portfolio()
         if not portfolio:
             return jsonify({'positions': []})
         
@@ -2491,20 +2403,24 @@ def get_positions_list():
 @main.route("/portfolio/get-position/<int:position_number>")
 @login_required
 def get_position_by_number(position_number):
-    """Haal positie op op basis van het nummer in de tabel (1-based index)"""
+    """Haal positie op op basis van het nummer in de tabel (1-based index)
+    Gebruikt dezelfde sortering als de portfolio route (gesorteerd op pos_id)
+    """
     try:
-        # Haal alle positions op (exclude cash, pos_id = 0)
-        positions = db.session.query(Position).filter(Position.pos_id != 0).order_by(Position.pos_id).all()
+        # Haal alle positions op (exclude cash, pos_id = 0) en sorteer op pos_id
+        # Dit moet dezelfde volgorde zijn als in de portfolio route
+        positions = get_positions(exclude_cash=True)
+        positions_sorted = sorted(positions, key=lambda p: p.pos_id)
         
-        if not positions:
+        if not positions_sorted:
             return jsonify({'error': 'Geen posities gevonden.'}), 404
         
         # Check if position_number is valid (1-based index)
-        if position_number < 1 or position_number > len(positions):
-            return jsonify({'error': f'Ongeldig positie nummer. Kies een nummer tussen 1 en {len(positions)}.'}), 404
+        if position_number < 1 or position_number > len(positions_sorted):
+            return jsonify({'error': f'Ongeldig positie nummer. Kies een nummer tussen 1 en {len(positions_sorted)}.'}), 404
         
         # Get position at index (position_number - 1 because it's 1-based)
-        position = positions[position_number - 1]
+        position = positions_sorted[position_number - 1]
         
         return jsonify({
             'position_id': position.pos_id,
@@ -2641,7 +2557,7 @@ def get_position_by_name():
         if not position_name:
             return jsonify({'error': 'Positie naam ontbreekt.'}), 400
         
-        portfolio = db.session.query(Portfolio).first()
+        portfolio = get_portfolio()
         if not portfolio:
             return jsonify({'error': 'Portfolio niet gevonden.'}), 404
         

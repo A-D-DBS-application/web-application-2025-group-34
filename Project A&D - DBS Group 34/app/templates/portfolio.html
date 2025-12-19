@@ -281,7 +281,7 @@
           data-weight="{{ p.weight|replace('%', '')|replace(',', '.') }}"
           data-pnl-percent="{{ p.pnl_percent|replace('%', '')|replace('+', '')|replace(',', '.') }}"
           data-gain-loss="{{ p.pnl_value|replace('€', '')|replace(' ', '')|replace(',', '.') }}">
-        <td>{{ loop.index }}</td>
+        <td>{{ p.number }}</td>
         <!-- COMPANY MODAL FEATURE START: Asset naam is nu klikbaar -->
         <!-- REVERT: Verander terug naar: <td>{{ p.asset }}</td> -->
         <td><a href="#" class="asset-link" data-ticker="{{ p.ticker }}" onclick="event.preventDefault(); openCompanyModal('{{ p.ticker }}', '{{ p.asset }}'); return false;">{{ p.asset }}</a></td>

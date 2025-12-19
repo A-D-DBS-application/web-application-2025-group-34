@@ -25,6 +25,10 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Initialiseer cache vroeg (voor yfinance rate limiting)
+    from .cache import initialize_yfinance_cache
+    initialize_yfinance_cache()
+
     # Database setup
     db.init_app(app)
     migrate.init_app(app, db)
@@ -92,16 +96,8 @@ def create_app():
         from .routes import _get_file_icon
         return dict(get_file_icon=_get_file_icon)
     
-    @app.context_processor
-    def inject_utils():
-        """Maakt utility functies beschikbaar in templates."""
-        from .routes import format_currency, format_number, format_percentage, format_date
-        return dict(
-            format_currency=format_currency,
-            format_number=format_number,
-            format_percentage=format_percentage,
-            format_date=format_date
-        )
+    # Template filters zijn al geregistreerd boven (regels 70-75)
+    # Geen dubbele context processor nodig - filters zijn voldoende
 
     @app.cli.command("create-member")
     @click.option("--name", prompt=True, help="Full name for the member.")

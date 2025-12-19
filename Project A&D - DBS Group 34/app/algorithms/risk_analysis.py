@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import yfinance as yf
 import logging
 from ..models import Position
+from ..utils import normalize_ticker_for_yfinance
 
 # Configureer logging
 logger = logging.getLogger(__name__)
@@ -43,16 +44,9 @@ BENCHMARKS = {
 def normalize_ticker(ticker: str) -> str:
     """
     Normaliseer ticker voor yfinance.
-    Converteert bijvoorbeeld BRK-B naar BRK-B (yfinance gebruikt -)
-    en ADYEN.AS blijft ADYEN.AS
+    Gebruikt de gedeelde normalize_ticker_for_yfinance functie uit utils.
     """
-    if not ticker:
-        return ""
-    # Verwijder whitespace
-    ticker = ticker.strip().upper()
-    # yfinance gebruikt - voor Berkshire, dus BRK-B is correct
-    # Voor Europese beurzen zoals .AS, .L, etc. blijven we het behouden
-    return ticker
+    return normalize_ticker_for_yfinance(ticker, return_variants=False)
 
 
 class RiskAnalyzer:
